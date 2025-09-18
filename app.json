@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "ThanaFit",
+    "slug": "thanafit-auth",
+    "version": "1.0.0",
+    "sdkVersion": "53.0.0",
+    "platforms": ["ios", "android"],
+    "jsEngine": "hermes"
+  }
+}
