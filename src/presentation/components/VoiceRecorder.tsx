@@ -145,16 +145,16 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       const { recording: newRecording } = await Audio.Recording.createAsync({
         android: {
           extension: '.wav',
-          outputFormat: Audio.RECORDING_OPTION_ANDROID_OUTPUT_FORMAT_DEFAULT,
-          audioEncoder: Audio.RECORDING_OPTION_ANDROID_AUDIO_ENCODER_DEFAULT,
+          outputFormat: Audio.AndroidOutputFormat.DEFAULT,
+          audioEncoder: Audio.AndroidAudioEncoder.DEFAULT,
           sampleRate: 16000,
           numberOfChannels: 1,
           bitRate: 128000,
         },
         ios: {
           extension: '.wav',
-          outputFormat: Audio.RECORDING_OPTION_IOS_OUTPUT_FORMAT_LINEARPCM,
-          audioQuality: Audio.RECORDING_OPTION_IOS_AUDIO_QUALITY_HIGH,
+          outputFormat: Audio.IOSOutputFormat.LINEARPCM,
+          audioQuality: Audio.IOSAudioQuality.HIGH,
           sampleRate: 16000,
           numberOfChannels: 1,
           bitRate: 128000,
@@ -179,7 +179,6 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
             language: 'en-US',
             pitch: 1.0, // Natural pitch for female voice
             rate: 0.8, // Natural speaking rate
-            quality: 'enhanced', // Better voice quality
           });
       
     } catch (err) {
