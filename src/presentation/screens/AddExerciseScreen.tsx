@@ -23,6 +23,7 @@ interface AddExerciseScreenProps {
   route?: {
     params?: {
       onWorkoutAdded?: () => Promise<void>;
+      voiceNote?: string;
     };
   };
 }
@@ -47,6 +48,15 @@ export const AddExerciseScreen: React.FC<AddExerciseScreenProps> = ({ navigation
   useEffect(() => {
     fetchActivities();
   }, []);
+
+  // Handle voice note from voice recorder
+  useEffect(() => {
+    if (route?.params?.voiceNote) {
+      setNote(route.params.voiceNote);
+      console.log('=== VOICE NOTE RECEIVED ===');
+      console.log('Voice note:', route.params.voiceNote);
+    }
+  }, [route?.params?.voiceNote]);
 
   const fetchActivities = async () => {
     try {
@@ -201,7 +211,7 @@ export const AddExerciseScreen: React.FC<AddExerciseScreenProps> = ({ navigation
     }
   };
 
-  const getActivityIcon = (activityName: string): string => {
+  const getActivityIcon = (activityName: string): any => {
     const name = activityName.toLowerCase();
     if (name.includes('swim')) return 'pool';
     if (name.includes('run')) return 'directions-run';
@@ -262,10 +272,6 @@ export const AddExerciseScreen: React.FC<AddExerciseScreenProps> = ({ navigation
               </View>
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.activitiesScroll}>
-                {console.log('=== ACTIVITIES DEBUG ===')}
-                {console.log('Activities count:', activities.length)}
-                {console.log('Activities:', activities)}
-                
                 {activities.map((activity) => (
                   <TouchableOpacity
                     key={activity.id}
@@ -316,7 +322,15 @@ export const AddExerciseScreen: React.FC<AddExerciseScreenProps> = ({ navigation
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Notes (optional)</Text>
+              <View style={styles.inputLabelRow}>
+                <Text style={styles.inputLabel}>Notes (optional)</Text>
+                {route?.params?.voiceNote && (
+                  <View style={styles.voiceNoteIndicator}>
+                    <MaterialIcons name="mic" size={16} color="#4ecdc4" />
+                    <Text style={styles.voiceNoteText}>Voice Log</Text>
+                  </View>
+                )}
+              </View>
               <Input
                 placeholder="How did it go? Any notes?"
                 value={note}
@@ -399,7 +413,7 @@ export const AddExerciseScreen: React.FC<AddExerciseScreenProps> = ({ navigation
             <Card style={styles.modalCard}>
               <CardContent>
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Activity Name *</Text>
+                  <Text style={styles.modalInputLabel}>Activity Name *</Text>
                   <Input
                     placeholder="e.g., Morning Yoga, HIIT Training"
                     value={newActivityName}
@@ -409,7 +423,7 @@ export const AddExerciseScreen: React.FC<AddExerciseScreenProps> = ({ navigation
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Category *</Text>
+                  <Text style={styles.modalInputLabel}>Category *</Text>
                   <Input
                     placeholder="e.g., flexibility, cardio, strength"
                     value={newActivityCategory}
@@ -419,7 +433,7 @@ export const AddExerciseScreen: React.FC<AddExerciseScreenProps> = ({ navigation
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Calories per Minute *</Text>
+                  <Text style={styles.modalInputLabel}>Calories per Minute *</Text>
                   <Input
                     placeholder="e.g., 4.5"
                     value={newActivityCalories}
@@ -430,7 +444,7 @@ export const AddExerciseScreen: React.FC<AddExerciseScreenProps> = ({ navigation
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Visibility</Text>
+                  <Text style={styles.modalInputLabel}>Visibility</Text>
                   <View style={styles.visibilityContainer}>
                     <TouchableOpacity
                       style={[
@@ -646,11 +660,30 @@ const styles = StyleSheet.create({
   inputContainer: {
     marginBottom: 20,
   },
+  inputLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   inputLabel: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1f2937',
-    marginBottom: 8,
+  },
+  voiceNoteIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fdfa',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  voiceNoteText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#4ecdc4',
   },
   input: {
     backgroundColor: '#f9fafb',
@@ -772,7 +805,7 @@ const styles = StyleSheet.create({
   inputGroup: {
     marginBottom: 20,
   },
-  inputLabel: {
+  modalInputLabel: {
     fontSize: 16,
     fontWeight: '600',
     color: '#374151',

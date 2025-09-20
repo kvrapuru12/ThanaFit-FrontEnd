@@ -8,3 +8,4 @@ export { ExerciseTracking } from './ExerciseTracking';
 export { ProgressTracking } from './ProgressTracking';
 export { Profile } from './Profile';
 export { ApiTest } from './ApiTest';
+export { VoiceRecorder } from './VoiceRecorder';

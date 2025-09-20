@@ -16,6 +16,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { MaterialIcons } from '@expo/vector-icons';
 import { ImageWithFallback } from './figma/ImageWithFallback';
+import { VoiceRecorder } from './VoiceRecorder';
 import { useAuth } from '../providers/AuthProvider';
 import { useActivities } from '../hooks/useActivities';
 import { useTodayWorkouts } from '../hooks/useTodayWorkouts';
@@ -35,6 +36,9 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
   const { user } = useAuth();
   const { activities, quickWorkouts, isLoading: activitiesLoading, error: activitiesError } = useActivities();
   const { todaysWorkouts, isLoading: workoutsLoading, error: workoutsError, refresh: refreshWorkouts } = useTodayWorkouts();
+  
+  // Voice recording state
+  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
 
   // Calculate real summary statistics from backend data
   const calculateSummaryStats = () => {
@@ -69,6 +73,30 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
   };
 
   const summaryStats = calculateSummaryStats();
+
+  // Handle voice log functionality (fallback for manual processing)
+  const handleVoiceLog = (transcript: string) => {
+    console.log('=== VOICE LOG RECEIVED (MANUAL) ===');
+    console.log('Transcript:', transcript);
+    
+    // Navigate to AddExercise screen with voice transcript pre-filled
+    navigation?.navigate?.('AddExercise', { 
+      onWorkoutAdded: refreshWorkouts,
+      voiceNote: transcript 
+    });
+  };
+
+  // Handle successful voice log processing
+  const handleVoiceLogSuccess = async (activityLog: any) => {
+    console.log('=== VOICE LOG SUCCESS ===');
+    console.log('Activity log created:', activityLog);
+    
+    // Refresh the workouts data to show the new entry
+    await refreshWorkouts();
+    
+    // Show success message (optional, since VoiceRecorder already shows one)
+    console.log('Workout data refreshed successfully');
+  };
 
   // Handle quick add functionality
   const handleQuickAdd = async (activity: any) => {
@@ -207,36 +235,56 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
                     </Badge>
                   </View>
                 ))}
-                <TouchableOpacity 
-                  style={styles.addWorkoutButton}
-                  onPress={() => {
-                    console.log('=== EXERCISE TRACKING DEBUG ===');
-                    console.log('refreshWorkouts function:', refreshWorkouts);
-                    console.log('Navigation object:', navigation);
-                    navigation?.navigate?.('AddExercise', { onWorkoutAdded: refreshWorkouts });
-                  }}
-                >
-                  <MaterialIcons name="add" size={20} color="#ff6b6b" />
-                  <Text style={styles.addWorkoutText}>Add Exercise</Text>
-                </TouchableOpacity>
+                <View style={styles.buttonRow}>
+                  <TouchableOpacity 
+                    style={styles.addWorkoutButton}
+                    onPress={() => {
+                      console.log('=== EXERCISE TRACKING DEBUG ===');
+                      console.log('refreshWorkouts function:', refreshWorkouts);
+                      console.log('Navigation object:', navigation);
+                      navigation?.navigate?.('AddExercise', { onWorkoutAdded: refreshWorkouts });
+                    }}
+                  >
+                    <MaterialIcons name="add" size={20} color="#ff6b6b" />
+                    <Text style={styles.addWorkoutText}>Add Exercise</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.voiceLogButton}
+                    onPress={() => setShowVoiceRecorder(true)}
+                  >
+                    <MaterialIcons name="mic" size={20} color="#4ecdc4" />
+                    <Text style={styles.voiceLogText}>Voice Log</Text>
+                  </TouchableOpacity>
+                </View>
               </>
             ) : (
               <View style={styles.emptyState}>
                 <MaterialIcons name="fitness-center" size={48} color="#d1d5db" />
                 <Text style={styles.emptyStateText}>No workouts logged today</Text>
                 <Text style={styles.emptyStateSubtext}>Start tracking your exercises to see them here</Text>
-                <TouchableOpacity 
-                  style={styles.addWorkoutButton}
-                  onPress={() => {
-                    console.log('=== EXERCISE TRACKING DEBUG ===');
-                    console.log('refreshWorkouts function:', refreshWorkouts);
-                    console.log('Navigation object:', navigation);
-                    navigation?.navigate?.('AddExercise', { onWorkoutAdded: refreshWorkouts });
-                  }}
-                >
-                  <MaterialIcons name="add" size={20} color="#ff6b6b" />
-                  <Text style={styles.addWorkoutText}>Add Exercise</Text>
-                </TouchableOpacity>
+                <View style={styles.buttonRow}>
+                  <TouchableOpacity 
+                    style={styles.addWorkoutButton}
+                    onPress={() => {
+                      console.log('=== EXERCISE TRACKING DEBUG ===');
+                      console.log('refreshWorkouts function:', refreshWorkouts);
+                      console.log('Navigation object:', navigation);
+                      navigation?.navigate?.('AddExercise', { onWorkoutAdded: refreshWorkouts });
+                    }}
+                  >
+                    <MaterialIcons name="add" size={20} color="#ff6b6b" />
+                    <Text style={styles.addWorkoutText}>Add Exercise</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.voiceLogButton}
+                    onPress={() => setShowVoiceRecorder(true)}
+                  >
+                    <MaterialIcons name="mic" size={20} color="#4ecdc4" />
+                    <Text style={styles.voiceLogText}>Voice Log</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
           </CardContent>
@@ -374,6 +422,15 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
           </CardContent>
         </Card>
       </View>
+
+      {/* Voice Recorder Modal */}
+      <VoiceRecorder
+        visible={showVoiceRecorder}
+        onVoiceLog={handleVoiceLog}
+        onVoiceLogSuccess={handleVoiceLogSuccess}
+        userId={user?.id}
+        onClose={() => setShowVoiceRecorder(false)}
+      />
     </ScrollView>
   );
 }
@@ -540,20 +597,43 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 12,
   },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
   addWorkoutButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    padding: 20,
     borderWidth: 2,
     borderColor: '#e5e7eb',
     borderStyle: 'dashed',
-    borderRadius: 24,
+    borderRadius: 20,
     gap: 8,
   },
   addWorkoutText: {
     color: '#ff6b6b',
-    fontSize: 16,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  voiceLogButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: '#f0fdfa',
+    borderWidth: 2,
+    borderColor: '#4ecdc4',
+    borderRadius: 20,
+    gap: 8,
+  },
+  voiceLogText: {
+    color: '#4ecdc4',
+    fontSize: 14,
     fontWeight: '500',
   },
   quickWorkoutsGrid: {

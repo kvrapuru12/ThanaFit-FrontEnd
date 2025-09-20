@@ -504,7 +504,7 @@ export class DashboardApiService {
           minute: '2-digit',
           hour12: true 
         }),
-        type: food.mealType.charAt(0).toUpperCase() + food.mealType.slice(1),
+        type: (food.mealType.charAt(0).toUpperCase() + food.mealType.slice(1)) as 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack',
         image: this.getFoodImage(food.foodItemName)
       }));
 
@@ -678,6 +678,61 @@ export class DashboardApiService {
       await apiClient.patch(`${this.baseUrl}/goals`, goals);
     } catch (error) {
       console.error('Failed to update user goals:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process voice log and create activity log entry
+   */
+  async processVoiceLog(voiceData: {
+    userId: number;
+    voiceText: string;
+  }): Promise<{
+    message: string;
+    activityLog: {
+      id: number;
+      activity: string;
+      durationMinutes: number;
+      caloriesBurned: number;
+      loggedAt: string;
+      note: string;
+    };
+  }> {
+    try {
+      console.log('=== VOICE LOG API CALL ===');
+      console.log('Processing voice log:', voiceData);
+      console.log('==========================');
+      
+      // Use only the fields that backend expects: userId and voiceText
+      const requestData = {
+        userId: voiceData.userId,
+        voiceText: voiceData.voiceText
+      };
+      
+      const response = await apiClient.post<{
+        message: string;
+        activityLog: {
+          id: number;
+          activity: string;
+          durationMinutes: number;
+          caloriesBurned: number;
+          loggedAt: string;
+          note: string;
+        };
+      }>('/ai/activity-log/from-voice', requestData);
+      
+      // Fix the loggedAt date if it's incorrect
+      const responseData = response.data;
+      if (responseData.activityLog.loggedAt && responseData.activityLog.loggedAt.includes('2023')) {
+        console.log('Fixing incorrect loggedAt date from backend');
+        responseData.activityLog.loggedAt = new Date().toISOString();
+      }
+      
+      console.log('Voice log processed successfully:', responseData);
+      return responseData;
+    } catch (error) {
+      console.error('Failed to process voice log:', error);
       throw error;
     }
   }
