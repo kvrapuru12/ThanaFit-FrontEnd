@@ -174,11 +174,12 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       
       console.log('Recording started');
       
-          // Speak instructions with sweet women voice
+          // Speak instructions with natural female voice
           Speech.speak('Please describe your workout', {
-            language: 'en',
-            pitch: 1.2, // Higher pitch for women voice
-            rate: 0.7, // Slower rate for sweet voice
+            language: 'en-US',
+            pitch: 1.0, // Natural pitch for female voice
+            rate: 0.8, // Natural speaking rate
+            quality: 'enhanced', // Better voice quality
           });
       
     } catch (err) {
