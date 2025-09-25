@@ -49,6 +49,56 @@ export interface ActivityLog {
   activity?: Activity; // Include activity details if available
 }
 
+// Food Types
+export interface FoodItem {
+  id: number;
+  name: string;
+  category: string;
+  defaultUnit: string;
+  quantityPerUnit: number;
+  caloriesPerUnit: number;
+  proteinPerUnit: number;
+  carbsPerUnit: number;
+  fatPerUnit: number;
+  fiberPerUnit: number;
+  visibility: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FoodsResponse {
+  foodItems: FoodItem[];
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+// Food Log Types
+export interface FoodLog {
+  id: number;
+  userId: number;
+  foodId: number;
+  mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  quantity: number;
+  loggedAt: string;
+  createdAt: string;
+  updatedAt: string;
+  food?: FoodItem; // Include food details if available
+}
+
+export interface FoodLogsResponse {
+  foodLogs: FoodLog[];
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
 export interface WaterIntake {
   id: number;
   userId: number;
@@ -606,29 +656,6 @@ export class DashboardApiService {
     }
   }
 
-  /**
-   * Add food log
-   */
-  async addFoodLog(foodData: {
-    foodName: string;
-    calories: number;
-    mealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack';
-    macros: {
-      carbs: number;
-      protein: number;
-      fat: number;
-    };
-    servingSize: string;
-    image?: string;
-  }): Promise<FoodLog> {
-    try {
-      const response = await apiClient.post<FoodLog>(`${this.baseUrl}/food`, foodData);
-      return response.data;
-    } catch (error) {
-      console.error('Failed to add food log:', error);
-      throw error;
-    }
-  }
 
   /**
    * Get user's daily goals
@@ -733,6 +760,338 @@ export class DashboardApiService {
       return responseData;
     } catch (error) {
       console.error('Failed to process voice log:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get foods with search and pagination
+   */
+  async getFoods(params: {
+    search?: string;
+    visibility?: 'public' | 'private';
+    page?: number;
+    limit?: number;
+    sortBy?: 'name' | 'calories' | 'createdAt';
+    sortDir?: 'asc' | 'desc';
+  } = {}): Promise<FoodsResponse> {
+    try {
+      console.log('=== FOODS API CALL ===');
+      console.log('Fetching foods with params:', params);
+      console.log('========================');
+
+      const queryParams = new URLSearchParams();
+      
+      if (params.search) queryParams.append('search', params.search);
+      if (params.visibility) queryParams.append('visibility', params.visibility);
+      if (params.page) queryParams.append('page', params.page.toString());
+      if (params.limit) queryParams.append('limit', params.limit.toString());
+      if (params.sortBy) queryParams.append('sortBy', params.sortBy);
+      if (params.sortDir) queryParams.append('sortDir', params.sortDir);
+
+      const url = `/foods${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      
+      const response = await apiClient.get<FoodsResponse>(url);
+      
+      console.log('Foods fetched successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch foods:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get popular foods (public foods with default sorting)
+   */
+  async getPopularFoods(limit: number = 10): Promise<FoodItem[]> {
+    try {
+      const response = await this.getFoods({
+        page: 1,
+        limit,
+        sortBy: 'name',
+        sortDir: 'asc'
+      });
+      
+      return response.foodItems;
+    } catch (error) {
+      console.error('Failed to fetch popular foods:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Search foods by name
+   */
+  async searchFoods(query: string, limit: number = 10): Promise<FoodItem[]> {
+    try {
+      if (!query.trim()) {
+        return this.getPopularFoods(limit);
+      }
+
+      const response = await this.getFoods({
+        search: query,
+        page: 1,
+        limit,
+        sortBy: 'name',
+        sortDir: 'asc'
+      });
+      
+      return response.foodItems;
+    } catch (error) {
+      console.error('Failed to search foods:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get food logs with filtering and pagination
+   */
+  async getFoodLogs(params: {
+    userId?: number;
+    mealType?: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+    from?: string;
+    to?: string;
+    page?: number;
+    limit?: number;
+  } = {}): Promise<FoodLogsResponse> {
+    try {
+      console.log('=== FOOD LOGS API CALL ===');
+      console.log('Fetching food logs with params:', params);
+      console.log('========================');
+
+      const queryParams = new URLSearchParams();
+      
+      if (params.userId) queryParams.append('userId', params.userId.toString());
+      if (params.mealType) queryParams.append('mealType', params.mealType);
+      if (params.from) queryParams.append('from', params.from);
+      if (params.to) queryParams.append('to', params.to);
+      if (params.page) queryParams.append('page', params.page.toString());
+      if (params.limit) queryParams.append('limit', params.limit.toString());
+
+      const url = `/food-logs${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      
+      const response = await apiClient.get<FoodLogsResponse>(url);
+      
+      console.log('Food logs fetched successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch food logs:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get today's food logs grouped by meal type
+   */
+  async getTodaysFoodLogs(userId: number): Promise<Record<string, FoodLog[]>> {
+    try {
+      // Get today's date range
+      const today = new Date();
+      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
+      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+      
+      const from = startOfDay.toISOString();
+      const to = endOfDay.toISOString();
+      
+      console.log(`Fetching food logs for today: ${from} to ${to}`);
+      
+      // Use the endpoint with date filtering
+      const response = await apiClient.get<FoodLogsResponse>(`/food-logs?userId=${userId}&from=${from}&to=${to}&page=1&limit=50`);
+
+      // Group food logs by meal type
+      const groupedLogs: Record<string, FoodLog[]> = {
+        breakfast: [],
+        lunch: [],
+        dinner: [],
+        snack: []
+      };
+
+      response.data.foodLogs.forEach(log => {
+        if (log.mealType && groupedLogs[log.mealType]) {
+          groupedLogs[log.mealType].push(log);
+        }
+      });
+
+      console.log('Today\'s food logs grouped:', groupedLogs);
+      return groupedLogs;
+    } catch (error) {
+      console.error('Failed to fetch today\'s food logs:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add food log entry
+   */
+  async addFoodLog(foodLogData: {
+    userId: number;
+    foodItemId: number;
+    mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+    quantity: number;
+    unit?: string;
+    note?: string;
+    loggedAt?: string;
+  }): Promise<{
+    id: number;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    fiber: number;
+    createdAt: string;
+  }> {
+    try {
+      console.log('=== ADD FOOD LOG API CALL ===');
+      console.log('Adding food log:', foodLogData);
+      console.log('============================');
+
+      const requestData = {
+        userId: foodLogData.userId,
+        foodItemId: foodLogData.foodItemId,
+        loggedAt: foodLogData.loggedAt || new Date().toISOString().slice(0, 19) + 'Z',
+        mealType: foodLogData.mealType,
+        quantity: foodLogData.quantity,
+        unit: foodLogData.unit || 'grams',
+        note: foodLogData.note || ''
+      };
+
+      const response = await apiClient.post<{
+        id: number;
+        calories: number;
+        protein: number;
+        carbs: number;
+        fat: number;
+        fiber: number;
+        createdAt: string;
+      }>('/food-logs', requestData);
+      
+      console.log('Food log added successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to add food log:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process voice log and create food log entries
+   */
+  async processFoodVoiceLog(voiceData: {
+    userId: number;
+    voiceText: string;
+  }): Promise<{
+    message: string;
+    logs: Array<{
+      food: string;
+      quantity: number;
+      mealType: 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK';
+      calories: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+      fiber: number;
+    }>;
+  }> {
+    try {
+      console.log('=== FOOD VOICE LOG API CALL ===');
+      console.log('Processing food voice log:', voiceData);
+      console.log('==============================');
+      
+      const requestData = {
+        userId: voiceData.userId,
+        voiceText: voiceData.voiceText
+      };
+      
+      const response = await apiClient.post<{
+        message: string;
+        logs: Array<{
+          food: string;
+          quantity: number;
+          mealType: 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK';
+          calories: number;
+          protein: number;
+          carbs: number;
+          fat: number;
+          fiber: number;
+        }>;
+      }>('/ai/food-log/from-voice', requestData);
+      
+      console.log('Food voice log processed successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to process food voice log:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new food item
+   */
+  async createFood(foodData: {
+    name: string;
+    category?: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+    defaultUnit?: string;
+    quantityPerUnit?: number;
+    caloriesPerUnit: number;
+    proteinPerUnit?: number;
+    carbsPerUnit?: number;
+    fatPerUnit?: number;
+    fiberPerUnit?: number;
+    visibility?: 'public' | 'private';
+  }): Promise<{
+    id: number;
+    name: string;
+    category: string;
+    defaultUnit: string;
+    quantityPerUnit: number;
+    caloriesPerUnit: number;
+    proteinPerUnit: number;
+    carbsPerUnit: number;
+    fatPerUnit: number;
+    fiberPerUnit: number;
+    visibility: string;
+    createdAt: string;
+    updatedAt: string;
+  }> {
+    try {
+      console.log('=== CREATE FOOD API CALL ===');
+      console.log('Creating food:', foodData);
+      console.log('============================');
+      
+      const requestData = {
+        name: foodData.name.trim(),
+        category: foodData.category || 'snack',
+        defaultUnit: foodData.defaultUnit || 'grams',
+        quantityPerUnit: foodData.quantityPerUnit || 100,
+        caloriesPerUnit: foodData.caloriesPerUnit,
+        proteinPerUnit: foodData.proteinPerUnit || 0,
+        carbsPerUnit: foodData.carbsPerUnit || 0,
+        fatPerUnit: foodData.fatPerUnit || 0,
+        fiberPerUnit: foodData.fiberPerUnit || 0,
+        visibility: foodData.visibility || 'public'
+      };
+      
+      const response = await apiClient.post<{
+        id: number;
+        name: string;
+        category: string;
+        defaultUnit: string;
+        quantityPerUnit: number;
+        caloriesPerUnit: number;
+        proteinPerUnit: number;
+        carbsPerUnit: number;
+        fatPerUnit: number;
+        fiberPerUnit: number;
+        visibility: string;
+        createdAt: string;
+        updatedAt: string;
+      }>('/foods', requestData);
+      
+      console.log('Food created successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to create food:', error);
       throw error;
     }
   }

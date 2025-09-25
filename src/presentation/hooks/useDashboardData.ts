@@ -26,9 +26,14 @@ export interface UseDashboardDataReturn {
   }) => Promise<void>;
   addWaterIntake: (amount: number, notes?: string) => Promise<void>;
   addFoodLog: (foodData: {
+    userId: number;
+    foodItemId: number;
+    mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+    quantity: number;
+    unit?: string;
+    note?: string;
     foodName: string;
     calories: number;
-    mealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack';
     macros: {
       carbs: number;
       protein: number;
@@ -156,9 +161,14 @@ export const useDashboardData = (): UseDashboardDataReturn => {
   }, []);
 
   const addFoodLog = useCallback(async (foodData: {
+    userId: number;
+    foodItemId: number;
+    mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+    quantity: number;
+    unit?: string;
+    note?: string;
     foodName: string;
     calories: number;
-    mealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack';
     macros: {
       carbs: number;
       protein: number;
@@ -169,25 +179,56 @@ export const useDashboardData = (): UseDashboardDataReturn => {
   }) => {
     try {
       console.log('Adding food log:', foodData);
-      const newFoodLog = await dashboardApiService.addFoodLog(foodData);
+      const newFoodLog = await dashboardApiService.addFoodLog({
+        userId: foodData.userId,
+        foodItemId: foodData.foodItemId,
+        mealType: foodData.mealType,
+        quantity: foodData.quantity,
+        unit: foodData.unit,
+        note: foodData.note
+      });
       
       // Update local state
       setData(prevData => {
         if (!prevData) return prevData;
         return {
           ...prevData,
-          foodLogs: [newFoodLog, ...prevData.foodLogs],
+          foodLogs: [{
+            id: newFoodLog.id,
+            userId: foodData.userId,
+            foodId: foodData.foodItemId,
+            mealType: foodData.mealType,
+            quantity: foodData.quantity,
+            loggedAt: newFoodLog.createdAt,
+            createdAt: newFoodLog.createdAt,
+            updatedAt: newFoodLog.createdAt,
+            food: {
+              id: foodData.foodItemId,
+              name: foodData.foodName,
+              category: 'protein',
+              defaultUnit: foodData.unit || 'grams',
+              quantityPerUnit: foodData.quantity,
+              caloriesPerUnit: foodData.calories,
+              proteinPerUnit: foodData.macros.protein,
+              carbsPerUnit: foodData.macros.carbs,
+              fatPerUnit: foodData.macros.fat,
+              fiberPerUnit: 0,
+              visibility: 'public',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            }
+          } as FoodLog, ...prevData.foodLogs],
           recentMeals: [{
             id: newFoodLog.id.toString(),
-            name: newFoodLog.foodItemName,
+            name: foodData.foodName,
             calories: newFoodLog.calories,
-            time: new Date(newFoodLog.loggedAt).toLocaleTimeString('en-US', { 
+            time: new Date(newFoodLog.createdAt).toLocaleTimeString('en-US', { 
               hour: 'numeric', 
               minute: '2-digit',
               hour12: true 
             }),
-            type: (newFoodLog.mealType.charAt(0).toUpperCase() + newFoodLog.mealType.slice(1)) as "Breakfast" | "Lunch" | "Dinner" | "Snack",
-            image: 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxiYW5hbmF8ZW58MXx8fHwxNzU3NTMwMjY5fDA&ixlib=rb-4.1.0&q=80&w=300',
+            type: (foodData.mealType.charAt(0).toUpperCase() + foodData.mealType.slice(1)) as "Breakfast" | "Lunch" | "Dinner" | "Snack",
+            image: foodData.image || 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxiYW5hbmF8ZW58MXx8fHwxNzU3NTMwMjY5fDA&ixlib=rb-4.1.0&q=80&w=300',
             macros: {
               protein: newFoodLog.protein,
               carbs: newFoodLog.carbs,

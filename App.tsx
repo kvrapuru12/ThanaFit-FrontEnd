@@ -14,6 +14,7 @@ import { ProgressTracking } from './src/presentation/components/ProgressTracking
 import { Profile } from './src/presentation/components/Profile';
 import { ApiTest } from './src/presentation/components/ApiTest';
 import { AddExerciseScreen } from './src/presentation/screens/AddExerciseScreen';
+import { AddFoodScreen } from './src/presentation/screens/AddFoodScreen';
 
 // Import global CSS for web builds
 import './src/styles/global.css';
@@ -56,6 +57,11 @@ const AppNavigator = () => {
               component={AddExerciseScreen}
               options={{ title: 'Add Exercise' }}
             />
+            <Stack.Screen
+              name="AddFood"
+              component={AddFoodScreen}
+              options={{ title: 'Add Food' }}
+            />
           </>
         ) : (
           // Authentication Stack
@@ -78,7 +84,7 @@ const AppNavigator = () => {
 };
 
 // Main App Component with Bottom Navigation
-const MainApp = () => {
+const MainApp = ({ navigation }: { navigation?: any }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
 
   const renderActiveTab = (navigation?: any) => {
@@ -86,7 +92,7 @@ const MainApp = () => {
       case 'dashboard':
         return <Dashboard />;
       case 'food':
-        return <FoodTracking />;
+        return <FoodTracking navigation={navigation} />;
       case 'exercise':
         return <ExerciseTracking navigation={navigation} />;
       case 'progress':
@@ -112,11 +118,6 @@ const MainApp = () => {
           </View>
         )}
       </Stack.Screen>
-      <Stack.Screen 
-        name="AddExercise" 
-        component={AddExerciseScreen}
-        options={{ title: 'Add Exercise' }}
-      />
     </Stack.Navigator>
   );
 };

@@ -406,6 +406,19 @@ export const Dashboard: React.FC = () => {
                     <Text style={styles.mealDetails}>
                       {meal.time} • {meal.calories} cal
                     </Text>
+                    {meal.macros && (
+                      <View style={styles.mealMacros}>
+                        <View style={styles.macroBadge}>
+                          <Text style={styles.macroText}>P: {meal.macros.protein.toFixed(1)}g</Text>
+                        </View>
+                        <View style={[styles.macroBadge, styles.carbsMacroBadge]}>
+                          <Text style={styles.carbsMacroText}>C: {meal.macros.carbs.toFixed(1)}g</Text>
+                        </View>
+                        <View style={[styles.macroBadge, styles.fatMacroBadge]}>
+                          <Text style={styles.fatMacroText}>F: {meal.macros.fat.toFixed(1)}g</Text>
+                        </View>
+                      </View>
+                    )}
                   </View>
                   <Badge variant="secondary" style={styles.mealBadge}>
                     {meal.type}
@@ -917,5 +930,37 @@ const styles = StyleSheet.create({
   caloriesLabel: {
     fontSize: 12,
     color: '#6b7280',
+  },
+  mealMacros: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  macroBadge: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  carbsMacroBadge: {
+    backgroundColor: '#f59e0b',
+  },
+  fatMacroBadge: {
+    backgroundColor: '#06b6d4',
+  },
+  macroText: {
+    fontSize: 10,
+    color: 'white',
+    fontWeight: '600',
+  },
+  carbsMacroText: {
+    fontSize: 10,
+    color: 'white',
+    fontWeight: '600',
+  },
+  fatMacroText: {
+    fontSize: 10,
+    color: 'white',
+    fontWeight: '600',
   },
 });
