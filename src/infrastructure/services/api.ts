@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API Configuration
-const API_BASE_URL = 'http://192.168.4.219:8080/api'; // Using your machine's IP address
+const API_BASE_URL = 'http://192.168.4.227:8080/api'; // Using your current machine's IP address
 const API_TIMEOUT = 10000; // 10 seconds
 
 // Storage Keys
@@ -29,6 +29,7 @@ export interface LoginResponse {
   userId: number;
   username: string;
   role: string;
+  gender: string;
   message: string;
 }
 
@@ -39,13 +40,13 @@ export interface UserData {
   email: string;
   username: string;
   phoneNumber: string;
-  dob: string;
+  dateOfBirth: string;
   gender: 'FEMALE' | 'MALE' | 'NON_BINARY' | 'OTHER';
   activityLevel: 'SEDENTARY' | 'LIGHT' | 'MODERATE' | 'ACTIVE' | 'VERY_ACTIVE';
   dailyCalorieIntakeTarget: number;
   dailyCalorieBurnTarget: number;
-  weight: number;
-  height: number;
+  weightKg: number;
+  heightCm: number;
   role: 'USER' | 'ADMIN' | 'COACH';
   accountStatus: 'ACTIVE' | 'INACTIVE' | 'DELETED';
   createdAt: string;
@@ -224,16 +225,16 @@ class ApiService {
   /**
    * Get current user profile
    */
-  public async getCurrentUser(): Promise<UserData> {
-    const response = await this.request<UserData>('/users/me');
+  public async getCurrentUser(userId: number): Promise<UserData> {
+    const response = await this.request<UserData>(`/users/${userId}`);
     return response.data!;
   }
 
   /**
    * Update user profile
    */
-  public async updateProfile(userData: Partial<UserData>): Promise<UserData> {
-    const response = await this.request<UserData>('/users/me', {
+  public async updateProfile(userId: number, userData: Partial<UserData>): Promise<UserData> {
+    const response = await this.request<UserData>(`/users/${userId}`, {
       method: 'PATCH',
       body: JSON.stringify(userData),
     });

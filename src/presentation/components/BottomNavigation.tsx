@@ -1,18 +1,40 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { Gender } from '../../core/domain/entities/User';
 
 interface BottomNavigationProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
+  userGender?: Gender;
 }
 
-export const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab, onTabChange }) => {
-  const tabs = [
+export const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab, onTabChange, userGender }) => {
+  // Debug logging
+  console.log('BottomNavigation - userGender:', userGender);
+  console.log('BottomNavigation - Gender.FEMALE:', Gender.FEMALE);
+  console.log('BottomNavigation - userGender === Gender.FEMALE:', userGender === Gender.FEMALE);
+  console.log('BottomNavigation - userGender === "FEMALE":', userGender === 'FEMALE');
+  
+  // Define tabs based on user gender
+  const baseTabs = [
     { id: 'dashboard', icon: 'home' as keyof typeof MaterialIcons.glyphMap, label: 'Home' },
     { id: 'food', icon: 'restaurant' as keyof typeof MaterialIcons.glyphMap, label: 'Food' },
     { id: 'exercise', icon: 'fitness-center' as keyof typeof MaterialIcons.glyphMap, label: 'Exercise' },
-    { id: 'progress', icon: 'trending-up' as keyof typeof MaterialIcons.glyphMap, label: 'Progress' },
+  ];
+
+  // Add gender-specific tab - handle both enum and string values
+  const isFemale = userGender === Gender.FEMALE || userGender === 'FEMALE';
+  const genderSpecificTab = isFemale
+    ? { id: 'cyclesync', icon: 'favorite' as keyof typeof MaterialIcons.glyphMap, label: 'CycleSync' }
+    : { id: 'progress', icon: 'trending-up' as keyof typeof MaterialIcons.glyphMap, label: 'Progress' };
+
+  console.log('BottomNavigation - isFemale:', isFemale);
+  console.log('BottomNavigation - genderSpecificTab:', genderSpecificTab);
+
+  const tabs = [
+    ...baseTabs,
+    genderSpecificTab,
     { id: 'profile', icon: 'person' as keyof typeof MaterialIcons.glyphMap, label: 'Profile' },
   ];
 

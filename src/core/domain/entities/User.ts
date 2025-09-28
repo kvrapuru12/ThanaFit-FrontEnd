@@ -36,6 +36,7 @@ export enum ActivityLevel {
 
 export enum UserRole {
   USER = 'USER',
+  PREMIUM = 'PREMIUM',
   ADMIN = 'ADMIN',
   COACH = 'COACH'
 }

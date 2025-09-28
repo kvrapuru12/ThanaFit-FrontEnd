@@ -11,6 +11,7 @@ interface LoginResponse {
   userId: number;
   username: string;
   role: string;
+  gender: string;
   message: string;
 }
 
@@ -38,7 +39,10 @@ export class AuthRepositoryImpl implements IAuthRepository {
         throw new Error('Invalid login response structure');
       }
       
-      const { token, userId, username, role } = response.data;
+      const { token, userId, username, role, gender } = response.data;
+      
+      // Store userId for later use
+      await AsyncStorage.setItem('userId', userId.toString());
       
       // Create user object from backend response
       const user: User = {
@@ -49,7 +53,7 @@ export class AuthRepositoryImpl implements IAuthRepository {
         username: username,
         phoneNumber: '', // Backend doesn't return phoneNumber
         dob: '', // Backend doesn't return dob
-        gender: Gender.OTHER, // Default value
+        gender: this.mapGender(gender), // Use gender from backend response
         activityLevel: ActivityLevel.MODERATE, // Default value
         dailyCalorieIntakeTarget: 2000, // Default value
         dailyCalorieBurnTarget: 500, // Default value
@@ -129,13 +133,36 @@ export class AuthRepositoryImpl implements IAuthRepository {
   }
 
   // User management
-  async getCurrentUser(): Promise<User> {
-    const response = await apiClient.get<User>('/users/me');
-    return response.data;
+  async getCurrentUser(userId: number): Promise<User> {
+    const response = await apiClient.get<any>(`/users/${userId}`);
+    
+    // Map backend response to frontend User entity
+    const backendUser = response.data;
+    const user: User = {
+      id: backendUser.id,
+      firstName: backendUser.firstName,
+      lastName: backendUser.lastName,
+      email: backendUser.email,
+      username: backendUser.username,
+      phoneNumber: backendUser.phoneNumber,
+      dob: backendUser.dateOfBirth,
+      gender: this.mapGender(backendUser.gender),
+      activityLevel: this.mapActivityLevel(backendUser.activityLevel),
+      dailyCalorieIntakeTarget: backendUser.dailyCalorieIntakeTarget,
+      dailyCalorieBurnTarget: backendUser.dailyCalorieBurnTarget,
+      weight: backendUser.weightKg,
+      height: { value: backendUser.heightCm, unit: 'CM' },
+      role: this.mapRole(backendUser.role),
+      accountStatus: this.mapAccountStatus(backendUser.accountStatus),
+      createdAt: backendUser.createdAt,
+      updatedAt: backendUser.updatedAt,
+    };
+    
+    return user;
   }
 
-  async updateProfile(userData: Partial<User>): Promise<User> {
-    const response = await apiClient.patch<User>('/users/me', userData);
+  async updateProfile(userId: number, userData: Partial<User>): Promise<User> {
+    const response = await apiClient.patch<User>(`/users/${userId}`, userData);
     return response.data;
   }
 
@@ -190,6 +217,7 @@ export class AuthRepositoryImpl implements IAuthRepository {
       await AsyncStorage.multiRemove([
         'tokenExpiry',
         'userData',
+        'userId',
       ]);
     } catch (error) {
       console.error('Failed to clear tokens:', error);
@@ -260,6 +288,66 @@ export class AuthRepositoryImpl implements IAuthRepository {
     } catch (error) {
       console.error('Failed to get valid token:', error);
       return null;
+    }
+  }
+
+  // Helper methods for mapping backend values to frontend enums
+  private mapGender(backendGender: string): Gender {
+    switch (backendGender.toUpperCase()) {
+      case 'FEMALE':
+        return Gender.FEMALE;
+      case 'MALE':
+        return Gender.MALE;
+      case 'NON_BINARY':
+        return Gender.NON_BINARY;
+      case 'OTHER':
+        return Gender.OTHER;
+      default:
+        return Gender.OTHER;
+    }
+  }
+
+  private mapActivityLevel(backendActivityLevel: string): ActivityLevel {
+    switch (backendActivityLevel.toUpperCase()) {
+      case 'SEDENTARY':
+        return ActivityLevel.SEDENTARY;
+      case 'LIGHT':
+        return ActivityLevel.LIGHT;
+      case 'MODERATE':
+        return ActivityLevel.MODERATE;
+      case 'ACTIVE':
+        return ActivityLevel.ACTIVE;
+      case 'VERY_ACTIVE':
+        return ActivityLevel.VERY_ACTIVE;
+      default:
+        return ActivityLevel.MODERATE;
+    }
+  }
+
+  private mapRole(backendRole: string): UserRole {
+    switch (backendRole.toUpperCase()) {
+      case 'ADMIN':
+        return UserRole.ADMIN;
+      case 'PREMIUM':
+        return UserRole.PREMIUM;
+      case 'COACH':
+        return UserRole.COACH;
+      case 'USER':
+      default:
+        return UserRole.USER;
+    }
+  }
+
+  private mapAccountStatus(backendStatus: string): AccountStatus {
+    switch (backendStatus.toUpperCase()) {
+      case 'ACTIVE':
+        return AccountStatus.ACTIVE;
+      case 'INACTIVE':
+        return AccountStatus.INACTIVE;
+      case 'DELETED':
+        return AccountStatus.DELETED;
+      default:
+        return AccountStatus.ACTIVE;
     }
   }
 }

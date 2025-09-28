@@ -629,7 +629,7 @@ export class DashboardApiService {
       console.log('=== CREATE ACTIVITY LOG DEBUG ===');
       console.log('Creating activity log:', logData);
       console.log('Endpoint: /activity-logs');
-      console.log('Expected full URL: http://192.168.4.219:8080/api/activity-logs');
+      console.log('Expected full URL: http://192.168.4.227:8080/api/activity-logs');
       console.log('================================');
       const response = await apiClient.post<ActivityLog>('/activity-logs', logData);
       console.log('Activity log created successfully:', response.data);

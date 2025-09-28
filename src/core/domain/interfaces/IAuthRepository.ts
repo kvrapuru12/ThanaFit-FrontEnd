@@ -9,8 +9,8 @@ export interface IAuthRepository {
   refreshToken(refreshToken: string): Promise<AuthTokens>;
   
   // User management
-  getCurrentUser(): Promise<User>;
-  updateProfile(userData: Partial<User>): Promise<User>;
+  getCurrentUser(userId: number): Promise<User>;
+  updateProfile(userId: number, userData: Partial<User>): Promise<User>;
   
   // Token management
   saveTokens(tokens: AuthTokens): Promise<void>;

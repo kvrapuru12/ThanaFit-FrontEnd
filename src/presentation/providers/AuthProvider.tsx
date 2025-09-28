@@ -59,9 +59,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
         } else {
           // Try to fetch current user from API
           try {
-            const currentUser = await authRepository.getCurrentUser();
-            setUser(currentUser);
-            await saveUserData(currentUser);
+            // Get userId from stored tokens or login response
+            const tokens = await authRepository.getStoredTokens();
+            if (tokens) {
+              // Extract userId from token or use stored userId
+              const storedUserId = await AsyncStorage.getItem('userId');
+              if (storedUserId) {
+                const currentUser = await authRepository.getCurrentUser(parseInt(storedUserId));
+                setUser(currentUser);
+                await saveUserData(currentUser);
+              }
+            }
           } catch (error) {
             console.error('Failed to fetch current user:', error);
             // Clear invalid authentication
@@ -247,9 +255,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
     try {
       const isAuth = await authRepository.isAuthenticated();
       if (isAuth) {
-        const currentUser = await authRepository.getCurrentUser();
-        setUser(currentUser);
-        await saveUserData(currentUser);
+        const storedUserId = await AsyncStorage.getItem('userId');
+        if (storedUserId) {
+          const currentUser = await authRepository.getCurrentUser(parseInt(storedUserId));
+          setUser(currentUser);
+          await saveUserData(currentUser);
+        }
       }
     } catch (error) {
       console.error('Failed to refresh user data:', error);

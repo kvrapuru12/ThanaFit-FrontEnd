@@ -10,3 +10,4 @@ export { Profile } from './Profile';
 export { ApiTest } from './ApiTest';
 export { VoiceRecorder } from './VoiceRecorder';
 export { FoodVoiceRecorder } from './FoodVoiceRecorder';
+export { CycleSync } from './CycleSync';

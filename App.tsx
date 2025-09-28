@@ -11,6 +11,7 @@ import { Dashboard } from './src/presentation/components/Dashboard';
 import { FoodTracking } from './src/presentation/components/FoodTracking';
 import { ExerciseTracking } from './src/presentation/components/ExerciseTracking';
 import { ProgressTracking } from './src/presentation/components/ProgressTracking';
+import { CycleSync } from './src/presentation/components/CycleSync';
 import { Profile } from './src/presentation/components/Profile';
 import { ApiTest } from './src/presentation/components/ApiTest';
 import { AddExerciseScreen } from './src/presentation/screens/AddExerciseScreen';
@@ -85,7 +86,12 @@ const AppNavigator = () => {
 
 // Main App Component with Bottom Navigation
 const MainApp = ({ navigation }: { navigation?: any }) => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  // Debug logging
+  console.log('MainApp - user:', user);
+  console.log('MainApp - user?.gender:', user?.gender);
 
   const renderActiveTab = (navigation?: any) => {
     switch (activeTab) {
@@ -97,6 +103,8 @@ const MainApp = ({ navigation }: { navigation?: any }) => {
         return <ExerciseTracking navigation={navigation} />;
       case 'progress':
         return <ProgressTracking />;
+      case 'cyclesync':
+        return <CycleSync navigation={navigation} />;
       case 'profile':
         return <Profile />;
       default:
@@ -114,7 +122,11 @@ const MainApp = ({ navigation }: { navigation?: any }) => {
         {({ navigation }) => (
           <View style={styles.mainAppContainer}>
             {renderActiveTab(navigation)}
-            <BottomNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+            <BottomNavigation 
+              activeTab={activeTab} 
+              onTabChange={setActiveTab} 
+              userGender={user?.gender}
+            />
           </View>
         )}
       </Stack.Screen>

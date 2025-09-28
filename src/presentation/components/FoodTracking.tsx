@@ -20,6 +20,7 @@ import { useFoods } from '../hooks/useFoods';
 import { useFoodLogs } from '../hooks/useFoodLogs';
 import { FoodItem } from '../../infrastructure/services/dashboardApi';
 import { FoodVoiceRecorder } from './FoodVoiceRecorder';
+import { hasVoiceLogAccess } from '../../core/utils/roleUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -272,12 +273,14 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
             <View style={styles.cardTitle}>
               <View style={[styles.titleIndicator, styles.paradiseIndicator]} />
               <Text style={styles.cardTitleText}>Today's Meals</Text>
-              <TouchableOpacity 
-                style={styles.voiceButton}
-                onPress={() => setShowVoiceRecorder(true)}
-              >
-                <MaterialIcons name="mic" size={20} color="#ff6b6b" />
-              </TouchableOpacity>
+              {hasVoiceLogAccess(user) && (
+                <TouchableOpacity 
+                  style={styles.voiceButton}
+                  onPress={() => setShowVoiceRecorder(true)}
+                >
+                  <MaterialIcons name="mic" size={20} color="#ff6b6b" />
+                </TouchableOpacity>
+              )}
             </View>
           </CardHeader>
           <CardContent style={styles.cardContent}>
@@ -450,17 +453,19 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
         {/* No modal needed - using AddFoodScreen instead */}
       </View>
 
-      {/* Food Voice Recorder Modal */}
-      <FoodVoiceRecorder
-        visible={showVoiceRecorder}
-        onClose={() => setShowVoiceRecorder(false)}
-        userId={user?.id}
-        onVoiceLogSuccess={handleVoiceLogSuccess}
-        onVoiceLog={(transcript) => {
-          console.log('Voice transcript received:', transcript);
-          // Handle manual voice log if needed
-        }}
-      />
+      {/* Food Voice Recorder Modal - Only show for PREMIUM and ADMIN users */}
+      {hasVoiceLogAccess(user) && (
+        <FoodVoiceRecorder
+          visible={showVoiceRecorder}
+          onClose={() => setShowVoiceRecorder(false)}
+          userId={user?.id}
+          onVoiceLogSuccess={handleVoiceLogSuccess}
+          onVoiceLog={(transcript) => {
+            console.log('Voice transcript received:', transcript);
+            // Handle manual voice log if needed
+          }}
+        />
+      )}
     </ScrollView>
   );
 }

@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 
 // API Configuration
 const API_CONFIG = {
-  BASE_URL: 'http://192.168.4.219:8080/api', // Using your machine's IP address
+  BASE_URL: 'http://192.168.4.227:8080/api', // Using your current machine's IP address
   TIMEOUT: 10000,
   RETRY_ATTEMPTS: 3,
   RETRY_DELAY: 1000,
