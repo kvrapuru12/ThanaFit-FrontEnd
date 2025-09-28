@@ -43,7 +43,7 @@ export function CycleSync({ navigation }: CycleSyncProps) {
   const [showPeriodLog, setShowPeriodLog] = useState(false);
 
   // Only show for female users - handle both enum and string values
-  const isFemale = user?.gender === Gender.FEMALE || user?.gender === 'FEMALE';
+  const isFemale = user?.gender === Gender.FEMALE || (user?.gender as string) === 'FEMALE';
   
   // TEMPORARY: Allow all users for testing - remove this condition later
   // if (!user || !isFemale) {
