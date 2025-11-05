@@ -5,18 +5,28 @@ export interface User {
   lastName: string;
   email: string;
   username: string;
-  phoneNumber: string;
+  phoneNumber: string | null;
   dob: string;
   gender: Gender;
   activityLevel: ActivityLevel;
-  dailyCalorieIntakeTarget: number;
-  dailyCalorieBurnTarget: number;
-  weight: number;
-  height: Height;
+  dailyCalorieIntakeTarget: number | null;
+  dailyCalorieBurnTarget: number | null;
+  weight: number | null;
+  height: Height | null;
   role: UserRole;
   accountStatus: AccountStatus;
   createdAt: string;
   updatedAt: string;
+  
+  // Target fields
+  targetFat?: number | null;
+  targetProtein?: number | null;
+  targetCarbs?: number | null;
+  targetSleepHours?: number | null;
+  targetWaterLitres?: number | null;
+  targetSteps?: number | null;
+  targetWeight?: number | null;
+  lastPeriodDate?: string | null;
 }
 
 export enum Gender {

@@ -145,17 +145,27 @@ export class AuthRepositoryImpl implements IAuthRepository {
       email: backendUser.email,
       username: backendUser.username,
       phoneNumber: backendUser.phoneNumber,
-      dob: backendUser.dateOfBirth,
+      dob: backendUser.dob,
       gender: this.mapGender(backendUser.gender),
       activityLevel: this.mapActivityLevel(backendUser.activityLevel),
       dailyCalorieIntakeTarget: backendUser.dailyCalorieIntakeTarget,
       dailyCalorieBurnTarget: backendUser.dailyCalorieBurnTarget,
-      weight: backendUser.weightKg,
-      height: { value: backendUser.heightCm, unit: 'CM' },
+      weight: backendUser.weight,
+      height: backendUser.heightCm ? { value: backendUser.heightCm.value, unit: backendUser.heightCm.unit } : null,
       role: this.mapRole(backendUser.role),
       accountStatus: this.mapAccountStatus(backendUser.accountStatus),
       createdAt: backendUser.createdAt,
       updatedAt: backendUser.updatedAt,
+      
+      // Target fields
+      targetFat: backendUser.targetFat,
+      targetProtein: backendUser.targetProtein,
+      targetCarbs: backendUser.targetCarbs,
+      targetSleepHours: backendUser.targetSleepHours,
+      targetWaterLitres: backendUser.targetWaterLitres,
+      targetSteps: backendUser.targetSteps,
+      targetWeight: backendUser.targetWeight,
+      lastPeriodDate: backendUser.lastPeriodDate,
     };
     
     return user;

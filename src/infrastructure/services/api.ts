@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API Configuration
-const API_BASE_URL = 'http://192.168.4.227:8080/api'; // Using your current machine's IP address
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080/api'; // Load from environment variable
 const API_TIMEOUT = 10000; // 10 seconds
 
 // Storage Keys

@@ -626,10 +626,11 @@ export class DashboardApiService {
     note: string;
   }): Promise<ActivityLog> {
     try {
+      const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080/api';
       console.log('=== CREATE ACTIVITY LOG DEBUG ===');
       console.log('Creating activity log:', logData);
       console.log('Endpoint: /activity-logs');
-      console.log('Expected full URL: http://192.168.4.227:8080/api/activity-logs');
+      console.log('Expected full URL:', `${apiBaseUrl}/activity-logs`);
       console.log('================================');
       const response = await apiClient.post<ActivityLog>('/activity-logs', logData);
       console.log('Activity log created successfully:', response.data);

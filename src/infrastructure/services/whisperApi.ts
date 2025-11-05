@@ -1,11 +1,29 @@
-import OpenAI from 'openai';
 import axios from 'axios';
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY, // You'll need to set this in your environment
-  dangerouslyAllowBrowser: true, // Required for Expo Go
-});
+// Lazy initialization of OpenAI client - only create when needed
+let openai: any = null;
+let OpenAI: any = null;
+
+async function getOpenAIClient(): Promise<any> {
+  if (!openai) {
+    const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OpenAI API key not configured. Please set EXPO_PUBLIC_OPENAI_API_KEY in your environment variables.');
+    }
+    
+    // Dynamic import to avoid loading at module initialization
+    if (!OpenAI) {
+      const openaiModule = await import('openai');
+      OpenAI = openaiModule.default;
+    }
+    
+    openai = new OpenAI({
+      apiKey: apiKey,
+      dangerouslyAllowBrowser: true, // Required for Expo Go
+    });
+  }
+  return openai;
+}
 
 export interface WhisperResponse {
   text: string;
@@ -85,7 +103,8 @@ export class WhisperApiService {
     try {
       console.log('Starting Whisper transcription with SDK...');
       
-      const transcription = await openai.audio.transcriptions.create({
+      const client = await getOpenAIClient();
+      const transcription = await client.audio.transcriptions.create({
         file: audioFile,
         model: 'whisper-1',
         language: 'en',

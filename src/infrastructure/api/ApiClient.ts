@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 
 // API Configuration
 const API_CONFIG = {
-  BASE_URL: 'http://192.168.4.227:8080/api', // Using your current machine's IP address
+  BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080/api', // Load from environment variable
   TIMEOUT: 10000,
   RETRY_ATTEMPTS: 3,
   RETRY_DELAY: 1000,
@@ -173,18 +173,28 @@ export class ApiClient {
     console.log('============================');
 
     if (!response.ok) {
-      // Log detailed error information
-      console.error('=== BACKEND API ERROR ===');
-      console.error('Error Status:', response.status);
-      console.error('Error Status Text:', response.statusText);
-      console.error('Error URL:', url);
-      console.error('Error Method:', config.method);
-      console.error('Request Body:', config.data ? JSON.stringify(config.data, null, 2) : 'No body');
-      console.error('Response Data:', JSON.stringify(data, null, 2));
-      console.error('Error Message:', data.message);
-      console.error('Error Code:', data.code);
-      console.error('Validation Errors:', data.errors || data.validationErrors || data.details || data.fieldErrors);
-      console.error('=========================');
+      // Check if this is an expected backend error (e.g., when no cycle data exists)
+      const isExpectedError = (response.status === 400 || response.status === 500) &&
+        data.message && 
+        (data.message.includes('Queue.peek()') || data.message.includes('null'));
+      
+      if (!isExpectedError) {
+        // Log detailed error information only for unexpected errors
+        console.error('=== BACKEND API ERROR ===');
+        console.error('Error Status:', response.status);
+        console.error('Error Status Text:', response.statusText);
+        console.error('Error URL:', url);
+        console.error('Error Method:', config.method);
+        console.error('Request Body:', config.data ? JSON.stringify(config.data, null, 2) : 'No body');
+        console.error('Response Data:', JSON.stringify(data, null, 2));
+        console.error('Error Message:', data.message);
+        console.error('Error Code:', data.code);
+        console.error('Validation Errors:', data.errors || data.validationErrors || data.details || data.fieldErrors);
+        console.error('=========================');
+      } else {
+        // Log as info instead of error for expected backend errors
+        console.log('Backend returned expected error (no data exists):', data.message);
+      }
       
       // Create a more detailed error object
       const apiError = new Error(data.message || `HTTP ${response.status}`);

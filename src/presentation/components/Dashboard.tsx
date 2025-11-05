@@ -108,11 +108,11 @@ export const Dashboard: React.FC = () => {
   const baseStats = data?.stats || {
     calories: { consumed: 0, goal: user?.dailyCalorieIntakeTarget || 2000 },
     macros: {
-      carbs: { consumed: 0, goal: 250 },
-      protein: { consumed: 0, goal: 120 },
-      fat: { consumed: 0, goal: 65 }
+      carbs: { consumed: 0, goal: user?.targetCarbs || 250 },
+      protein: { consumed: 0, goal: user?.targetProtein || 120 },
+      fat: { consumed: 0, goal: user?.targetFat || 65 }
     },
-    water: { consumed: 0, goal: 8 },
+    water: { consumed: 0, goal: (user?.targetWaterLitres || 2.5) * 1000 }, // Convert L to ml
     exercise: { burned: 0, goal: user?.dailyCalorieBurnTarget || 400 }
   };
 
@@ -288,22 +288,19 @@ export const Dashboard: React.FC = () => {
                 </View>
                 <Text style={styles.horizontalCardTitle}>Sleep</Text>
               </View>
-                    <Text style={styles.horizontalCardValue}>
-                      {data?.sleepEntries && data.sleepEntries.length > 0 
-                        ? `${data.sleepEntries[0].hours || data.sleepEntries[0].durationHours || data.sleepEntries[0].sleepHours || 0}h` 
-                        : '0h'
-                      }
-                    </Text>
-              <Text style={styles.horizontalCardSubtext}>
+              <Text style={styles.horizontalCardValue}>
                 {data?.sleepEntries && data.sleepEntries.length > 0 
-                  ? data.sleepEntries[0].note || 'Sleep logged'
-                  : 'No data'
+                  ? `${data.sleepEntries[0].hours || data.sleepEntries[0].durationHours || data.sleepEntries[0].sleepHours || 0}h` 
+                  : '0h'
                 }
+              </Text>
+              <Text style={styles.horizontalCardSubtext}>
+                of {user?.targetSleepHours || 8}h target
               </Text>
                     <View style={styles.horizontalProgressBar}>
                       <View style={[styles.horizontalProgressFill, { 
                         width: data?.sleepEntries && data.sleepEntries.length > 0 
-                          ? `${Math.min(((data.sleepEntries[0].hours || data.sleepEntries[0].durationHours || data.sleepEntries[0].sleepHours || 0) / 8) * 100, 100)}%` 
+                          ? `${Math.min(((data.sleepEntries[0].hours || data.sleepEntries[0].durationHours || data.sleepEntries[0].sleepHours || 0) / (user?.targetSleepHours || 8)) * 100, 100)}%` 
                           : '0%',
                         backgroundColor: '#8b5cf6'
                       }]} />
@@ -330,15 +327,12 @@ export const Dashboard: React.FC = () => {
                 }
               </Text>
               <Text style={styles.horizontalCardSubtext}>
-                {data?.stepEntries && data.stepEntries.length > 0 
-                  ? 'Today\'s steps'
-                  : 'No entry today'
-                }
+                of {user?.targetSteps || 10000} target
               </Text>
               <View style={styles.horizontalProgressBar}>
                 <View style={[styles.horizontalProgressFill, { 
                   width: data?.stepEntries && data.stepEntries.length > 0 
-                    ? `${Math.min((data.stepEntries[0].stepCount / 10000) * 100, 100)}%` 
+                    ? `${Math.min((data.stepEntries[0].stepCount / (user?.targetSteps || 10000)) * 100, 100)}%` 
                     : '0%',
                   backgroundColor: '#06b6d4'
                 }]} />
@@ -358,18 +352,17 @@ export const Dashboard: React.FC = () => {
               <Text style={styles.horizontalCardValue}>
                 {data?.weightEntries && data.weightEntries.length > 0 
                   ? `${data.weightEntries[0].weight || data.weightEntries[0].weightKg || data.weightEntries[0].weightValue || 0}kg`
-                  : 'No data'
+                  : user?.weight ? `${user.weight}kg` : 'No data'
                 }
               </Text>
               <Text style={styles.horizontalCardSubtext}>
-                {data?.weightEntries && data.weightEntries.length > 0 
-                  ? 'Latest entry'
-                  : 'No entry today'
-                }
+                {user?.targetWeight ? `Target: ${user.targetWeight}kg` : 'No target set'}
               </Text>
               <View style={styles.horizontalProgressBar}>
                 <View style={[styles.horizontalProgressFill, { 
-                  width: data?.weightEntries && data.weightEntries.length > 0 ? '100%' : '0%',
+                  width: data?.weightEntries && data.weightEntries.length > 0 && user?.targetWeight 
+                    ? `${Math.min(((data.weightEntries[0].weight || data.weightEntries[0].weightKg || data.weightEntries[0].weightValue || 0) / user.targetWeight) * 100, 100)}%`
+                    : '0%',
                   backgroundColor: '#ef4444'
                 }]} />
               </View>
