@@ -29,7 +29,11 @@ const { width } = Dimensions.get('window');
 // API Configuration - Load from environment variable
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080/api';
 
-export function Profile() {
+interface ProfileProps {
+  navigation?: any;
+}
+
+export function Profile({ navigation }: ProfileProps) {
   const { logout, isLoading, user, refreshUserData } = useAuth();
   
   // Edit modal state
@@ -570,11 +574,17 @@ export function Profile() {
   ]);
 
   const menuItems = [
-    { icon: "settings", label: "Settings", subtitle: "App preferences", color: "#ff6b6b" },
-    { icon: "notifications", label: "Notifications", subtitle: "Manage alerts", color: "#4ecdc4" },
-    { icon: "security", label: "Privacy", subtitle: "Data & security", color: "#ffa726" },
-    { icon: "help", label: "Support", subtitle: "Get help", color: "#ff6b6b" },
+    { icon: "settings", label: "Settings", subtitle: "App preferences", color: "#ff6b6b", screen: "Settings" },
+    { icon: "notifications", label: "Notifications", subtitle: "Manage alerts", color: "#4ecdc4", screen: "Notifications" },
+    { icon: "security", label: "Privacy", subtitle: "Data & security", color: "#ffa726", screen: "Privacy" },
+    { icon: "help", label: "Support", subtitle: "Get help", color: "#ff6b6b", screen: "Support" },
   ];
+
+  const handleMenuPress = (screen: string) => {
+    if (navigation) {
+      navigation.navigate(screen);
+    }
+  };
 
   const achievements = [
     { icon: "🏆", title: "Fitness Streak", color: "#ff6b6b" },
@@ -887,6 +897,7 @@ export function Profile() {
                   index === 0 && styles.firstMenuItem,
                   index === menuItems.length - 1 && styles.lastMenuItem
                 ]}
+                onPress={() => handleMenuPress(item.screen)}
               >
                 <View style={[styles.menuIcon, { backgroundColor: `${item.color}20` }]}>
                   <MaterialIcons name={item.icon as any} size={20} color={item.color} />

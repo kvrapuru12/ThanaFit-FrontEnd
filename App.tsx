@@ -16,6 +16,8 @@ import { Profile } from './src/presentation/components/Profile';
 import { ApiTest } from './src/presentation/components/ApiTest';
 import { AddExerciseScreen } from './src/presentation/screens/AddExerciseScreen';
 import { AddFoodScreen } from './src/presentation/screens/AddFoodScreen';
+import { SettingsScreen } from './src/presentation/screens/SettingsScreen';
+import { PrivacyPolicyScreen, TermsOfServiceScreen, FAQScreen } from './src/presentation/screens/PrivacyAndLegalScreens';
 
 // Import global CSS for web builds
 import './src/styles/global.css';
@@ -63,6 +65,26 @@ const AppNavigator = () => {
               component={AddFoodScreen}
               options={{ title: 'Add Food' }}
             />
+            <Stack.Screen
+              name="Settings"
+              component={SettingsScreen}
+              options={{ title: 'Settings' }}
+            />
+            <Stack.Screen
+              name="Privacy"
+              component={PrivacyPolicyScreen}
+              options={{ title: 'Privacy Policy' }}
+            />
+            <Stack.Screen
+              name="FAQ"
+              component={FAQScreen}
+              options={{ title: 'FAQ' }}
+            />
+            <Stack.Screen
+              name="Terms"
+              component={TermsOfServiceScreen}
+              options={{ title: 'Terms of Service' }}
+            />
           </>
         ) : (
           // Authentication Stack
@@ -106,7 +128,7 @@ const MainApp = ({ navigation }: { navigation?: any }) => {
       case 'cyclesync':
         return <CycleSync navigation={navigation} />;
       case 'profile':
-        return <Profile />;
+        return <Profile navigation={navigation} />;
       default:
         return <Dashboard />;
     }
