@@ -161,19 +161,19 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
   };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.title}>Exercise</Text>
-            <Text style={styles.subtitle}>Track your workouts</Text>
-          </View>
+    <View style={styles.container}>
+      {/* Static Header */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.title}>Exercise</Text>
+          <Text style={styles.subtitle}>Track your workouts</Text>
         </View>
+      </View>
 
-
-
-        {/* Today's Summary */}
+      {/* Scrollable Content */}
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.content}>
+          {/* Today's Summary */}
         <Card style={styles.summaryCard}>
           <CardContent style={styles.summaryContent}>
             <View style={styles.summaryGrid}>
@@ -426,7 +426,8 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
             )}
           </CardContent>
         </Card>
-      </View>
+        </View>
+      </ScrollView>
 
       {/* Voice Recorder Modal - Only show for PREMIUM and ADMIN users */}
       {hasVoiceLogAccess(user) && (
@@ -438,7 +439,7 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
           onClose={() => setShowVoiceRecorder(false)}
         />
       )}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -447,16 +448,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fef7ed',
   },
+  scrollView: {
+    flex: 1,
+  },
   content: {
     padding: 24,
-    paddingTop: 60, // More space from top
+    paddingTop: 16, // Reduced since header is separate
     paddingBottom: 100, // Space for bottom navigation
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    paddingTop: 60, // Safe area from top
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+    backgroundColor: '#fef7ed',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+    zIndex: 10,
   },
   headerLeft: {
     flex: 1,

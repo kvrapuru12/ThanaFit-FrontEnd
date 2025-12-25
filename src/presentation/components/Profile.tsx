@@ -658,21 +658,23 @@ export function Profile({ navigation }: ProfileProps) {
   ];
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.title}>Profile</Text>
-            <Text style={styles.subtitle}>Manage your account</Text>
-          </View>
-          <Button variant="outline" style={styles.editButton}>
-            <MaterialIcons name="edit" size={16} color="#ff6b6b" />
-            <Text style={styles.editButtonText}>Edit</Text>
-          </Button>
+    <View style={styles.container}>
+      {/* Static Header */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.title}>Profile</Text>
+          <Text style={styles.subtitle}>Manage your account</Text>
         </View>
+        <Button variant="outline" style={styles.editButton}>
+          <MaterialIcons name="edit" size={16} color="#ff6b6b" />
+          <Text style={styles.editButtonText}>Edit</Text>
+        </Button>
+      </View>
 
-        {/* Profile Card */}
+      {/* Scrollable Content */}
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.content}>
+          {/* Profile Card */}
         <Card style={styles.profileCard}>
           <CardContent style={styles.profileContent}>
             <View style={styles.profileInfo}>
@@ -932,7 +934,8 @@ export function Profile({ navigation }: ProfileProps) {
             </TouchableOpacity>
           </CardContent>
         </Card>
-      </View>
+        </View>
+      </ScrollView>
 
       {/* Edit Goal Modal */}
       <Modal
@@ -1198,7 +1201,7 @@ export function Profile({ navigation }: ProfileProps) {
           </View>
         </View>
       </Modal>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -1207,16 +1210,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fef7ed',
   },
+  scrollView: {
+    flex: 1,
+  },
   content: {
     padding: 24,
-    paddingTop: 60, // More space from top
+    paddingTop: 16, // Reduced since header is separate
     paddingBottom: 100, // Space for bottom navigation
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    paddingTop: 60, // Safe area from top
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+    backgroundColor: '#fef7ed',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+    zIndex: 10,
   },
   headerLeft: {
     flex: 1,

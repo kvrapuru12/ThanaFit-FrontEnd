@@ -173,17 +173,19 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
   ];
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.title}>Food Diary</Text>
-            <Text style={styles.subtitle}>Track your meals and nutrition</Text>
-          </View>
+    <View style={styles.container}>
+      {/* Static Header */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.title}>Food Diary</Text>
+          <Text style={styles.subtitle}>Track your meals and nutrition</Text>
         </View>
+      </View>
 
-        {/* Meal Selection */}
+      {/* Scrollable Content */}
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.content}>
+          {/* Meal Selection */}
         <View style={styles.mealsGrid}>
           {mealTimes.map((meal) => {
             const mealLogs = todaysMeals[meal.id] || [];
@@ -451,7 +453,8 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
         </Card>
 
         {/* No modal needed - using AddFoodScreen instead */}
-      </View>
+        </View>
+      </ScrollView>
 
       {/* Food Voice Recorder Modal - Only show for PREMIUM and ADMIN users */}
       {hasVoiceLogAccess(user) && (
@@ -466,7 +469,7 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
           }}
         />
       )}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -475,16 +478,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fef7ed',
   },
+  scrollView: {
+    flex: 1,
+  },
   content: {
     padding: 24,
-    paddingTop: 60, // More space from top
+    paddingTop: 16, // Reduced since header is separate
     paddingBottom: 100, // Space for bottom navigation
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    paddingTop: 60, // Safe area from top
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+    backgroundColor: '#fef7ed',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+    zIndex: 10,
   },
   headerLeft: {
     flex: 1,
