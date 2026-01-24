@@ -644,15 +644,100 @@ export class DashboardApiService {
   /**
    * Add water intake
    */
-  async addWaterIntake(amount: number, notes?: string): Promise<WaterIntake> {
+  async addWaterIntake(userId: number, amount: number, notes?: string): Promise<WaterIntake> {
     try {
-      const response = await apiClient.post<WaterIntake>(`${this.baseUrl}/water`, {
+      console.log('=== ADD WATER INTAKE API CALL ===');
+      console.log('Adding water intake:', { userId, amount, notes });
+      
+      // Use /water endpoint (no /dashboard) to match steps, sleep, weight endpoints
+      const response = await apiClient.post<WaterIntake>(`/water`, {
+        userId,
         amount,
-        notes,
+        notes: notes || '',
+        loggedAt: this.formatLocalDateTime(new Date()),
       });
+      
+      console.log('Water intake added successfully:', response.data);
       return response.data;
     } catch (error) {
       console.error('Failed to add water intake:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Format date for LocalDateTime
+   * Returns format: "YYYY-MM-DDTHH:mm:ssZ" (matching AddExerciseScreen format)
+   */
+  private formatLocalDateTime(date: Date): string {
+    return date.toISOString().split('.')[0] + 'Z'; // Remove milliseconds but keep 'Z'
+  }
+
+  /**
+   * Add sleep entry
+   */
+  async addSleepEntry(userId: number, hours: number, note?: string): Promise<SleepEntry> {
+    try {
+      console.log('=== ADD SLEEP ENTRY API CALL ===');
+      console.log('Adding sleep entry:', { userId, hours, note });
+      
+      const response = await apiClient.post<SleepEntry>('/sleeps', {
+        userId,
+        hours,
+        note: note || '',
+        loggedAt: this.formatLocalDateTime(new Date()),
+      });
+      
+      console.log('Sleep entry added successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to add sleep entry:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add step entry
+   */
+  async addStepEntry(userId: number, stepCount: number, note?: string): Promise<StepEntry> {
+    try {
+      console.log('=== ADD STEP ENTRY API CALL ===');
+      console.log('Adding step entry:', { userId, stepCount, note });
+      
+      const response = await apiClient.post<StepEntry>('/steps', {
+        userId,
+        stepCount,
+        note: note || '',
+        loggedAt: this.formatLocalDateTime(new Date()),
+      });
+      
+      console.log('Step entry added successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to add step entry:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add weight entry
+   */
+  async addWeightEntry(userId: number, weight: number, note?: string): Promise<WeightEntry> {
+    try {
+      console.log('=== ADD WEIGHT ENTRY API CALL ===');
+      console.log('Adding weight entry:', { userId, weight, note });
+      
+      const response = await apiClient.post<WeightEntry>('/weights', {
+        userId,
+        weight,
+        note: note || '',
+        loggedAt: this.formatLocalDateTime(new Date()),
+      });
+      
+      console.log('Weight entry added successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to add weight entry:', error);
       throw error;
     }
   }

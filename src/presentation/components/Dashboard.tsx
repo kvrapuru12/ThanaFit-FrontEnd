@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
@@ -7,10 +7,24 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { useAuth } from '../providers/AuthProvider';
 import { useDashboardData } from '../hooks/useDashboardData';
+import { dashboardApiService } from '../../infrastructure/services/dashboardApi';
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const { data, isLoading, error, refresh } = useDashboardData();
+  const { data, isLoading, error, refresh, addWaterIntake } = useDashboardData();
+  
+  // Modal states for adding entries
+  const [waterModalVisible, setWaterModalVisible] = useState(false);
+  const [sleepModalVisible, setSleepModalVisible] = useState(false);
+  const [stepModalVisible, setStepModalVisible] = useState(false);
+  const [weightModalVisible, setWeightModalVisible] = useState(false);
+  
+  // Input states
+  const [waterAmount, setWaterAmount] = useState('');
+  const [sleepHours, setSleepHours] = useState('');
+  const [stepCount, setStepCount] = useState('');
+  const [weightValue, setWeightValue] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Get appropriate activity icon based on activity name
   const getActivityIcon = (activityName: string): any => {
@@ -130,6 +144,111 @@ export const Dashboard: React.FC = () => {
   const calorieProgress = (todayStats.calories.consumed / todayStats.calories.goal) * 100;
   const waterProgress = (todayStats.water.consumed / todayStats.water.goal) * 100;
   const exerciseProgress = (todayStats.exercise.burned / todayStats.exercise.goal) * 100;
+
+  // Handler functions for adding entries
+  const handleAddWater = async () => {
+    if (!user?.id) {
+      Alert.alert('Error', 'User not found');
+      return;
+    }
+
+    const amount = parseFloat(waterAmount);
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert('Error', 'Please enter a valid water amount in ml');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await addWaterIntake(amount);
+      setWaterModalVisible(false);
+      setWaterAmount('');
+      await refresh();
+      Alert.alert('Success', 'Water intake added successfully!');
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Failed to add water intake');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAddSleep = async () => {
+    if (!user?.id) {
+      Alert.alert('Error', 'User not found');
+      return;
+    }
+
+    const hours = parseFloat(sleepHours);
+    if (isNaN(hours) || hours <= 0 || hours > 24) {
+      Alert.alert('Error', 'Please enter a valid sleep duration (1-24 hours)');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await dashboardApiService.addSleepEntry(user.id, hours);
+      setSleepModalVisible(false);
+      setSleepHours('');
+      await refresh();
+      Alert.alert('Success', 'Sleep entry added successfully!');
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Failed to add sleep entry');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAddSteps = async () => {
+    if (!user?.id) {
+      Alert.alert('Error', 'User not found');
+      return;
+    }
+
+    const steps = parseInt(stepCount);
+    if (isNaN(steps) || steps <= 0) {
+      Alert.alert('Error', 'Please enter a valid step count');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await dashboardApiService.addStepEntry(user.id, steps);
+      setStepModalVisible(false);
+      setStepCount('');
+      await refresh();
+      Alert.alert('Success', 'Steps added successfully!');
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Failed to add steps');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAddWeight = async () => {
+    if (!user?.id) {
+      Alert.alert('Error', 'User not found');
+      return;
+    }
+
+    const weight = parseFloat(weightValue);
+    if (isNaN(weight) || weight <= 0) {
+      Alert.alert('Error', 'Please enter a valid weight in kg');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await dashboardApiService.addWeightEntry(user.id, weight);
+      setWeightModalVisible(false);
+      setWeightValue('');
+      await refresh();
+      Alert.alert('Success', 'Weight entry added successfully!');
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Failed to add weight entry');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // Show loading state
   if (isLoading && !data) {
@@ -263,28 +382,38 @@ export const Dashboard: React.FC = () => {
         {/* Water & Sleep Cards */}
         <View style={styles.horizontalCardsContainer}>
           {/* Water Card */}
-          <Card style={styles.horizontalCard}>
+          <Card style={[styles.horizontalCard, styles.waterCardEnhanced]}>
             <CardContent style={styles.horizontalCardContent}>
               <View style={styles.horizontalCardHeader}>
-                <View style={styles.horizontalCardIconContainer}>
-                  <MaterialIcons name="water-drop" size={20} color="#10b981" />
+                <View style={[styles.horizontalCardIconContainer, { backgroundColor: '#ecfeff' }]}>
+                  <MaterialIcons name="water-drop" size={24} color="#06b6d4" />
                 </View>
                 <Text style={styles.horizontalCardTitle}>Water</Text>
               </View>
-              <Text style={styles.horizontalCardValue}>{todayStats.water.consumed}ml</Text>
-              <Text style={styles.horizontalCardSubtext}>of {todayStats.water.goal}ml</Text>
+              <Text style={styles.horizontalCardValue}>{Math.round(todayStats.water.consumed / 1000 * 10) / 10}L</Text>
+              <Text style={styles.horizontalCardSubtext}>of {Math.round(todayStats.water.goal / 1000 * 10) / 10}L target</Text>
               <View style={styles.horizontalProgressBar}>
-                <View style={[styles.horizontalProgressFill, { width: `${waterProgress}%` }]} />
+                <View style={[styles.horizontalProgressFill, { 
+                  width: `${Math.min(100, waterProgress)}%`,
+                  backgroundColor: '#06b6d4'
+                }]} />
               </View>
+              <TouchableOpacity 
+                style={styles.addButton}
+                onPress={() => setWaterModalVisible(true)}
+              >
+                <MaterialIcons name="add" size={18} color="#06b6d4" />
+                <Text style={styles.addButtonText}>Add Water</Text>
+              </TouchableOpacity>
             </CardContent>
           </Card>
 
           {/* Sleep Card */}
-          <Card style={styles.horizontalCard}>
+          <Card style={[styles.horizontalCard, styles.sleepCardEnhanced]}>
             <CardContent style={styles.horizontalCardContent}>
               <View style={styles.horizontalCardHeader}>
-                <View style={styles.horizontalCardIconContainer}>
-                  <MaterialIcons name="bedtime" size={20} color="#8b5cf6" />
+                <View style={[styles.horizontalCardIconContainer, { backgroundColor: '#f3e8ff' }]}>
+                  <MaterialIcons name="bedtime" size={24} color="#8b5cf6" />
                 </View>
                 <Text style={styles.horizontalCardTitle}>Sleep</Text>
               </View>
@@ -297,14 +426,21 @@ export const Dashboard: React.FC = () => {
               <Text style={styles.horizontalCardSubtext}>
                 of {user?.targetSleepHours || 8}h target
               </Text>
-                    <View style={styles.horizontalProgressBar}>
-                      <View style={[styles.horizontalProgressFill, { 
-                        width: data?.sleepEntries && data.sleepEntries.length > 0 
-                          ? `${Math.min(((data.sleepEntries[0].hours || data.sleepEntries[0].durationHours || data.sleepEntries[0].sleepHours || 0) / (user?.targetSleepHours || 8)) * 100, 100)}%` 
-                          : '0%',
-                        backgroundColor: '#8b5cf6'
-                      }]} />
-                    </View>
+              <View style={styles.horizontalProgressBar}>
+                <View style={[styles.horizontalProgressFill, { 
+                  width: data?.sleepEntries && data.sleepEntries.length > 0 
+                    ? `${Math.min(((data.sleepEntries[0].hours || data.sleepEntries[0].durationHours || data.sleepEntries[0].sleepHours || 0) / (user?.targetSleepHours || 8)) * 100, 100)}%` 
+                    : '0%',
+                  backgroundColor: '#8b5cf6'
+                }]} />
+              </View>
+              <TouchableOpacity 
+                style={[styles.addButton, { borderColor: '#8b5cf6' }]}
+                onPress={() => setSleepModalVisible(true)}
+              >
+                <MaterialIcons name="add" size={18} color="#8b5cf6" />
+                <Text style={[styles.addButtonText, { color: '#8b5cf6' }]}>Add Sleep</Text>
+              </TouchableOpacity>
             </CardContent>
           </Card>
         </View>
@@ -312,11 +448,11 @@ export const Dashboard: React.FC = () => {
         {/* Steps & Weight Cards */}
         <View style={styles.horizontalCardsContainer}>
           {/* Steps Card */}
-          <Card style={styles.horizontalCard}>
+          <Card style={[styles.horizontalCard, styles.stepsCardEnhanced]}>
             <CardContent style={styles.horizontalCardContent}>
               <View style={styles.horizontalCardHeader}>
-                <View style={styles.horizontalCardIconContainer}>
-                  <MaterialIcons name="directions-walk" size={20} color="#06b6d4" />
+                <View style={[styles.horizontalCardIconContainer, { backgroundColor: '#ecfeff' }]}>
+                  <MaterialIcons name="directions-walk" size={24} color="#06b6d4" />
                 </View>
                 <Text style={styles.horizontalCardTitle}>Steps</Text>
               </View>
@@ -327,7 +463,7 @@ export const Dashboard: React.FC = () => {
                 }
               </Text>
               <Text style={styles.horizontalCardSubtext}>
-                of {user?.targetSteps || 10000} target
+                of {(user?.targetSteps || 10000).toLocaleString()} target
               </Text>
               <View style={styles.horizontalProgressBar}>
                 <View style={[styles.horizontalProgressFill, { 
@@ -337,22 +473,29 @@ export const Dashboard: React.FC = () => {
                   backgroundColor: '#06b6d4'
                 }]} />
               </View>
+              <TouchableOpacity 
+                style={[styles.addButton, { borderColor: '#06b6d4' }]}
+                onPress={() => setStepModalVisible(true)}
+              >
+                <MaterialIcons name="add" size={18} color="#06b6d4" />
+                <Text style={[styles.addButtonText, { color: '#06b6d4' }]}>Add Steps</Text>
+              </TouchableOpacity>
             </CardContent>
           </Card>
 
           {/* Weight Card */}
-          <Card style={styles.horizontalCard}>
+          <Card style={[styles.horizontalCard, styles.weightCardEnhanced]}>
             <CardContent style={styles.horizontalCardContent}>
               <View style={styles.horizontalCardHeader}>
-                <View style={styles.horizontalCardIconContainer}>
-                  <MaterialIcons name="monitor-weight" size={20} color="#ef4444" />
+                <View style={[styles.horizontalCardIconContainer, { backgroundColor: '#fef2f2' }]}>
+                  <MaterialIcons name="monitor-weight" size={24} color="#ef4444" />
                 </View>
                 <Text style={styles.horizontalCardTitle}>Weight</Text>
               </View>
               <Text style={styles.horizontalCardValue}>
                 {data?.weightEntries && data.weightEntries.length > 0 
-                  ? `${data.weightEntries[0].weight || data.weightEntries[0].weightKg || data.weightEntries[0].weightValue || 0}kg`
-                  : user?.weight ? `${user.weight}kg` : 'No data'
+                  ? `${(data.weightEntries[0].weight || data.weightEntries[0].weightKg || data.weightEntries[0].weightValue || 0).toFixed(1)}kg`
+                  : user?.weight ? `${user.weight.toFixed(1)}kg` : '--'
                 }
               </Text>
               <Text style={styles.horizontalCardSubtext}>
@@ -361,11 +504,18 @@ export const Dashboard: React.FC = () => {
               <View style={styles.horizontalProgressBar}>
                 <View style={[styles.horizontalProgressFill, { 
                   width: data?.weightEntries && data.weightEntries.length > 0 && user?.targetWeight 
-                    ? `${Math.min(((data.weightEntries[0].weight || data.weightEntries[0].weightKg || data.weightEntries[0].weightValue || 0) / user.targetWeight) * 100, 100)}%`
+                    ? `${Math.min(Math.abs(((data.weightEntries[0].weight || data.weightEntries[0].weightKg || data.weightEntries[0].weightValue || 0) - user.targetWeight) / user.targetWeight) * 100, 100)}%`
                     : '0%',
                   backgroundColor: '#ef4444'
                 }]} />
               </View>
+              <TouchableOpacity 
+                style={[styles.addButton, { borderColor: '#ef4444' }]}
+                onPress={() => setWeightModalVisible(true)}
+              >
+                <MaterialIcons name="add" size={18} color="#ef4444" />
+                <Text style={[styles.addButtonText, { color: '#ef4444' }]}>Add Weight</Text>
+              </TouchableOpacity>
             </CardContent>
           </Card>
         </View>
@@ -469,6 +619,190 @@ export const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
       </View>
+
+      {/* Water Modal */}
+      <Modal
+        visible={waterModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setWaterModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add Water Intake</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Amount in ml (e.g., 250)"
+              keyboardType="numeric"
+              value={waterAmount}
+              onChangeText={setWaterAmount}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  setWaterModalVisible(false);
+                  setWaterAmount('');
+                }}
+              >
+                <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalButtonSubmit, { backgroundColor: '#06b6d4' }]}
+                onPress={handleAddWater}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <Text style={styles.modalButtonTextSubmit}>Add</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Sleep Modal */}
+      <Modal
+        visible={sleepModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setSleepModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add Sleep Entry</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Hours (e.g., 7.5)"
+              keyboardType="decimal-pad"
+              value={sleepHours}
+              onChangeText={setSleepHours}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  setSleepModalVisible(false);
+                  setSleepHours('');
+                }}
+              >
+                <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalButtonSubmit, { backgroundColor: '#8b5cf6' }]}
+                onPress={handleAddSleep}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <Text style={styles.modalButtonTextSubmit}>Add</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Steps Modal */}
+      <Modal
+        visible={stepModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setStepModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add Steps</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Step count (e.g., 5000)"
+              keyboardType="numeric"
+              value={stepCount}
+              onChangeText={setStepCount}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  setStepModalVisible(false);
+                  setStepCount('');
+                }}
+              >
+                <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalButtonSubmit, { backgroundColor: '#06b6d4' }]}
+                onPress={handleAddSteps}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <Text style={styles.modalButtonTextSubmit}>Add</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Weight Modal */}
+      <Modal
+        visible={weightModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setWeightModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add Weight Entry</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Weight in kg (e.g., 70.5)"
+              keyboardType="decimal-pad"
+              value={weightValue}
+              onChangeText={setWeightValue}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  setWeightModalVisible(false);
+                  setWeightValue('');
+                }}
+              >
+                <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalButtonSubmit, { backgroundColor: '#ef4444' }]}
+                onPress={handleAddWeight}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <Text style={styles.modalButtonTextSubmit}>Add</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </ScrollView>
   );
 };
@@ -779,6 +1113,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#10b981',
     borderRadius: 3,
   },
+  waterCardEnhanced: {
+    backgroundColor: '#ecfeff',
+    borderLeftWidth: 4,
+    borderLeftColor: '#06b6d4',
+  },
+  sleepCardEnhanced: {
+    backgroundColor: '#f3e8ff',
+    borderLeftWidth: 4,
+    borderLeftColor: '#8b5cf6',
+  },
+  stepsCardEnhanced: {
+    backgroundColor: '#ecfeff',
+    borderLeftWidth: 4,
+    borderLeftColor: '#06b6d4',
+  },
+  weightCardEnhanced: {
+    backgroundColor: '#fef2f2',
+    borderLeftWidth: 4,
+    borderLeftColor: '#ef4444',
+  },
   mealRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -955,5 +1309,86 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: 'white',
     fontWeight: '600',
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#06b6d4',
+    backgroundColor: 'transparent',
+  },
+  addButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#06b6d4',
+    marginLeft: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 24,
+    width: '85%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 20,
+    backgroundColor: '#f9fafb',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  modalButtonSubmit: {
+    backgroundColor: '#06b6d4',
+  },
+  modalButtonTextCancel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  modalButtonTextSubmit: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
   },
 });

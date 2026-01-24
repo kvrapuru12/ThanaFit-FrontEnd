@@ -134,8 +134,11 @@ export const useDashboardData = (): UseDashboardDataReturn => {
 
   const addWaterIntake = useCallback(async (amount: number, notes?: string) => {
     try {
-      console.log('Adding water intake:', { amount, notes });
-      const newWaterIntake = await dashboardApiService.addWaterIntake(amount, notes);
+      if (!user?.id) {
+        throw new Error('User not found');
+      }
+      console.log('Adding water intake:', { userId: user.id, amount, notes });
+      const newWaterIntake = await dashboardApiService.addWaterIntake(user.id, amount, notes);
       
       // Update local state
       setData(prevData => {
@@ -158,7 +161,7 @@ export const useDashboardData = (): UseDashboardDataReturn => {
       console.error('Failed to add water intake:', err);
       throw err;
     }
-  }, []);
+  }, [user]);
 
   const addFoodLog = useCallback(async (foodData: {
     userId: number;
