@@ -55,8 +55,8 @@ export class AuthRepositoryImpl implements IAuthRepository {
         lastName: '', // Backend doesn't return lastName
         email: '', // Backend doesn't return email
         username: username,
-        phoneNumber: '', // Backend doesn't return phoneNumber
-        dob: '', // Backend doesn't return dob
+        phoneNumber: null, // Backend doesn't return phoneNumber
+        dob: null, // Backend doesn't return dob
         gender: this.mapGender(gender || null), // Use gender from backend response
         activityLevel: ActivityLevel.MODERATE, // Default value
         dailyCalorieIntakeTarget: 2000, // Default value
