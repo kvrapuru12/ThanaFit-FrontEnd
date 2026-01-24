@@ -6,8 +6,8 @@ export interface User {
   email: string;
   username: string;
   phoneNumber: string | null;
-  dob: string;
-  gender: Gender;
+  dob: string | null;
+  gender: Gender | null;
   activityLevel: ActivityLevel;
   dailyCalorieIntakeTarget: number | null;
   dailyCalorieBurnTarget: number | null;
@@ -27,6 +27,9 @@ export interface User {
   targetSteps?: number | null;
   targetWeight?: number | null;
   lastPeriodDate?: string | null;
+  
+  // Profile completion
+  profileComplete?: boolean;
 }
 
 export enum Gender {

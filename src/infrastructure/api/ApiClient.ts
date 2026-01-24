@@ -9,6 +9,9 @@ const API_CONFIG = {
   RETRY_DELAY: 1000,
 } as const;
 
+// Log the API base URL being used (helpful for debugging)
+console.log('[ApiClient] Using API Base URL:', API_CONFIG.BASE_URL);
+
 // HTTP Methods
 export enum HttpMethod {
   GET = 'GET',
@@ -87,13 +90,7 @@ export class ApiClient {
   // Individual request method
   private async makeRequest<T>(config: RequestConfig): Promise<ApiResponse<T>> {
     const url = `${this.baseURL}${config.url}`;
-    
-    // Debug URL construction
-    console.log('=== API CLIENT URL DEBUG ===');
-    console.log('Base URL:', this.baseURL);
-    console.log('Config URL:', config.url);
-    console.log('Final URL:', url);
-    console.log('============================');
+    console.log(`[ApiClient] Making ${config.method} request to: ${url}`);
     
     // Get stored token
     const token = await this.getStoredToken();
@@ -110,15 +107,6 @@ export class ApiClient {
       headers.Authorization = authToken;
     }
 
-    // Log detailed request information
-    console.log('=== BACKEND API REQUEST ===');
-    console.log('URL:', url);
-    console.log('Method:', config.method);
-    console.log('Headers:', JSON.stringify(headers, null, 2));
-    console.log('Request Body:', config.data ? JSON.stringify(config.data, null, 2) : 'No body');
-    console.log('Timeout:', config.timeout || this.timeout, 'ms');
-    console.log('==========================');
-
     // Create request config
     const requestConfig: RequestInit = {
       method: config.method,
@@ -131,19 +119,18 @@ export class ApiClient {
       setTimeout(() => reject(new Error('Request timeout')), config.timeout || this.timeout);
     });
 
-    // Make request with timeout
-    console.log('Sending request to backend...');
-    const response = await Promise.race([
-      fetch(url, requestConfig),
-      timeoutPromise,
-    ]);
-    console.log('Received response from backend');
+    try {
+      // Make request with timeout
+      const response = await Promise.race([
+        fetch(url, requestConfig),
+        timeoutPromise,
+      ]);
+      console.log(`[ApiClient] Response status: ${response.status} for ${url}`);
 
-    // Parse response
+      // Parse response
     let data;
     try {
       const responseText = await response.text();
-      console.log('Raw response text:', responseText);
       
       if (responseText.trim()) {
         data = JSON.parse(responseText);
@@ -163,38 +150,14 @@ export class ApiClient {
       };
     }
 
-    // Log detailed response information
-    console.log('=== BACKEND API RESPONSE ===');
-    console.log('Status:', response.status);
-    console.log('Status Text:', response.statusText);
-    console.log('OK:', response.ok);
-    console.log('Response Headers:', JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
-    console.log('Response Data:', JSON.stringify(data, null, 2));
-    console.log('============================');
-
     if (!response.ok) {
-      // Check if this is an expected backend error (e.g., when no cycle data exists)
-      const isExpectedError = (response.status === 400 || response.status === 500) &&
-        data.message && 
-        (data.message.includes('Queue.peek()') || data.message.includes('null'));
-      
-      if (!isExpectedError) {
-        // Log detailed error information only for unexpected errors
-        console.error('=== BACKEND API ERROR ===');
-        console.error('Error Status:', response.status);
-        console.error('Error Status Text:', response.statusText);
-        console.error('Error URL:', url);
-        console.error('Error Method:', config.method);
-        console.error('Request Body:', config.data ? JSON.stringify(config.data, null, 2) : 'No body');
-        console.error('Response Data:', JSON.stringify(data, null, 2));
-        console.error('Error Message:', data.message);
-        console.error('Error Code:', data.code);
-        console.error('Validation Errors:', data.errors || data.validationErrors || data.details || data.fieldErrors);
-        console.error('=========================');
-      } else {
-        // Log as info instead of error for expected backend errors
-        console.log('Backend returned expected error (no data exists):', data.message);
-      }
+      // Log error information for debugging (keep minimal for production)
+      console.error('API Error:', {
+        status: response.status,
+        url,
+        method: config.method,
+        message: data.message || 'Unknown error'
+      });
       
       // Create a more detailed error object
       const apiError = new Error(data.message || `HTTP ${response.status}`);
@@ -205,11 +168,16 @@ export class ApiClient {
       throw apiError;
     }
 
-    return {
-      data,
-      status: response.status,
-      message: data.message,
-    };
+      return {
+        data,
+        status: response.status,
+        message: data.message,
+      };
+    } catch (error: any) {
+      console.error(`[ApiClient] Request failed for ${url}:`, error);
+      // This will be caught by the retry logic in request()
+      throw error;
+    }
   }
 
   // Error handling
@@ -220,8 +188,10 @@ export class ApiClient {
 
     // Network errors
     if (error instanceof TypeError) {
+      console.error('[ApiClient] Network error detected:', error.message);
+      console.error('[ApiClient] Base URL:', this.baseURL);
       return {
-        message: 'Network error - please check your connection',
+        message: `Network error - please check your connection. URL: ${this.baseURL}`,
         status: 0,
         code: 'NETWORK_ERROR',
       };

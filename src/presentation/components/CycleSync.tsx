@@ -168,7 +168,6 @@ export function CycleSync({ navigation }: CycleSyncProps) {
       // Backend error occurs when no cycle records exist yet
       if (error?.status === 400 || error?.status === 500) {
         // Expected error when user hasn't logged any cycles yet
-        console.log('Recommendations unavailable - user needs to log cycle data first');
       } else {
         console.error('Failed to fetch recommendations:', error);
       }
@@ -184,7 +183,6 @@ export function CycleSync({ navigation }: CycleSyncProps) {
       const parsedDate = parseDateLocal(user.lastPeriodDate);
       setPeriodStartDate(parsedDate);
       hasInitializedDateRef.current = true;
-      console.log('Initializing periodStartDate from user profile:', parsedDate.toLocaleDateString());
     }
   }, [user?.lastPeriodDate]); // Only run when user data changes, but ref prevents multiple initializations
 
@@ -337,8 +335,6 @@ export function CycleSync({ navigation }: CycleSyncProps) {
 
   const handleLogPeriod = async () => {
     // Pre-populate form with last cycle's info, but always create new entry
-    console.log('Opening log period modal - fetching last cycle for pre-population...');
-    
     // Fetch the most recent cycle to pre-populate form
     const recentCycle = await cycleApiService.getMostRecentCycle(user?.id);
     
@@ -352,23 +348,15 @@ export function CycleSync({ navigation }: CycleSyncProps) {
       setCycleLength(recentCycle.cycleLength.toString());
       setPeriodDuration(recentCycle.periodDuration.toString());
       setIsCycleRegular(recentCycle.isCycleRegular);
-      console.log('Pre-populating form with last cycle data:', {
-        date: cycleDate.toLocaleDateString(),
-        cycleLength: recentCycle.cycleLength,
-        periodDuration: recentCycle.periodDuration,
-        isCycleRegular: recentCycle.isCycleRegular
-      });
     } else {
       // No previous cycle - use defaults or user's lastPeriodDate
       if (user?.lastPeriodDate) {
         const parsedDate = parseDateLocal(user.lastPeriodDate);
         setPeriodStartDate(parsedDate);
-        console.log('Using lastPeriodDate from profile:', parsedDate.toLocaleDateString());
       } else {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         setPeriodStartDate(today);
-        console.log('No lastPeriodDate, using today:', today.toLocaleDateString());
       }
       // Reset form fields to defaults
       setCycleLength('28');
@@ -381,13 +369,6 @@ export function CycleSync({ navigation }: CycleSyncProps) {
   };
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
-    console.log('handleDateChange called:', { 
-      eventType: event?.type, 
-      selectedDate, 
-      platform: Platform.OS,
-      hasSelectedDate: !!selectedDate 
-    });
-    
     if (Platform.OS === 'android') {
       // On Android, the native dialog handles the selection
       if (event.type === 'set' && selectedDate) {
@@ -397,17 +378,12 @@ export function CycleSync({ navigation }: CycleSyncProps) {
         newDate.setHours(0, 0, 0, 0);
         setPeriodStartDate(newDate);
         setShowDatePicker(false);
-        console.log('Date selected on Android - New date:', newDate);
-        console.log('Date selected on Android - ISO:', newDate.toISOString());
-        console.log('Date selected on Android - Local:', newDate.toLocaleDateString());
       } else if (event.type === 'dismissed') {
         // User cancelled - revert to original date
         if (originalPeriodDate) {
           setPeriodStartDate(new Date(originalPeriodDate));
-          console.log('Date picker dismissed - reverted to original:', originalPeriodDate);
         }
         setShowDatePicker(false);
-        console.log('Date picker dismissed on Android');
       }
     } else {
       // On iOS, just update the date - user will confirm with button
@@ -417,17 +393,11 @@ export function CycleSync({ navigation }: CycleSyncProps) {
         const newDate = new Date(selectedDate);
         newDate.setHours(0, 0, 0, 0);
         setPeriodStartDate(newDate);
-        console.log('Date updated on iOS - New date:', newDate);
-        console.log('Date updated on iOS - ISO:', newDate.toISOString());
-        console.log('Date updated on iOS - Local:', newDate.toLocaleDateString());
       }
     }
   };
 
   const handleConfirmDate = () => {
-    console.log('Date confirmed on iOS - Final date:', periodStartDate);
-    console.log('Date confirmed on iOS - ISO:', periodStartDate.toISOString());
-    console.log('Date confirmed on iOS - Local:', periodStartDate.toLocaleDateString());
     setShowDatePicker(false);
     setOriginalPeriodDate(null); // Clear original date after confirmation
   };
@@ -436,21 +406,17 @@ export function CycleSync({ navigation }: CycleSyncProps) {
     // Revert to original date if user cancels
     if (originalPeriodDate) {
       setPeriodStartDate(new Date(originalPeriodDate));
-      console.log('Date picker cancelled - reverted to original:', originalPeriodDate);
     } else if (isEditingCycle && existingCycle) {
       setPeriodStartDate(new Date(existingCycle.periodStartDate));
-      console.log('Date picker cancelled - reverted to cycle date:', existingCycle.periodStartDate);
     } else if (user?.lastPeriodDate) {
       const dateStr = user.lastPeriodDate;
       const parsedDate = new Date(dateStr);
       if (!isNaN(parsedDate.getTime())) {
         setPeriodStartDate(parsedDate);
-        console.log('Date picker cancelled - reverted to profile date:', parsedDate);
       }
     }
     setShowDatePicker(false);
     setOriginalPeriodDate(null);
-    console.log('Date picker cancelled');
   };
 
   const handleSavePeriod = async () => {
@@ -491,12 +457,8 @@ export function CycleSync({ navigation }: CycleSyncProps) {
       const dateToUse = periodStartDate || new Date();
       dateToUse.setHours(0, 0, 0, 0); // Ensure time is midnight
       const periodStartDateStr = formatDateLocal(dateToUse); // Format as YYYY-MM-DD in local timezone
-      console.log('Creating new period entry with date:', periodStartDateStr);
-      console.log('Date object:', dateToUse);
-      console.log('Date local string:', dateToUse.toLocaleDateString());
 
       // Always create a new cycle entry (POST) to track all periods
-      console.log('Creating new cycle entry...');
       const response = await cycleApiService.createCycle({
         userId: user.id,
         periodStartDate: periodStartDateStr,
@@ -505,14 +467,11 @@ export function CycleSync({ navigation }: CycleSyncProps) {
         isCycleRegular: isCycleRegular
       });
       
-      console.log('Period logged successfully:', response);
       Alert.alert('Success', 'Period logged successfully!');
 
       // Refresh cycle data - fetch fresh data from API
-      console.log('Refreshing cycle data after save...');
       const recentCycle = await cycleApiService.getMostRecentCycle(user.id);
       if (recentCycle) {
-        console.log('Refreshed cycle data:', recentCycle);
         setExistingCycle(recentCycle);
         const cycleDataFromApi: CycleData = {
           cycleLength: recentCycle.cycleLength,
@@ -528,7 +487,6 @@ export function CycleSync({ navigation }: CycleSyncProps) {
         // Update the period start date in the form to match the saved data
         const savedDate = parseDateLocal(recentCycle.periodStartDate);
         setPeriodStartDate(savedDate);
-        console.log('Updated periodStartDate in form to:', savedDate.toLocaleDateString());
         
         // Refresh recommendations after saving - now we have cycle data
         fetchRecommendations(cycleDataFromApi.currentPhase);
@@ -550,7 +508,6 @@ export function CycleSync({ navigation }: CycleSyncProps) {
     setExistingCycle(null);
     setIsEditingCycle(false);
     setOriginalPeriodDate(null); // Clear original date
-    console.log('Period log modal cancelled');
   };
 
   const handleLogSymptoms = () => {
@@ -881,8 +838,6 @@ export function CycleSync({ navigation }: CycleSyncProps) {
                   <TouchableOpacity
                     style={styles.dateButton}
                     onPress={() => {
-                      console.log('Date button pressed, showing date picker');
-                      console.log('Current periodStartDate:', periodStartDate, 'ISO:', periodStartDate.toISOString());
                       // Store the original date when opening picker
                       setOriginalPeriodDate(new Date(periodStartDate));
                       setShowDatePicker(true);

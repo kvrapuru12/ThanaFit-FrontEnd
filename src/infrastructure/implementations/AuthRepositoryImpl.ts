@@ -11,8 +11,12 @@ interface LoginResponse {
   userId: number;
   username: string;
   role: string;
-  gender: string;
-  message: string;
+  gender: string | null;
+  profileComplete?: boolean;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  message?: string;
 }
 
 interface RefreshTokenResponse {
@@ -39,7 +43,7 @@ export class AuthRepositoryImpl implements IAuthRepository {
         throw new Error('Invalid login response structure');
       }
       
-      const { token, userId, username, role, gender } = response.data;
+      const { token, userId, username, role, gender, profileComplete, firstName, lastName, email } = response.data;
       
       // Store userId for later use
       await AsyncStorage.setItem('userId', userId.toString());
@@ -47,13 +51,13 @@ export class AuthRepositoryImpl implements IAuthRepository {
       // Create user object from backend response
       const user: User = {
         id: userId,
-        firstName: username, // Backend doesn't return firstName, using username
-        lastName: '', // Backend doesn't return lastName
-        email: '', // Backend doesn't return email
+        firstName: firstName || username, // Use firstName if available, fallback to username
+        lastName: lastName || '', // Use lastName if available
+        email: email || '', // Use email if available
         username: username,
-        phoneNumber: '', // Backend doesn't return phoneNumber
-        dob: '', // Backend doesn't return dob
-        gender: this.mapGender(gender), // Use gender from backend response
+        phoneNumber: '', // Backend doesn't return phoneNumber in login response
+        dob: null, // Will be fetched from getCurrentUser
+        gender: this.mapGender(gender), // Handle null gender
         activityLevel: ActivityLevel.MODERATE, // Default value
         dailyCalorieIntakeTarget: 2000, // Default value
         dailyCalorieBurnTarget: 500, // Default value
@@ -63,6 +67,7 @@ export class AuthRepositoryImpl implements IAuthRepository {
         accountStatus: AccountStatus.ACTIVE, // Default value
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        profileComplete: profileComplete !== undefined ? profileComplete : true, // Default to true for existing users
       };
     
       const tokens: AuthTokens = {
@@ -78,13 +83,75 @@ export class AuthRepositoryImpl implements IAuthRepository {
     }
   }
 
+  async loginWithGoogle(idToken: string, platform: string): Promise<{ user: User; tokens: AuthTokens }> {
+    try {
+      const requestBody = {
+        idToken,
+        platform,
+      };
+      console.log('[AuthRepository] Google login request body:', JSON.stringify(requestBody, null, 2));
+      
+      const response = await apiClient.post<LoginResponse>('/auth/google', requestBody);
+
+      // Validate response structure
+      if (!response.data || !response.data.token || !response.data.userId) {
+        throw new Error('Invalid Google login response structure');
+      }
+
+      const { token, userId, username, role, gender, firstName, lastName, email, profileComplete } = response.data;
+
+      // Log the role received from backend for debugging
+      console.log('[AuthRepository] Google login response - role:', role, 'userId:', userId, 'profileComplete:', profileComplete);
+
+      // Store userId for later use
+      await AsyncStorage.setItem('userId', userId.toString());
+
+      // Map role with fallback to USER if missing or null
+      const mappedRole = this.mapRole(role);
+      console.log('[AuthRepository] Mapped role:', mappedRole, '(from backend role:', role, ')');
+
+      // Create user object from backend response
+      const user: User = {
+        id: userId,
+        firstName: firstName || username || '', // Backend should return firstName from Google profile
+        lastName: lastName || '', // Backend should return lastName from Google profile
+        email: email || username || '', // Backend should return email
+        username: username,
+        phoneNumber: '',
+        dob: null, // Will be fetched from getCurrentUser if needed
+        gender: this.mapGender(gender), // Handle null gender
+        activityLevel: ActivityLevel.MODERATE,
+        dailyCalorieIntakeTarget: 2000,
+        dailyCalorieBurnTarget: 500,
+        weight: 70,
+        height: { value: 170, unit: 'CM' },
+        role: mappedRole,
+        accountStatus: AccountStatus.ACTIVE,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        profileComplete: profileComplete !== undefined ? profileComplete : false, // Default to false for new Google users
+      };
+
+      const tokens: AuthTokens = {
+        accessToken: token,
+        refreshToken: undefined,
+        expiresIn: 3600,
+      };
+
+      return { user, tokens };
+    } catch (error) {
+      console.error('Google login failed:', error);
+      throw error;
+    }
+  }
+
   async signup(userData: CreateUserRequest): Promise<User> {
     try {
       console.log('=== SIGNUP REQUEST START ===');
       console.log('Signup endpoint: /users');
       console.log('Signup payload:', JSON.stringify(userData, null, 2));
       
-      const response = await apiClient.post<User>('/users', userData);
+      const response = await apiClient.post<any>('/users', userData);
       
       console.log('=== SIGNUP RESPONSE ===');
       console.log('Response status:', response.status);
@@ -97,8 +164,41 @@ export class AuthRepositoryImpl implements IAuthRepository {
         throw new Error('No response data received from server');
       }
       
+      // Map backend response to frontend User entity (same as getCurrentUser)
+      const backendUser = response.data;
+      const user: User = {
+        id: backendUser.id,
+        firstName: backendUser.firstName,
+        lastName: backendUser.lastName,
+        email: backendUser.email,
+        username: backendUser.username,
+        phoneNumber: backendUser.phoneNumber,
+        dob: backendUser.dob || null,
+        gender: this.mapGender(backendUser.gender),
+        activityLevel: this.mapActivityLevel(backendUser.activityLevel),
+        dailyCalorieIntakeTarget: backendUser.dailyCalorieIntakeTarget,
+        dailyCalorieBurnTarget: backendUser.dailyCalorieBurnTarget,
+        weight: backendUser.weight,
+        height: backendUser.heightCm ? { value: backendUser.heightCm.value, unit: backendUser.heightCm.unit } : null,
+        role: this.mapRole(backendUser.role),
+        accountStatus: this.mapAccountStatus(backendUser.accountStatus),
+        createdAt: backendUser.createdAt,
+        updatedAt: backendUser.updatedAt,
+        
+        // Target fields
+        targetFat: backendUser.targetFat,
+        targetProtein: backendUser.targetProtein,
+        targetCarbs: backendUser.targetCarbs,
+        targetSleepHours: backendUser.targetSleepHours,
+        targetWaterLitres: backendUser.targetWaterLitres,
+        targetSteps: backendUser.targetSteps,
+        targetWeight: backendUser.targetWeight,
+        lastPeriodDate: backendUser.lastPeriodDate,
+        profileComplete: backendUser.profileComplete !== undefined ? backendUser.profileComplete : true,
+      };
+      
       console.log('=== SIGNUP SUCCESS ===');
-      return response.data;
+      return user;
     } catch (error: any) {
       console.error('=== SIGNUP ERROR ===');
       console.error('Error details:', JSON.stringify(error, null, 2));
@@ -145,7 +245,7 @@ export class AuthRepositoryImpl implements IAuthRepository {
       email: backendUser.email,
       username: backendUser.username,
       phoneNumber: backendUser.phoneNumber,
-      dob: backendUser.dob,
+      dob: backendUser.dob || null,
       gender: this.mapGender(backendUser.gender),
       activityLevel: this.mapActivityLevel(backendUser.activityLevel),
       dailyCalorieIntakeTarget: backendUser.dailyCalorieIntakeTarget,
@@ -166,14 +266,50 @@ export class AuthRepositoryImpl implements IAuthRepository {
       targetSteps: backendUser.targetSteps,
       targetWeight: backendUser.targetWeight,
       lastPeriodDate: backendUser.lastPeriodDate,
+      profileComplete: backendUser.profileComplete !== undefined ? backendUser.profileComplete : true,
     };
     
     return user;
   }
 
   async updateProfile(userId: number, userData: Partial<User>): Promise<User> {
-    const response = await apiClient.patch<User>(`/users/${userId}`, userData);
-    return response.data;
+    console.log('[AuthRepository] updateProfile - userId:', userId, 'userData:', JSON.stringify(userData, null, 2));
+    const response = await apiClient.patch<any>(`/users/${userId}`, userData);
+    
+    // Map backend response to frontend User entity (same as getCurrentUser)
+    const backendUser = response.data;
+    const user: User = {
+      id: backendUser.id,
+      firstName: backendUser.firstName,
+      lastName: backendUser.lastName,
+      email: backendUser.email,
+      username: backendUser.username,
+      phoneNumber: backendUser.phoneNumber,
+      dob: backendUser.dob || null,
+      gender: this.mapGender(backendUser.gender),
+      activityLevel: this.mapActivityLevel(backendUser.activityLevel),
+      dailyCalorieIntakeTarget: backendUser.dailyCalorieIntakeTarget,
+      dailyCalorieBurnTarget: backendUser.dailyCalorieBurnTarget,
+      weight: backendUser.weight,
+      height: backendUser.heightCm ? { value: backendUser.heightCm.value, unit: backendUser.heightCm.unit } : null,
+      role: this.mapRole(backendUser.role),
+      accountStatus: this.mapAccountStatus(backendUser.accountStatus),
+      createdAt: backendUser.createdAt,
+      updatedAt: backendUser.updatedAt,
+      
+      // Target fields
+      targetFat: backendUser.targetFat,
+      targetProtein: backendUser.targetProtein,
+      targetCarbs: backendUser.targetCarbs,
+      targetSleepHours: backendUser.targetSleepHours,
+      targetWaterLitres: backendUser.targetWaterLitres,
+      targetSteps: backendUser.targetSteps,
+      targetWeight: backendUser.targetWeight,
+      lastPeriodDate: backendUser.lastPeriodDate,
+      profileComplete: backendUser.profileComplete !== undefined ? backendUser.profileComplete : true,
+    };
+    
+    return user;
   }
 
   // Token management
@@ -302,7 +438,12 @@ export class AuthRepositoryImpl implements IAuthRepository {
   }
 
   // Helper methods for mapping backend values to frontend enums
-  private mapGender(backendGender: string): Gender {
+  private mapGender(backendGender: string | null | undefined): Gender | null {
+    // Handle null, undefined, or empty string - return null instead of default
+    if (!backendGender || typeof backendGender !== 'string') {
+      return null; // Return null if not provided
+    }
+    
     switch (backendGender.toUpperCase()) {
       case 'FEMALE':
         return Gender.FEMALE;
@@ -313,11 +454,16 @@ export class AuthRepositoryImpl implements IAuthRepository {
       case 'OTHER':
         return Gender.OTHER;
       default:
-        return Gender.OTHER;
+        return Gender.MALE; // Default to MALE
     }
   }
 
-  private mapActivityLevel(backendActivityLevel: string): ActivityLevel {
+  private mapActivityLevel(backendActivityLevel: string | null | undefined): ActivityLevel {
+    // Handle null, undefined, or empty string
+    if (!backendActivityLevel || typeof backendActivityLevel !== 'string') {
+      return ActivityLevel.MODERATE; // Default to MODERATE
+    }
+    
     switch (backendActivityLevel.toUpperCase()) {
       case 'SEDENTARY':
         return ActivityLevel.SEDENTARY;
@@ -334,7 +480,12 @@ export class AuthRepositoryImpl implements IAuthRepository {
     }
   }
 
-  private mapRole(backendRole: string): UserRole {
+  private mapRole(backendRole: string | null | undefined): UserRole {
+    // Handle null, undefined, or empty string
+    if (!backendRole || typeof backendRole !== 'string') {
+      return UserRole.USER;
+    }
+    
     switch (backendRole.toUpperCase()) {
       case 'ADMIN':
         return UserRole.ADMIN;
@@ -348,7 +499,12 @@ export class AuthRepositoryImpl implements IAuthRepository {
     }
   }
 
-  private mapAccountStatus(backendStatus: string): AccountStatus {
+  private mapAccountStatus(backendStatus: string | null | undefined): AccountStatus {
+    // Handle null, undefined, or empty string
+    if (!backendStatus || typeof backendStatus !== 'string') {
+      return AccountStatus.ACTIVE; // Default to ACTIVE
+    }
+    
     switch (backendStatus.toUpperCase()) {
       case 'ACTIVE':
         return AccountStatus.ACTIVE;
@@ -361,3 +517,4 @@ export class AuthRepositoryImpl implements IAuthRepository {
     }
   }
 }
+

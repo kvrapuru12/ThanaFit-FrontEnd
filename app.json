@@ -4,13 +4,47 @@
     "slug": "thanafit-auth",
     "version": "1.0.0",
     "sdkVersion": "53.0.0",
+    "scheme": "com.prod.thanafit",
+    "icon": "./assets/icon.png",
     "platforms": [
       "ios",
       "android"
     ],
     "jsEngine": "hermes",
     "ios": {
-      "bundleIdentifier": "com.anonymous.thanafit-auth"
-    }
+      "bundleIdentifier": "com.prod.thanafit",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSExceptionDomains": {
+            "healthapp-alb-1571435665.us-east-1.elb.amazonaws.com": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSIncludesSubdomains": true
+            }
+          }
+        }
+      }
+    },
+    "android": {
+      "package": "com.prod.thanafit",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#2563eb"
+      },
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "plugins": [
+      "expo-web-browser"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1776aca5-7c52-4555-8dc0-4946589c5440"
+      }
+    },
+    "owner": "kvrapuru12"
   }
 }

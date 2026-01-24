@@ -8,7 +8,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StyleSheet
+  StyleSheet,
+  Alert
 } from 'react-native';
 import { useAuth } from '../../presentation/providers/AuthProvider';
 
@@ -26,13 +27,14 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ navigation }: LoginScreenProps) {
-  const { login, isLoading } = useAuth();
+  const { login, loginWithGoogle, isLoading } = useAuth();
   const [loginData, setLoginData] = useState<LoginData>({
     username: '',
     password: ''
   });
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [showPassword, setShowPassword] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const updateLoginData = (field: keyof LoginData, value: string) => {
     setLoginData(prev => ({ ...prev, [field]: value }));
@@ -62,12 +64,28 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
   const handleLogin = async () => {
     if (!validateForm()) return;
 
-    const success = await login(loginData);
-    
-    if (success) {
-      // Navigation will be handled automatically by the AuthContext
-      // The app will redirect to Dashboard when authentication is successful
-      console.log('Login successful!');
+    try {
+      const success = await login(loginData);
+      
+      if (success) {
+        // Navigation will be handled automatically by the AuthContext
+        // The app will redirect to Dashboard when authentication is successful
+        console.log('Login successful!');
+      } else {
+        // Show error alert if login failed
+        Alert.alert(
+          'Login Failed',
+          'Invalid credentials or network error. Please check your username/password and try again.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error: any) {
+      console.error('Login error in LoginScreen:', error);
+      Alert.alert(
+        'Login Error',
+        error.message || 'An error occurred during login. Please try again.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
@@ -75,8 +93,47 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
     console.log('Forgot Password clicked - functionality not implemented yet');
   };
 
-  const handleSocialLogin = (provider: string) => {
-    console.log(`${provider} login clicked - functionality not implemented yet`);
+  const handleSocialLogin = async (provider: string) => {
+    console.log(`[LoginScreen] handleSocialLogin called with provider: ${provider}`);
+    if (provider === 'Google') {
+      setIsGoogleLoading(true);
+      try {
+        console.log('[LoginScreen] Starting Google Sign-In...');
+        const success = await loginWithGoogle();
+        if (success) {
+          console.log('[LoginScreen] Google Sign-In successful!');
+          // Navigation will be handled automatically by AuthContext
+        } else {
+          console.log('[LoginScreen] Google Sign-In returned false');
+          Alert.alert('Sign-In Failed', 'Google Sign-In did not complete successfully. Please try again.');
+        }
+      } catch (error: any) {
+        console.error('[LoginScreen] Error in handleSocialLogin:', error);
+        
+        // Provide user-friendly error messages
+        let errorMessage = 'Failed to sign in with Google. Please try again.';
+        
+        if (error.message?.includes('cancelled') || error.message?.includes('cancel')) {
+          errorMessage = 'Google Sign-In was cancelled. Please try again if you want to sign in with Google.';
+        } else if (error.message?.includes('timeout') || error.message?.includes('timed out')) {
+          errorMessage = 'Google Sign-In took too long to complete. Please try again and ensure you complete the verification promptly (scan QR code if prompted).';
+        } else if (error.message?.includes('Passkey') || error.message?.includes('QR code') || error.message?.includes('barcode')) {
+          errorMessage = 'Google Sign-In requires additional verification. Please complete the verification on the Google sign-in screen (scan QR code if prompted) and try again.';
+        } else if (error.message?.includes('network') || error.message?.includes('connection')) {
+          errorMessage = 'Network error. Please check your internet connection and try again.';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        // Show alert to user
+        Alert.alert('Google Sign-In Error', errorMessage);
+      } finally {
+        setIsGoogleLoading(false);
+      }
+    } else if (provider === 'Apple') {
+      console.log('Apple Sign-In - to be implemented');
+      // TODO: Implement Apple Sign-In
+    }
   };
 
   return (
@@ -334,6 +391,9 @@ const styles = StyleSheet.create({
     borderColor: '#d1d5db',
     borderRadius: 8,
     backgroundColor: 'white',
+  },
+  socialButtonDisabled: {
+    opacity: 0.6,
   },
   socialButtonText: {
     color: '#374151',

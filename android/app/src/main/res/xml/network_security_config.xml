@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Allow cleartext (HTTP) traffic for AWS ALB domain only -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">healthapp-alb-1571435665.us-east-1.elb.amazonaws.com</domain>
+    </domain-config>
+    
+    <!-- Block all other cleartext traffic by default -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
+
+

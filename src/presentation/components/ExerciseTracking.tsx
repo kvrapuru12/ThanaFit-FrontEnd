@@ -30,10 +30,6 @@ interface ExerciseTrackingProps {
 }
 
 export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
-  console.log('=== EXERCISE TRACKING COMPONENT LOADED ===');
-  console.log('Category cards have been removed from this component');
-  console.log('Start Workout button has been removed from this component');
-  
   const { user } = useAuth();
   const { activities, quickWorkouts, isLoading: activitiesLoading, error: activitiesError } = useActivities();
   const { todaysWorkouts, isLoading: workoutsLoading, error: workoutsError, refresh: refreshWorkouts } = useTodayWorkouts();
@@ -60,12 +56,6 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
     const totalCalories = todaysWorkouts.reduce((sum, workout) => sum + workout.calories, 0);
     const totalWorkouts = todaysWorkouts.length;
 
-    console.log('=== SUMMARY STATS CALCULATION ===');
-    console.log('Total minutes:', totalMinutes);
-    console.log('Total calories:', totalCalories);
-    console.log('Total workouts:', totalWorkouts);
-    console.log('===============================');
-
     return {
       totalMinutes,
       totalCalories,
@@ -77,9 +67,6 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
 
   // Handle voice log functionality (fallback for manual processing)
   const handleVoiceLog = (transcript: string) => {
-    console.log('=== VOICE LOG RECEIVED (MANUAL) ===');
-    console.log('Transcript:', transcript);
-    
     // Navigate to AddExercise screen with voice transcript pre-filled
     navigation?.navigate?.('AddExercise', { 
       onWorkoutAdded: refreshWorkouts,
@@ -89,25 +76,13 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
 
   // Handle successful voice log processing
   const handleVoiceLogSuccess = async (activityLog: any) => {
-    console.log('=== VOICE LOG SUCCESS ===');
-    console.log('Activity log created:', activityLog);
-    
     // Refresh the workouts data to show the new entry
     await refreshWorkouts();
-    
-    // Show success message (optional, since VoiceRecorder already shows one)
-    console.log('Workout data refreshed successfully');
   };
 
   // Handle quick add functionality
   const handleQuickAdd = async (activity: any) => {
     try {
-      console.log('=== QUICK ADD DEBUG ===');
-      console.log('Adding activity:', activity.name);
-      console.log('Activity ID:', activity.id);
-      console.log('User ID:', user?.id);
-      console.log('========================');
-
       if (!user?.id) {
         Alert.alert('Error', 'User not authenticated');
         return;
@@ -122,10 +97,7 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
         note: `Quick add: ${activity.name}`
       };
 
-      console.log('Creating activity log with data:', logData);
-      
       const result = await dashboardApiService.createActivityLog(logData);
-      console.log('Activity log created successfully:', result);
 
       // Refresh the workouts data
       await refreshWorkouts();
@@ -135,8 +107,7 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
         `${activity.name} has been added to your workouts!`,
         [
           {
-            text: 'OK',
-            onPress: () => console.log('Quick add completed')
+            text: 'OK'
           }
         ]
       );
@@ -240,9 +211,6 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
                   <TouchableOpacity 
                     style={styles.addWorkoutButton}
                     onPress={() => {
-                      console.log('=== EXERCISE TRACKING DEBUG ===');
-                      console.log('refreshWorkouts function:', refreshWorkouts);
-                      console.log('Navigation object:', navigation);
                       navigation?.navigate?.('AddExercise', { onWorkoutAdded: refreshWorkouts });
                     }}
                   >
@@ -270,9 +238,6 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
                   <TouchableOpacity 
                     style={styles.addWorkoutButton}
                     onPress={() => {
-                      console.log('=== EXERCISE TRACKING DEBUG ===');
-                      console.log('refreshWorkouts function:', refreshWorkouts);
-                      console.log('Navigation object:', navigation);
                       navigation?.navigate?.('AddExercise', { onWorkoutAdded: refreshWorkouts });
                     }}
                   >

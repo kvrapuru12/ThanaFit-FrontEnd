@@ -306,16 +306,6 @@ export const Dashboard: React.FC = () => {
             </Text>
           </View>
         </View>
-        <View style={styles.streakCard}>
-          <View style={styles.streakHeader}>
-            <MaterialIcons name="emoji-events" size={16} color="#10b981" />
-            <Text style={styles.streakLabel}>Streak</Text>
-          </View>
-          <View style={styles.streakValue}>
-            <Text style={styles.streakEmoji}>🌺</Text>
-            <Text style={styles.streakNumber}>12</Text>
-          </View>
-        </View>
       </View>
 
       {/* Scrollable Content */}
@@ -855,40 +845,6 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 14,
     color: '#6b7280',
-  },
-  streakCard: {
-    backgroundColor: 'white',
-    borderRadius: 24,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  streakHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  streakLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-  },
-  streakValue: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  streakEmoji: {
-    fontSize: 24,
-  },
-  streakNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#10b981',
   },
   statsGrid: {
     flexDirection: 'row',

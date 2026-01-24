@@ -1,0 +1,46 @@
+{
+  "cli": {
+    "version": ">= 5.9.0"
+  },
+  "build": {
+    "production": {
+      "android": {
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "http://healthapp-alb-1571435665.us-east-1.elb.amazonaws.com/api",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "383964637006-pp6ooio84sr55aro70j1srpjt5909ibh.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "383964637006-dqtvfhqpickel6ilhrrtc2uv1oljnd3d.apps.googleusercontent.com"
+      }
+    },
+    "preview": {
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "http://healthapp-alb-1571435665.us-east-1.elb.amazonaws.com/api",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "383964637006-pp6ooio84sr55aro70j1srpjt5909ibh.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "383964637006-dqtvfhqpickel6ilhrrtc2uv1oljnd3d.apps.googleusercontent.com"
+      }
+    },
+    "development": {
+      "android": {
+        "buildType": "apk",
+        "developmentClient": true
+      },
+      "ios": {
+        "developmentClient": true
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./google-service-account.json",
+        "track": "internal"
+      }
+    }
+  }
+}
+

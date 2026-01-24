@@ -4,6 +4,7 @@ import { User, AuthCredentials, AuthTokens } from '../entities/User';
 export interface IAuthRepository {
   // Authentication methods
   login(credentials: AuthCredentials): Promise<{ user: User; tokens: AuthTokens }>;
+  loginWithGoogle(idToken: string, platform: string): Promise<{ user: User; tokens: AuthTokens }>;
   signup(userData: CreateUserRequest): Promise<User>;
   logout(): Promise<void>;
   refreshToken(refreshToken: string): Promise<AuthTokens>;
