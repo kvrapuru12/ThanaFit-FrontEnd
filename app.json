@@ -2,18 +2,28 @@
   "expo": {
     "name": "ThanaFit",
     "slug": "thanafit-auth",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "sdkVersion": "53.0.0",
+    "scheme": "com.prod.thanafit",
     "platforms": [
       "ios",
       "android"
     ],
     "jsEngine": "hermes",
     "ios": {
-      "bundleIdentifier": "com.anonymous.thanafit-auth"
+      "bundleIdentifier": "com.prod.thanafit"
     },
     "plugins": [
       "expo-web-browser"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1776aca5-7c52-4555-8dc0-4946589c5440"
+      }
+    },
+    "android": {
+      "package": "com.prod.thanafit",
+      "versionCode": 3
+    }
   }
 }
