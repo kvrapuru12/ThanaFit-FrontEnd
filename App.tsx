@@ -108,21 +108,12 @@ const AppNavigator = () => {
 
 // Main App Component with Bottom Navigation
 const MainApp = ({ navigation }: { navigation?: any }) => {
-  const { user, profileComplete } = useAuth();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
 
   // Debug logging
   console.log('MainApp - user:', user);
   console.log('MainApp - user?.gender:', user?.gender);
-  console.log('MainApp - profileComplete:', profileComplete);
-
-  // Redirect to Profile if profile is incomplete
-  React.useEffect(() => {
-    if (user && profileComplete === false) {
-      console.log('Profile incomplete - redirecting to Profile tab');
-      setActiveTab('profile');
-    }
-  }, [user, profileComplete]);
 
   const renderActiveTab = (navigation?: any) => {
     switch (activeTab) {

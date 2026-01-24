@@ -34,7 +34,7 @@ interface ProfileProps {
 }
 
 export function Profile({ navigation }: ProfileProps) {
-  const { logout, isLoading, user, refreshUserData, updateUser, profileComplete } = useAuth();
+  const { logout, isLoading, user, refreshUserData } = useAuth();
   
   // Edit modal state
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -64,20 +64,14 @@ export function Profile({ navigation }: ProfileProps) {
   const [pickerOptions, setPickerOptions] = useState<Array<{label: string; value: string}>>([]);
   const [pickerTitle, setPickerTitle] = useState('');
   
-  // Change password modal state
-  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  // Debug: Log user data
+  console.log('Profile - user data:', user);
   
   // Fetch fresh user data when Profile component mounts
   useEffect(() => {
     const fetchFreshUserData = async () => {
       try {
+        console.log('Profile - Fetching fresh user data from API...');
         await refreshUserData();
       } catch (error) {
         console.error('Profile - Failed to fetch fresh user data:', error);
@@ -86,6 +80,21 @@ export function Profile({ navigation }: ProfileProps) {
     
     fetchFreshUserData();
   }, []); // Empty dependency array - run only on mount
+
+  // Debug: Log when user object changes
+  useEffect(() => {
+    console.log('Profile - User object changed:', {
+      userId: user?.id,
+      targetProtein: user?.targetProtein,
+      targetCarbs: user?.targetCarbs,
+      targetFat: user?.targetFat,
+      targetWaterLitres: user?.targetWaterLitres,
+      targetSteps: user?.targetSteps,
+      targetSleepHours: user?.targetSleepHours,
+      targetWeight: user?.targetWeight,
+      dailyCalorieIntakeTarget: user?.dailyCalorieIntakeTarget,
+    });
+  }, [user]);
 
   const handleLogout = async () => {
     Alert.alert(
@@ -145,7 +154,10 @@ export function Profile({ navigation }: ProfileProps) {
       };
 
       // Use apiClient instead of direct fetch for proper token handling
+      console.log('Updating goal via apiClient:', fieldName, updateData);
       const response = await apiClient.patch(`/users/${user.id}`, updateData);
+      
+      console.log('Goal update successful - Response:', response.data);
 
       // Refresh user data
       await refreshUserData();
@@ -188,89 +200,26 @@ export function Profile({ navigation }: ProfileProps) {
   const handleUpdateBasicInfo = async () => {
     if (!editingBasicInfo || !user) return;
 
-    // Validate before proceeding
-    if (editingBasicInfo.field === 'phoneNumber') {
-      const trimmedPhone = basicInfoEditValue.trim();
-      if (!trimmedPhone) {
-        Alert.alert('Validation Error', 'Phone number is required.');
-        return;
-      }
-      
-      // Validate phone number format
-      const internationalFormat = /^\+[1-9]\d{1,14}$/;
-      const ukFormat = /^0\d{10}$/;
-      
-      if (!internationalFormat.test(trimmedPhone) && !ukFormat.test(trimmedPhone)) {
-        Alert.alert(
-          'Invalid Phone Number',
-          'Phone number must be in international format (e.g., +447912150965) or UK format (07912150965).'
-        );
-        return;
-      }
-    }
-    
-    if (editingBasicInfo.field === 'dob') {
-      // Validate date of birth - must be in the past and user must be at least 13 years old
-      const today = new Date();
-      const birthDate = selectedDate;
-      const age = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
-      const dayDiff = today.getDate() - birthDate.getDate();
-      const actualAge = monthDiff < 0 || (monthDiff === 0 && dayDiff < 0) ? age - 1 : age;
-      
-      if (birthDate > today) {
-        Alert.alert('Invalid Date', 'Date of birth cannot be in the future.');
-        return;
-      }
-      
-      if (actualAge < 13) {
-        Alert.alert('Invalid Date', 'You must be at least 13 years old to use this app.');
-        return;
-      }
-      
-      if (actualAge > 120) {
-        Alert.alert('Invalid Date', 'Please enter a valid date of birth.');
-        return;
-      }
-    }
-
     setIsUpdatingBasicInfo(true);
     try {
       let valueToUpdate = basicInfoEditValue;
       
-      // For date fields, format the date as YYYY-MM-DD
+      // For date fields, format the date
       if (editingBasicInfo.field === 'lastPeriodDate' || editingBasicInfo.field === 'dob') {
-        valueToUpdate = selectedDate.toISOString().split('T')[0];
-        console.log('[Profile] Basic info date update - field:', editingBasicInfo.field, 'formatted value:', valueToUpdate);
+        valueToUpdate = selectedDate.toISOString().split('T')[0]; // Format as YYYY-MM-DD
       }
       
-      // Handle phone number formatting if needed
-      let finalValue: string = valueToUpdate;
-      if (editingBasicInfo.field === 'phoneNumber') {
-        const trimmedPhone = valueToUpdate.trim();
-        const ukFormat = /^0\d{10}$/;
-        
-        if (ukFormat.test(trimmedPhone)) {
-          // Convert UK format to international format
-          const internationalNumber = '+44' + trimmedPhone.substring(1);
-          finalValue = internationalNumber;
-          console.log('[Profile] Basic info phone number update - converted UK to international:', internationalNumber);
-        } else {
-          finalValue = trimmedPhone;
-          console.log('[Profile] Basic info phone number update - using as-is:', trimmedPhone);
-        }
-      }
-      
-      const updateData: any = {
-        [editingBasicInfo.field]: finalValue || null
+      const updateData = {
+        [editingBasicInfo.field]: valueToUpdate
       };
-      
-      console.log('[Profile] Sending basic info update to backend:', JSON.stringify(updateData, null, 2));
 
-      // Use updateUser from AuthProvider which handles state updates properly
-      await updateUser(updateData);
+      // Use apiClient instead of direct fetch for proper token handling
+      console.log('Updating basic info via apiClient:', updateData);
+      const response = await apiClient.patch(`/users/${user.id}`, updateData);
       
-      // Refresh user data to get updated profileComplete status
+      console.log('Basic info update successful - Response:', response.data);
+
+      // Refresh user data
       await refreshUserData();
       
       setBasicInfoEditModalVisible(false);
@@ -278,23 +227,9 @@ export function Profile({ navigation }: ProfileProps) {
       setBasicInfoEditValue('');
       
       Alert.alert('Success', `${editingBasicInfo.label} updated successfully!`);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Update basic info error:', error);
-      
-      // Show specific error messages based on error type
-      let errorMessage = 'Failed to update basic info. Please try again.';
-      
-      if (error.status === 400) {
-        errorMessage = error.message || 'Invalid data provided. Please check your input and try again.';
-      } else if (error.status === 403) {
-        errorMessage = 'You do not have permission to update this information.';
-      } else if (error.status === 404) {
-        errorMessage = 'User not found. Please try logging in again.';
-      } else if (error.message && (error.message.includes('validation') || error.message.includes('format'))) {
-        errorMessage = error.message;
-      }
-      
-      Alert.alert('Update Failed', errorMessage);
+      Alert.alert('Error', 'Failed to update basic info. Please try again.');
     } finally {
       setIsUpdatingBasicInfo(false);
     }
@@ -316,21 +251,18 @@ export function Profile({ navigation }: ProfileProps) {
     
     setIsUpdatingField(true);
     try {
-      const valueToUpdate = date.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+      const valueToUpdate = date.toISOString().split('T')[0];
       const updateData = {
         [field]: valueToUpdate
       };
-      
-      console.log('[Profile] Date update via modal - field:', field, 'formatted value:', valueToUpdate);
-      console.log('[Profile] Sending date update to backend:', JSON.stringify(updateData, null, 2));
 
-      // Use updateUser from AuthProvider instead of direct apiClient.patch for consistency
-      await updateUser(updateData);
+      // Use apiClient instead of direct fetch for proper token handling
+      console.log('Updating date field via apiClient:', field, updateData);
+      const response = await apiClient.patch(`/users/${user.id}`, updateData);
       
-      // Refresh user data to get updated profileComplete status
+      console.log('Date update successful - Response:', response.data);
+
       await refreshUserData();
-      
-      setEditingField(null);
       Alert.alert('Success', 'Date updated successfully!');
     } catch (error) {
       console.error('Date update error:', error);
@@ -446,52 +378,6 @@ export function Profile({ navigation }: ProfileProps) {
   const handleFieldUpdate = async () => {
     if (!user || !editingField) return;
 
-    // Validate before proceeding
-    if (editingField === 'phoneNumber') {
-      const trimmedPhone = editingValue.trim();
-      if (!trimmedPhone) {
-        Alert.alert('Validation Error', 'Phone number is required.');
-        return;
-      }
-      
-      // Validate phone number format
-      const internationalFormat = /^\+[1-9]\d{1,14}$/;
-      const ukFormat = /^0\d{10}$/;
-      
-      if (!internationalFormat.test(trimmedPhone) && !ukFormat.test(trimmedPhone)) {
-        Alert.alert(
-          'Invalid Phone Number',
-          'Phone number must be in international format (e.g., +447912150965) or UK format (07912150965).'
-        );
-        return;
-      }
-    }
-    
-    if (editingField === 'dob') {
-      // Validate date of birth - must be in the past and user must be at least 13 years old
-      const today = new Date();
-      const birthDate = selectedDate;
-      const age = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
-      const dayDiff = today.getDate() - birthDate.getDate();
-      const actualAge = monthDiff < 0 || (monthDiff === 0 && dayDiff < 0) ? age - 1 : age;
-      
-      if (birthDate > today) {
-        Alert.alert('Invalid Date', 'Date of birth cannot be in the future.');
-        return;
-      }
-      
-      if (actualAge < 13) {
-        Alert.alert('Invalid Date', 'You must be at least 13 years old to use this app.');
-        return;
-      }
-      
-      if (actualAge > 120) {
-        Alert.alert('Invalid Date', 'Please enter a valid date of birth.');
-        return;
-      }
-    }
-
     setIsUpdatingField(true);
     try {
       let valueToUpdate = editingValue;
@@ -511,10 +397,9 @@ export function Profile({ navigation }: ProfileProps) {
       // Check if this is a goal field
       const backendFieldName = goalFieldMap[editingField];
       
-      // For date fields, format the date as YYYY-MM-DD
+      // For date fields, format the date
       if (editingField === 'lastPeriodDate' || editingField === 'dob') {
         valueToUpdate = selectedDate.toISOString().split('T')[0];
-        console.log('[Profile] Date field update - field:', editingField, 'formatted value:', valueToUpdate);
       }
       
       // Handle weight field - convert to number
@@ -523,69 +408,67 @@ export function Profile({ navigation }: ProfileProps) {
         // This is a goal field - convert to number and use backend field name
         const numValue = parseFloat(valueToUpdate);
         if (isNaN(numValue)) {
-          Alert.alert('Validation Error', 'Please enter a valid number.');
-          return;
+          throw new Error('Invalid number value');
         }
         updateData[backendFieldName] = numValue;
+        console.log(`Updating goal field "${editingField}" -> "${backendFieldName}" with value:`, numValue);
       } else if (editingField === 'weight') {
         const numValue = parseFloat(valueToUpdate);
-        if (isNaN(numValue) && valueToUpdate.trim() !== '') {
-          Alert.alert('Validation Error', 'Please enter a valid weight.');
-          return;
-        }
         updateData[editingField] = isNaN(numValue) ? null : numValue;
-      } else if (editingField === 'phoneNumber') {
-        // For phone number, validate and optionally convert UK format to international
-        const trimmedPhone = valueToUpdate.trim();
-        const ukFormat = /^0\d{10}$/;
-        
-        if (ukFormat.test(trimmedPhone)) {
-          // Convert UK format to international format
-          const internationalNumber = '+44' + trimmedPhone.substring(1);
-          updateData[editingField] = internationalNumber;
-          console.log('[Profile] Phone number update - converted UK to international:', internationalNumber);
-        } else {
-          updateData[editingField] = trimmedPhone;
-          console.log('[Profile] Phone number update - using as-is:', trimmedPhone);
-        }
       } else {
-        // For other text fields (including dob as YYYY-MM-DD string)
         updateData[editingField] = valueToUpdate;
-        console.log('[Profile] Text field update - field:', editingField, 'value:', valueToUpdate, 'type:', typeof valueToUpdate);
       }
       
-      console.log('[Profile] Sending update data to backend:', JSON.stringify(updateData, null, 2));
-      
-      // Use updateUser from AuthProvider which handles state updates properly
-      await updateUser(updateData);
-      
-      // Refresh user data to get updated profileComplete status
-      await refreshUserData();
-      
-      // Force component re-render
-      setRefreshKey(prev => prev + 1);
-      
-      setEditingField(null);
-      setEditingValue('');
-      
-      Alert.alert('Success', 'Field updated successfully!');
-    } catch (error: any) {
+      console.log('Update payload:', JSON.stringify(updateData, null, 2));
+
+      // Use apiClient instead of direct fetch for proper token handling
+      console.log('Calling apiClient.patch...');
+      try {
+        const response = await apiClient.patch(`/users/${user.id}`, updateData);
+        
+        console.log('Update successful - Response status:', response.status);
+        console.log('Update successful - Response data:', response.data);
+      } catch (error: any) {
+        console.error('Update failed with error:', error);
+        console.error('Error status:', error.status);
+        console.error('Error message:', error.message);
+        console.error('Error details:', error);
+        
+        if (error.status === 403) {
+          throw new Error('Access forbidden. You may not have permission to update this user, or your session may have expired. Please log in again.');
+        } else if (error.status === 401) {
+          throw new Error('Authentication failed. Please log in again.');
+        }
+        throw error;
+      }
+
+      // Refresh user data from backend
+      console.log('Refreshing user data...');
+      try {
+        await refreshUserData();
+        console.log('User data refreshed successfully');
+        console.log('Updated user data:', user);
+        
+        // Force component re-render
+        setRefreshKey(prev => prev + 1);
+        
+        // Wait a bit for state to propagate
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        setEditingField(null);
+        setEditingValue('');
+        
+        Alert.alert('Success', 'Field updated successfully!');
+      } catch (refreshError) {
+        console.error('Failed to refresh user data:', refreshError);
+        // Still show success since the update worked
+        setEditingField(null);
+        setEditingValue('');
+        Alert.alert('Success', 'Field updated, but refresh failed. Please reload the page.');
+      }
+    } catch (error) {
       console.error('Field update error:', error);
-      
-      // Show specific error messages based on error type
-      let errorMessage = 'Failed to update field. Please try again.';
-      
-      if (error.status === 400) {
-        errorMessage = error.message || 'Invalid data provided. Please check your input and try again.';
-      } else if (error.status === 403) {
-        errorMessage = 'You do not have permission to update this field.';
-      } else if (error.status === 404) {
-        errorMessage = 'User not found. Please try logging in again.';
-      } else if (error.message && error.message.includes('validation') || error.message.includes('format')) {
-        errorMessage = error.message;
-      }
-      
-      Alert.alert('Update Failed', errorMessage);
+      Alert.alert('Error', 'Failed to update field. Please try again.');
     } finally {
       setIsUpdatingField(false);
     }
@@ -594,90 +477,6 @@ export function Profile({ navigation }: ProfileProps) {
   const handleFieldCancel = () => {
     setEditingField(null);
     setEditingValue('');
-  };
-
-  const handleChangePassword = async () => {
-    // Validation
-    if (!currentPassword.trim()) {
-      Alert.alert('Validation Error', 'Please enter your current password');
-      return;
-    }
-
-    if (!newPassword.trim()) {
-      Alert.alert('Validation Error', 'Please enter a new password');
-      return;
-    }
-
-    if (newPassword.length < 8) {
-      Alert.alert('Validation Error', 'New password must be at least 8 characters long');
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      Alert.alert('Validation Error', 'New password and confirm password do not match');
-      return;
-    }
-
-    if (currentPassword === newPassword) {
-      Alert.alert('Validation Error', 'New password must be different from current password');
-      return;
-    }
-
-    try {
-      setIsChangingPassword(true);
-
-      // Call change password endpoint
-      await apiClient.post('/auth/change-password', {
-        currentPassword: currentPassword.trim(),
-        newPassword: newPassword.trim(),
-      });
-
-      // Reset form and close modal
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setShowChangePasswordModal(false);
-
-      Alert.alert(
-        'Success',
-        'Password changed successfully. Please log in again with your new password.',
-        [
-          {
-            text: 'OK',
-            onPress: async () => {
-              // Logout user after password change
-              await logout();
-            },
-          },
-        ]
-      );
-    } catch (error: any) {
-      console.error('Change password error:', error);
-      
-      let errorMessage = 'Failed to change password. Please try again.';
-      
-      if (error.status === 401) {
-        errorMessage = 'Current password is incorrect. Please try again.';
-      } else if (error.status === 400) {
-        errorMessage = error.message || 'Invalid password format. Please ensure your new password meets the requirements.';
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      Alert.alert('Error', errorMessage);
-    } finally {
-      setIsChangingPassword(false);
-    }
-  };
-
-  const handleCloseChangePasswordModal = () => {
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    setShowCurrentPassword(false);
-    setShowNewPassword(false);
-    setShowConfirmPassword(false);
-    setShowChangePasswordModal(false);
   };
 
   // Get user data or use defaults
@@ -692,8 +491,33 @@ export function Profile({ navigation }: ProfileProps) {
     totalWorkouts: 89, // This could be calculated from user data
     caloriesTracked: user?.dailyCalorieIntakeTarget ? user.dailyCalorieIntakeTarget * 30 : 60000, // Estimated
   };
+  
+  // Debug: Log user stats
+  console.log('Profile - userStats:', userStats);
+  console.log('Profile - user target fields:', {
+    dailyCalorieIntakeTarget: user?.dailyCalorieIntakeTarget,
+    targetProtein: user?.targetProtein,
+    targetCarbs: user?.targetCarbs,
+    targetFat: user?.targetFat,
+    targetWaterLitres: user?.targetWaterLitres,
+    targetSteps: user?.targetSteps,
+    targetSleepHours: user?.targetSleepHours,
+    targetWeight: user?.targetWeight,
+  });
+
   // Memoize goals to ensure they update when user changes
   const goals = React.useMemo(() => {
+    console.log('Recalculating goals array - refreshKey:', refreshKey);
+    console.log('Current user target values:', {
+      dailyCalorieIntakeTarget: user?.dailyCalorieIntakeTarget,
+      targetProtein: user?.targetProtein,
+      targetCarbs: user?.targetCarbs,
+      targetFat: user?.targetFat,
+      targetWaterLitres: user?.targetWaterLitres,
+      targetSteps: user?.targetSteps,
+      targetSleepHours: user?.targetSleepHours,
+      targetWeight: user?.targetWeight,
+    });
     
     return [
       { 
@@ -750,7 +574,10 @@ export function Profile({ navigation }: ProfileProps) {
   ]);
 
   const menuItems = [
-    { icon: "settings", label: "Settings", subtitle: "Preferences, notifications, privacy & support", color: "#ff6b6b", screen: "Settings" },
+    { icon: "settings", label: "Settings", subtitle: "App preferences", color: "#ff6b6b", screen: "Settings" },
+    { icon: "notifications", label: "Notifications", subtitle: "Manage alerts", color: "#4ecdc4", screen: "Notifications" },
+    { icon: "security", label: "Privacy", subtitle: "Data & security", color: "#ffa726", screen: "Privacy" },
+    { icon: "help", label: "Support", subtitle: "Get help", color: "#ff6b6b", screen: "Support" },
   ];
 
   const handleMenuPress = (screen: string) => {
@@ -831,34 +658,21 @@ export function Profile({ navigation }: ProfileProps) {
   ];
 
   return (
-    <View style={styles.container}>
-      {/* Static Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.title}>Profile</Text>
-          <Text style={styles.subtitle}>Manage your account</Text>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <View style={styles.content}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.title}>Profile</Text>
+            <Text style={styles.subtitle}>Manage your account</Text>
+          </View>
+          <Button variant="outline" style={styles.editButton}>
+            <MaterialIcons name="edit" size={16} color="#ff6b6b" />
+            <Text style={styles.editButtonText}>Edit</Text>
+          </Button>
         </View>
-      </View>
 
-      {/* Scrollable Content */}
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.content}>
-          {/* Profile Incomplete Banner */}
-          {profileComplete === false && (
-            <Card style={styles.incompleteBanner}>
-              <CardContent style={styles.incompleteBannerContent}>
-                <MaterialIcons name="info" size={24} color="#f59e0b" />
-                <View style={styles.incompleteBannerText}>
-                  <Text style={styles.incompleteBannerTitle}>Complete Your Profile</Text>
-                  <Text style={styles.incompleteBannerMessage}>
-                    Please complete your profile by adding your gender and date of birth to continue using the app.
-                  </Text>
-                </View>
-              </CardContent>
-            </Card>
-          )}
-          
-          {/* Profile Card */}
+        {/* Profile Card */}
         <Card style={styles.profileCard}>
           <CardContent style={styles.profileContent}>
             <View style={styles.profileInfo}>
@@ -1098,43 +912,27 @@ export function Profile({ navigation }: ProfileProps) {
           </CardContent>
         </Card>
 
-        {/* Security Section */}
-        <Card style={styles.menuCard}>
-          <CardContent style={styles.menuContent}>
-            <TouchableOpacity
-              style={[styles.menuItem, styles.firstMenuItem]}
-              onPress={() => setShowChangePasswordModal(true)}
-            >
-              <View style={[styles.menuIcon, { backgroundColor: '#ffa72620' }]}>
-                <MaterialIcons name="lock-outline" size={20} color="#ffa726" />
-              </View>
-              <View style={styles.menuInfo}>
-                <Text style={styles.menuLabel}>Change Password</Text>
-                <Text style={styles.menuSubtitle}>Update your account password</Text>
-              </View>
-              <MaterialIcons name="chevron-right" size={20} color="#9ca3af" />
-            </TouchableOpacity>
-
+        {/* Sign Out */}
+        <Card style={styles.signOutCard}>
+          <CardContent style={styles.signOutContent}>
             <TouchableOpacity 
-              style={[styles.menuItem, styles.lastMenuItem]}
+              style={styles.signOutButton}
               onPress={handleLogout}
               disabled={isLoading}
             >
-              <View style={[styles.menuIcon, { backgroundColor: '#ff6b6b20' }]}>
-                <MaterialIcons name="logout" size={20} color="#ff6b6b" />
+              <View style={styles.signOutIcon}>
+                <MaterialIcons name="logout" size={20} color="#ef4444" />
               </View>
-              <View style={styles.menuInfo}>
-                <Text style={styles.menuLabel}>
+              <View style={styles.signOutInfo}>
+                <Text style={styles.signOutLabel}>
                   {isLoading ? 'Signing Out...' : 'Sign Out'}
                 </Text>
-                <Text style={styles.menuSubtitle}>Sign out of your account</Text>
+                <Text style={styles.signOutSubtitle}>Sign out of your account</Text>
               </View>
-              <MaterialIcons name="chevron-right" size={20} color="#9ca3af" />
             </TouchableOpacity>
           </CardContent>
         </Card>
-        </View>
-      </ScrollView>
+      </View>
 
       {/* Edit Goal Modal */}
       <Modal
@@ -1400,148 +1198,7 @@ export function Profile({ navigation }: ProfileProps) {
           </View>
         </View>
       </Modal>
-
-      {/* Change Password Modal */}
-      <Modal
-        visible={showChangePasswordModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={handleCloseChangePasswordModal}
-      >
-        <KeyboardAvoidingView 
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Change Password</Text>
-              <TouchableOpacity 
-                onPress={handleCloseChangePasswordModal}
-                style={styles.closeButton}
-              >
-                <MaterialIcons name="close" size={24} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-            
-            <ScrollView 
-              style={styles.modalBody}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              {/* Current Password */}
-              <View style={styles.passwordInputContainer}>
-                <Text style={styles.inputLabel}>Current Password</Text>
-                <View style={styles.passwordInputWrapper}>
-                  <TextInput
-                    style={styles.passwordInput}
-                    value={currentPassword}
-                    onChangeText={setCurrentPassword}
-                    placeholder="Enter current password"
-                    secureTextEntry={!showCurrentPassword}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  <TouchableOpacity
-                    style={styles.passwordToggle}
-                    onPress={() => setShowCurrentPassword(!showCurrentPassword)}
-                  >
-                    <MaterialIcons
-                      name={showCurrentPassword ? 'visibility' : 'visibility-off'}
-                      size={24}
-                      color="#6b7280"
-                    />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* New Password */}
-              <View style={styles.passwordInputContainer}>
-                <Text style={styles.inputLabel}>New Password</Text>
-                <View style={styles.passwordInputWrapper}>
-                  <TextInput
-                    style={styles.passwordInput}
-                    value={newPassword}
-                    onChangeText={setNewPassword}
-                    placeholder="Enter new password (min 8 characters)"
-                    secureTextEntry={!showNewPassword}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  <TouchableOpacity
-                    style={styles.passwordToggle}
-                    onPress={() => setShowNewPassword(!showNewPassword)}
-                  >
-                    <MaterialIcons
-                      name={showNewPassword ? 'visibility' : 'visibility-off'}
-                      size={24}
-                      color="#6b7280"
-                    />
-                  </TouchableOpacity>
-                </View>
-                <Text style={styles.passwordHint}>
-                  Password must be at least 8 characters long
-                </Text>
-              </View>
-
-              {/* Confirm Password */}
-              <View style={styles.passwordInputContainer}>
-                <Text style={styles.inputLabel}>Confirm New Password</Text>
-                <View style={styles.passwordInputWrapper}>
-                  <TextInput
-                    style={styles.passwordInput}
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    placeholder="Confirm new password"
-                    secureTextEntry={!showConfirmPassword}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  <TouchableOpacity
-                    style={styles.passwordToggle}
-                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                  >
-                    <MaterialIcons
-                      name={showConfirmPassword ? 'visibility' : 'visibility-off'}
-                      size={24}
-                      color="#6b7280"
-                    />
-                  </TouchableOpacity>
-                </View>
-                {confirmPassword.length > 0 && newPassword !== confirmPassword && (
-                  <Text style={styles.passwordError}>Passwords do not match</Text>
-                )}
-                {confirmPassword.length > 0 && newPassword === confirmPassword && (
-                  <Text style={styles.passwordSuccess}>Passwords match</Text>
-                )}
-              </View>
-            </ScrollView>
-            
-            <View style={styles.modalFooter}>
-              <TouchableOpacity 
-                style={styles.cancelButton}
-                onPress={handleCloseChangePasswordModal}
-                disabled={isChangingPassword}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[
-                  styles.saveButton,
-                  (isChangingPassword || !currentPassword || !newPassword || !confirmPassword) && styles.saveButtonDisabled
-                ]}
-                onPress={handleChangePassword}
-                disabled={isChangingPassword || !currentPassword || !newPassword || !confirmPassword}
-              >
-                <Text style={styles.saveButtonText}>
-                  {isChangingPassword ? 'Changing...' : 'Change Password'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -1550,25 +1207,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fef7ed',
   },
-  scrollView: {
-    flex: 1,
-  },
   content: {
     padding: 24,
-    paddingTop: 16, // Reduced since header is separate
+    paddingTop: 60, // More space from top
     paddingBottom: 100, // Space for bottom navigation
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 60, // Safe area from top
-    paddingHorizontal: 24,
-    paddingBottom: 16,
-    backgroundColor: '#fef7ed',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-    zIndex: 10,
+    marginBottom: 24,
   },
   headerLeft: {
     flex: 1,
@@ -1582,6 +1230,26 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: '#6b7280',
+  },
+  editButton: {
+    borderColor: '#ff6b6b',
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'transparent',
+    shadowColor: '#ff6b6b',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  editButtonText: {
+    color: '#ff6b6b',
+    fontWeight: '600',
   },
   profileCard: {
     backgroundColor: '#ffa726',
@@ -1648,6 +1316,16 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   menuCard: {
+    backgroundColor: 'white',
+    borderRadius: 24,
+    marginBottom: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  signOutCard: {
     backgroundColor: 'white',
     borderRadius: 24,
     marginBottom: 32,
@@ -1813,6 +1491,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
   },
+  signOutContent: {
+    padding: 0,
+  },
+  signOutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    padding: 24,
+    borderRadius: 24,
+  },
+  signOutIcon: {
+    padding: 12,
+    backgroundColor: '#fef2f2',
+    borderRadius: 16,
+  },
+  signOutInfo: {
+    flex: 1,
+  },
+  signOutLabel: {
+    fontSize: 16,
+    color: '#ff6b6b',
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  signOutSubtitle: {
+    fontSize: 14,
+    color: '#ef4444',
+  },
   // Modal styles
   modalOverlay: {
     flex: 1,
@@ -1899,53 +1605,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: 'white',
-  },
-  passwordInputContainer: {
-    marginBottom: 20,
-  },
-  passwordInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    backgroundColor: '#f9fafb',
-    paddingHorizontal: 4,
-  },
-  passwordInput: {
-    flex: 1,
-    padding: 16,
-    fontSize: 16,
-    color: '#1f2937',
-  },
-  passwordToggle: {
-    padding: 8,
-  },
-  passwordHint: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 4,
-    marginLeft: 4,
-  },
-  passwordError: {
-    fontSize: 12,
-    color: '#ef4444',
-    marginTop: 4,
-    marginLeft: 4,
-  },
-  passwordSuccess: {
-    fontSize: 12,
-    color: '#10b981',
-    marginTop: 4,
-    marginLeft: 4,
-  },
-  cardHeader: {
-    paddingBottom: 16,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
   },
   datePickerButton: {
     flexDirection: 'row',
@@ -2194,31 +1853,5 @@ const styles = StyleSheet.create({
   pickerOptionTextSelected: {
     color: '#ff6b6b',
     fontWeight: '600',
-  },
-  incompleteBanner: {
-    marginBottom: 16,
-    backgroundColor: '#fffbeb',
-    borderColor: '#f59e0b',
-    borderWidth: 1,
-  },
-  incompleteBannerContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: 16,
-  },
-  incompleteBannerText: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  incompleteBannerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#92400e',
-    marginBottom: 4,
-  },
-  incompleteBannerMessage: {
-    fontSize: 14,
-    color: '#78350f',
-    lineHeight: 20,
   },
 });

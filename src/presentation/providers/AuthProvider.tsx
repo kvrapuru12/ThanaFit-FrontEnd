@@ -11,7 +11,6 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  profileComplete: boolean; // Profile completion status
   
   // Actions
   login: (credentials: AuthCredentials) => Promise<boolean>;
@@ -134,37 +133,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
       console.log('[AuthProvider] loginWithGoogle called');
       setIsLoading(true);
 
-      // Import Google Auth Service
-      console.log('[AuthProvider] Importing Google Auth Service...');
       const { getGoogleAuthService } = await import('../../infrastructure/services/googleAuthService');
       const googleAuth = getGoogleAuthService();
-      console.log('[AuthProvider] Google Auth Service initialized');
 
-      // Sign in with Google to get ID token
-      console.log('[AuthProvider] Starting Google Sign-In flow...');
       const idToken = await googleAuth.signIn();
-      console.log('[AuthProvider] Received ID token from Google');
-
-      // Get platform
       const platform = Platform.OS === 'ios' ? 'ios' : 'android';
-      console.log(`[AuthProvider] Platform: ${platform}, Sending token to backend...`);
 
-      // Login with Google token via backend
       const result = await authRepository.loginWithGoogle(idToken, platform);
-      console.log('[AuthProvider] Backend login successful, user:', result.user.firstName);
-
-      // Save tokens for future API calls
       await authRepository.saveTokens(result.tokens);
-      console.log('[AuthProvider] Tokens saved successfully');
 
       setUser(result.user);
       await saveUserData(result.user);
 
       return true;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Google login error:', error);
-      // Re-throw the error so LoginScreen can handle it and show appropriate message
-      // This allows LoginScreen to show user-friendly error messages for QR code/Passkey scenarios
       throw error;
     } finally {
       setIsLoading(false);
@@ -246,41 +229,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
     try {
       setIsLoading(true);
       
-      console.log('[AuthProvider] Starting logout - clearing all cached data...');
+      // Execute client-side logout (clears tokens locally only)
+      await logoutUseCase.execute();
       
-      // Clear user context and global state first
+      // Clear user context and global state
       setUser(null);
-      
-      // Execute client-side logout (clears tokens from SecureStore and AsyncStorage)
-      try {
-        await logoutUseCase.execute();
-        console.log('[AuthProvider] Tokens cleared from SecureStore');
-      } catch (tokenError) {
-        // Ignore token clearing errors (account might already be deleted)
-        console.error('Token clearing error (ignored):', tokenError);
-      }
-      
-      // Clear all cached user data from AsyncStorage
-      try {
-        await clearUserData();
-      } catch (clearError) {
-        // Ignore data clearing errors
-        console.error('Data clearing error (ignored):', clearError);
-      }
-      
-      console.log('[AuthProvider] Logout complete - all cached data cleared');
+      await clearUserData();
       
       // Note: Navigation back to login screen is handled automatically
       // by the AppNavigator component based on isAuthenticated state
+      
+      console.log('Client-side logout successful - tokens and user context cleared');
     } catch (error) {
       console.error('Logout failed:', error);
-      // Still clear local state even if logout fails
+      // Still clear local state even if token clearing fails
       setUser(null);
-      try {
-        await clearUserData();
-      } catch (clearError) {
-        // Ignore errors during cleanup
-      }
+      await clearUserData();
+      console.log('Logout completed with errors - local state cleared');
     } finally {
       setIsLoading(false);
     }
@@ -288,14 +253,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
 
   const updateUser = async (userData: Partial<User>): Promise<void> => {
     try {
-      if (!user || !user.id) {
-        throw new Error('User not available for update');
-      }
+      setIsLoading(true);
       
-      // Don't set global isLoading here - it causes navigation to reset
-      // Profile components handle their own loading states
-      
-      const updatedUser = await authRepository.updateProfile(user.id, userData);
+      const updatedUser = await authRepository.updateProfile(userData);
       setUser(updatedUser);
       await saveUserData(updatedUser);
       
@@ -314,7 +274,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
       }
       
       console.error('Update Error:', errorMessage);
-      throw error; // Re-throw so caller can handle it
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -324,23 +285,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
       if (isAuth) {
         const storedUserId = await AsyncStorage.getItem('userId');
         if (storedUserId) {
-          try {
-            const currentUser = await authRepository.getCurrentUser(parseInt(storedUserId));
-            setUser(currentUser);
-            await saveUserData(currentUser);
-          } catch (fetchError: any) {
-            // Log the error but don't log out the user
-            // This could be a temporary backend issue (e.g., role not set in JWT)
-            console.warn('Failed to refresh user data from API, using cached data:', fetchError.message);
-            // Don't clear user or logout - keep using cached user data
-            // The user can still use the app with the data we have from login
-          }
+          const currentUser = await authRepository.getCurrentUser(parseInt(storedUserId));
+          setUser(currentUser);
+          await saveUserData(currentUser);
         }
       }
     } catch (error) {
       console.error('Failed to refresh user data:', error);
-      // Only clear user data if it's a critical error (not a 400/403 which might be backend config issues)
-      // Keep the user logged in with cached data
+      // If refresh fails, user might be logged out
+      setUser(null);
+      await clearUserData();
     }
   };
 
@@ -365,13 +319,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
 
   const clearUserData = async (): Promise<void> => {
     try {
-      // Clear all user-related data from AsyncStorage
-      await AsyncStorage.multiRemove([
-        'userData',
-        'userId',
-        'tokenExpiry',
-      ]);
-      console.log('[AuthProvider] Cleared all cached user data from AsyncStorage');
+      await AsyncStorage.removeItem('userData');
     } catch (error) {
       console.error('Failed to clear user data:', error);
     }
@@ -381,7 +329,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
     user,
     isLoading,
     isAuthenticated: !!user,
-    profileComplete: user?.profileComplete !== false, // Default to true if not set
     login,
     loginWithGoogle,
     signup,

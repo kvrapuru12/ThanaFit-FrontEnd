@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, Modal, TouchableOpacity, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import React from 'react';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
@@ -7,44 +7,10 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { useAuth } from '../providers/AuthProvider';
 import { useDashboardData } from '../hooks/useDashboardData';
-import { dashboardApiService } from '../../infrastructure/services/dashboardApi';
-import { apiClient } from '../../infrastructure/api/ApiClient';
 
 export const Dashboard: React.FC = () => {
-  const { user, refreshUserData } = useAuth();
-  
-  // Refresh user data on mount to ensure firstName is loaded from backend
-  useEffect(() => {
-    const refreshUser = async () => {
-      if (user && (!user.firstName || user.firstName === user.username)) {
-        try {
-          await refreshUserData();
-        } catch (error) {
-          console.error('Failed to refresh user data in Dashboard:', error);
-        }
-      }
-    };
-    refreshUser();
-  }, [user]);
+  const { user } = useAuth();
   const { data, isLoading, error, refresh } = useDashboardData();
-  
-  // Modal states
-  const [showWaterModal, setShowWaterModal] = useState(false);
-  const [showSleepModal, setShowSleepModal] = useState(false);
-  const [showStepsModal, setShowStepsModal] = useState(false);
-  const [showWeightModal, setShowWeightModal] = useState(false);
-  
-  // Input states
-  const [waterAmount, setWaterAmount] = useState('');
-  const [sleepHours, setSleepHours] = useState('');
-  const [stepCount, setStepCount] = useState('');
-  const [weightValue, setWeightValue] = useState('');
-  
-  // Loading states
-  const [isLoggingWater, setIsLoggingWater] = useState(false);
-  const [isLoggingSleep, setIsLoggingSleep] = useState(false);
-  const [isLoggingSteps, setIsLoggingSteps] = useState(false);
-  const [isLoggingWeight, setIsLoggingWeight] = useState(false);
 
   // Get appropriate activity icon based on activity name
   const getActivityIcon = (activityName: string): any => {
@@ -165,96 +131,6 @@ export const Dashboard: React.FC = () => {
   const waterProgress = (todayStats.water.consumed / todayStats.water.goal) * 100;
   const exerciseProgress = (todayStats.exercise.burned / todayStats.exercise.goal) * 100;
 
-  // Handler functions for logging
-  const handleLogWater = async () => {
-    if (!waterAmount || parseFloat(waterAmount) <= 0) {
-      Alert.alert('Invalid Input', 'Please enter a valid water amount in ml');
-      return;
-    }
-
-    setIsLoggingWater(true);
-    try {
-      await dashboardApiService.addWaterIntake(parseFloat(waterAmount));
-      setWaterAmount('');
-      setShowWaterModal(false);
-      await refresh();
-      Alert.alert('Success', 'Water intake logged successfully!');
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to log water intake');
-    } finally {
-      setIsLoggingWater(false);
-    }
-  };
-
-  const handleLogSleep = async () => {
-    if (!sleepHours || parseFloat(sleepHours) <= 0) {
-      Alert.alert('Invalid Input', 'Please enter a valid number of sleep hours');
-      return;
-    }
-
-    setIsLoggingSleep(true);
-    try {
-      await apiClient.post('/sleeps', {
-        hours: parseFloat(sleepHours),
-        loggedAt: new Date().toISOString(),
-      });
-      setSleepHours('');
-      setShowSleepModal(false);
-      await refresh();
-      Alert.alert('Success', 'Sleep logged successfully!');
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to log sleep');
-    } finally {
-      setIsLoggingSleep(false);
-    }
-  };
-
-  const handleLogSteps = async () => {
-    if (!stepCount || parseInt(stepCount) <= 0) {
-      Alert.alert('Invalid Input', 'Please enter a valid number of steps');
-      return;
-    }
-
-    setIsLoggingSteps(true);
-    try {
-      await apiClient.post('/steps', {
-        stepCount: parseInt(stepCount),
-        loggedAt: new Date().toISOString(),
-      });
-      setStepCount('');
-      setShowStepsModal(false);
-      await refresh();
-      Alert.alert('Success', 'Steps logged successfully!');
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to log steps');
-    } finally {
-      setIsLoggingSteps(false);
-    }
-  };
-
-  const handleLogWeight = async () => {
-    if (!weightValue || parseFloat(weightValue) <= 0) {
-      Alert.alert('Invalid Input', 'Please enter a valid weight in kg');
-      return;
-    }
-
-    setIsLoggingWeight(true);
-    try {
-      await apiClient.post('/weights', {
-        weight: parseFloat(weightValue),
-        loggedAt: new Date().toISOString(),
-      });
-      setWeightValue('');
-      setShowWeightModal(false);
-      await refresh();
-      Alert.alert('Success', 'Weight logged successfully!');
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to log weight');
-    } finally {
-      setIsLoggingWeight(false);
-    }
-  };
-
   // Show loading state
   if (isLoading && !data) {
     return (
@@ -280,47 +156,47 @@ export const Dashboard: React.FC = () => {
   }
 
   return (
-    <View style={styles.container}>
-      {/* Static Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.title}>
-            Welcome, {(() => {
-              // Display firstName if it exists and is different from username (real firstName from backend)
-              if (user?.firstName && user.firstName !== user?.username) {
-                return user.firstName.charAt(0).toUpperCase() + user.firstName.slice(1);
-              }
-              // If firstName equals username, it's still showing the login fallback value
-              // Return 'User' until refresh completes and we get the real firstName
-              return 'User';
-            })()}!
-          </Text>
-          <View style={styles.dateContainer}>
-            <MaterialIcons name="event" size={16} color="#10b981" />
-            <Text style={styles.dateText}>
-              {new Date().toLocaleDateString('en-US', { 
-                weekday: 'long',
-                month: 'short', 
-                day: 'numeric' 
-              })}
+    <ScrollView 
+      style={styles.container}
+      refreshControl={
+        <RefreshControl
+          refreshing={isLoading}
+          onRefresh={refresh}
+          colors={['#10b981']}
+          tintColor="#10b981"
+        />
+      }
+    >
+      <View style={styles.content}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.title}>
+              Welcome, {user?.firstName || 'User'}!
             </Text>
+            <View style={styles.dateContainer}>
+              <MaterialIcons name="event" size={16} color="#10b981" />
+              <Text style={styles.dateText}>
+                {new Date().toLocaleDateString('en-US', { 
+                  weekday: 'long',
+                  month: 'short', 
+                  day: 'numeric' 
+                })}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.streakCard}>
+            <View style={styles.streakHeader}>
+              <MaterialIcons name="emoji-events" size={16} color="#10b981" />
+              <Text style={styles.streakLabel}>Streak</Text>
+            </View>
+            <View style={styles.streakValue}>
+              <Text style={styles.streakEmoji}>🌺</Text>
+              <Text style={styles.streakNumber}>12</Text>
+            </View>
           </View>
         </View>
-      </View>
 
-      {/* Scrollable Content */}
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl
-            refreshing={isLoading}
-            onRefresh={refresh}
-            colors={['#10b981']}
-            tintColor="#10b981"
-          />
-        }
-      >
         {/* Quick Stats */}
         <View style={styles.statsGrid}>
           <Card style={styles.calorieCard}>
@@ -367,18 +243,12 @@ export const Dashboard: React.FC = () => {
           <CardContent>
             {Object.entries(todayStats.macros).map(([macro, data]) => {
               const progress = (data.consumed / data.goal) * 100;
-              const formatValue = (value: number) => {
-                if (macro === 'carbs') {
-                  return value.toFixed(2);
-                }
-                return value.toString();
-              };
               return (
                 <View key={macro} style={styles.macroRow}>
                   <View style={styles.macroHeader}>
                     <Text style={styles.macroName}>{macro}</Text>
                     <Text style={styles.macroValue}>
-                      {formatValue(data.consumed)}g / {formatValue(data.goal)}g
+                      {data.consumed}g / {data.goal}g
                     </Text>
                   </View>
                   <View style={styles.macroProgressBar}>
@@ -400,12 +270,6 @@ export const Dashboard: React.FC = () => {
                   <MaterialIcons name="water-drop" size={20} color="#10b981" />
                 </View>
                 <Text style={styles.horizontalCardTitle}>Water</Text>
-                <TouchableOpacity 
-                  style={styles.logButton}
-                  onPress={() => setShowWaterModal(true)}
-                >
-                  <MaterialIcons name="add" size={18} color="#10b981" />
-                </TouchableOpacity>
               </View>
               <Text style={styles.horizontalCardValue}>{todayStats.water.consumed}ml</Text>
               <Text style={styles.horizontalCardSubtext}>of {todayStats.water.goal}ml</Text>
@@ -423,12 +287,6 @@ export const Dashboard: React.FC = () => {
                   <MaterialIcons name="bedtime" size={20} color="#8b5cf6" />
                 </View>
                 <Text style={styles.horizontalCardTitle}>Sleep</Text>
-                <TouchableOpacity 
-                  style={styles.logButton}
-                  onPress={() => setShowSleepModal(true)}
-                >
-                  <MaterialIcons name="add" size={18} color="#8b5cf6" />
-                </TouchableOpacity>
               </View>
               <Text style={styles.horizontalCardValue}>
                 {data?.sleepEntries && data.sleepEntries.length > 0 
@@ -461,12 +319,6 @@ export const Dashboard: React.FC = () => {
                   <MaterialIcons name="directions-walk" size={20} color="#06b6d4" />
                 </View>
                 <Text style={styles.horizontalCardTitle}>Steps</Text>
-                <TouchableOpacity 
-                  style={styles.logButton}
-                  onPress={() => setShowStepsModal(true)}
-                >
-                  <MaterialIcons name="add" size={18} color="#06b6d4" />
-                </TouchableOpacity>
               </View>
               <Text style={styles.horizontalCardValue}>
                 {data?.stepEntries && data.stepEntries.length > 0 
@@ -496,12 +348,6 @@ export const Dashboard: React.FC = () => {
                   <MaterialIcons name="monitor-weight" size={20} color="#ef4444" />
                 </View>
                 <Text style={styles.horizontalCardTitle}>Weight</Text>
-                <TouchableOpacity 
-                  style={styles.logButton}
-                  onPress={() => setShowWeightModal(true)}
-                >
-                  <MaterialIcons name="add" size={18} color="#ef4444" />
-                </TouchableOpacity>
               </View>
               <Text style={styles.horizontalCardValue}>
                 {data?.weightEntries && data.weightEntries.length > 0 
@@ -622,184 +468,8 @@ export const Dashboard: React.FC = () => {
             )}
           </CardContent>
         </Card>
-      </ScrollView>
-
-      {/* Water Log Modal */}
-      <Modal
-        visible={showWaterModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowWaterModal(false)}
-      >
-        <KeyboardAvoidingView 
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Log Water Intake</Text>
-              <TouchableOpacity onPress={() => setShowWaterModal(false)}>
-                <MaterialIcons name="close" size={24} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.modalBody}>
-              <Text style={styles.inputLabel}>Amount (ml)</Text>
-              <TextInput
-                style={styles.textInput}
-                value={waterAmount}
-                onChangeText={setWaterAmount}
-                placeholder="Enter amount in ml"
-                keyboardType="numeric"
-                autoFocus
-              />
-              <TouchableOpacity
-                style={[styles.submitButton, isLoggingWater && styles.submitButtonDisabled]}
-                onPress={handleLogWater}
-                disabled={isLoggingWater}
-              >
-                {isLoggingWater ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : (
-                  <Text style={styles.submitButtonText}>Log Water</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Sleep Log Modal */}
-      <Modal
-        visible={showSleepModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowSleepModal(false)}
-      >
-        <KeyboardAvoidingView 
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Log Sleep</Text>
-              <TouchableOpacity onPress={() => setShowSleepModal(false)}>
-                <MaterialIcons name="close" size={24} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.modalBody}>
-              <Text style={styles.inputLabel}>Hours Slept</Text>
-              <TextInput
-                style={styles.textInput}
-                value={sleepHours}
-                onChangeText={setSleepHours}
-                placeholder="Enter hours (e.g., 7.5)"
-                keyboardType="decimal-pad"
-                autoFocus
-              />
-              <TouchableOpacity
-                style={[styles.submitButton, isLoggingSleep && styles.submitButtonDisabled]}
-                onPress={handleLogSleep}
-                disabled={isLoggingSleep}
-              >
-                {isLoggingSleep ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : (
-                  <Text style={styles.submitButtonText}>Log Sleep</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Steps Log Modal */}
-      <Modal
-        visible={showStepsModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowStepsModal(false)}
-      >
-        <KeyboardAvoidingView 
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Log Steps</Text>
-              <TouchableOpacity onPress={() => setShowStepsModal(false)}>
-                <MaterialIcons name="close" size={24} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.modalBody}>
-              <Text style={styles.inputLabel}>Number of Steps</Text>
-              <TextInput
-                style={styles.textInput}
-                value={stepCount}
-                onChangeText={setStepCount}
-                placeholder="Enter number of steps"
-                keyboardType="numeric"
-                autoFocus
-              />
-              <TouchableOpacity
-                style={[styles.submitButton, isLoggingSteps && styles.submitButtonDisabled]}
-                onPress={handleLogSteps}
-                disabled={isLoggingSteps}
-              >
-                {isLoggingSteps ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : (
-                  <Text style={styles.submitButtonText}>Log Steps</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Weight Log Modal */}
-      <Modal
-        visible={showWeightModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowWeightModal(false)}
-      >
-        <KeyboardAvoidingView 
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Log Weight</Text>
-              <TouchableOpacity onPress={() => setShowWeightModal(false)}>
-                <MaterialIcons name="close" size={24} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.modalBody}>
-              <Text style={styles.inputLabel}>Weight (kg)</Text>
-              <TextInput
-                style={styles.textInput}
-                value={weightValue}
-                onChangeText={setWeightValue}
-                placeholder="Enter weight in kg"
-                keyboardType="decimal-pad"
-                autoFocus
-              />
-              <TouchableOpacity
-                style={[styles.submitButton, isLoggingWeight && styles.submitButtonDisabled]}
-                onPress={handleLogWeight}
-                disabled={isLoggingWeight}
-              >
-                {isLoggingWeight ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : (
-                  <Text style={styles.submitButtonText}>Log Weight</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-    </View>
+      </View>
+    </ScrollView>
   );
 };
 
@@ -808,25 +478,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
-  scrollView: {
-    flex: 1,
-  },
   content: {
     padding: 24,
-    paddingTop: 16, // Reduced since header is separate
+    paddingTop: 60, // More space from top
     paddingBottom: 100, // Space for bottom navigation
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 60, // Safe area from top
-    paddingHorizontal: 24,
-    paddingBottom: 16,
-    backgroundColor: '#f8fafc',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-    zIndex: 10,
+    marginBottom: 24,
   },
   headerLeft: {
     flex: 1,
@@ -845,6 +506,40 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 14,
     color: '#6b7280',
+  },
+  streakCard: {
+    backgroundColor: 'white',
+    borderRadius: 24,
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  streakHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  streakLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  streakValue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  streakEmoji: {
+    fontSize: 24,
+  },
+  streakNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#10b981',
   },
   statsGrid: {
     flexDirection: 'row',
@@ -1045,7 +740,6 @@ const styles = StyleSheet.create({
   horizontalCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 12,
   },
   horizontalCardIconContainer: {
@@ -1260,67 +954,6 @@ const styles = StyleSheet.create({
   fatMacroText: {
     fontSize: 10,
     color: 'white',
-    fontWeight: '600',
-  },
-  logButton: {
-    padding: 6,
-    borderRadius: 12,
-    backgroundColor: '#f3f4f6',
-    marginLeft: 'auto',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 24,
-    maxHeight: '50%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-  },
-  modalBody: {
-    gap: 16,
-  },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    backgroundColor: '#f9fafb',
-  },
-  submitButton: {
-    backgroundColor: '#10b981',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  submitButtonDisabled: {
-    backgroundColor: '#9ca3af',
-  },
-  submitButtonText: {
-    color: 'white',
-    fontSize: 16,
     fontWeight: '600',
   },
 });

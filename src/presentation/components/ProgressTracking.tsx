@@ -80,23 +80,21 @@ export const ProgressTracking: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Static Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.title}>Progress</Text>
-          <Text style={styles.subtitle}>Monitor your fitness journey</Text>
+    <ScrollView style={styles.container}>
+      <View style={styles.content}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.title}>Progress</Text>
+            <Text style={styles.subtitle}>Monitor your fitness journey</Text>
+          </View>
+          <Badge variant="secondary" style={styles.headerBadge}>
+            <MaterialIcons name="trending-up" size={16} color="#10b981" />
+            <Text style={styles.badgeText}>This Week</Text>
+          </Badge>
         </View>
-        <Badge variant="secondary" style={styles.headerBadge}>
-          <MaterialIcons name="trending-up" size={16} color="#10b981" />
-          <Text style={styles.badgeText}>This Week</Text>
-        </Badge>
-      </View>
 
-      {/* Scrollable Content */}
-      <ScrollView style={styles.scrollView}>
-        <View style={styles.content}>
-          {/* Goal Stats */}
+        {/* Goal Stats */}
         <View style={styles.statsGrid}>
           <Card style={styles.statCard}>
             <CardContent style={styles.statContent}>
@@ -214,9 +212,8 @@ export const ProgressTracking: React.FC = () => {
             </View>
           </CardContent>
         </Card>
-        </View>
-      </ScrollView>
-    </View>
+      </View>
+    </ScrollView>
   );
 };
 
@@ -225,25 +222,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
-  scrollView: {
-    flex: 1,
-  },
   content: {
     padding: 24,
-    paddingTop: 16, // Reduced since header is separate
+    paddingTop: 60, // More space from top
     paddingBottom: 100, // Space for bottom navigation
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 60, // Safe area from top
-    paddingHorizontal: 24,
-    paddingBottom: 16,
-    backgroundColor: '#f8fafc',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-    zIndex: 10,
+    marginBottom: 24,
   },
   headerLeft: {
     flex: 1,

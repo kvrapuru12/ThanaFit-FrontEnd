@@ -9,6 +9,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Alert,
   Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,13 +29,14 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ navigation }: LoginScreenProps) {
-  const { login, isLoading } = useAuth();
+  const { login, loginWithGoogle, isLoading } = useAuth();
   const [loginData, setLoginData] = useState<LoginData>({
     username: '',
     password: ''
   });
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [showPassword, setShowPassword] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const updateLoginData = (field: keyof LoginData, value: string) => {
     setLoginData(prev => ({ ...prev, [field]: value }));
@@ -77,8 +79,36 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
     console.log('Forgot Password clicked - functionality not implemented yet');
   };
 
-  const handleSocialLogin = (provider: string) => {
-    console.log(`${provider} login clicked - functionality not implemented yet`);
+  const handleSocialLogin = async (provider: string) => {
+    if (provider === 'Google') {
+      setIsGoogleLoading(true);
+      try {
+        const success = await loginWithGoogle();
+        if (!success) {
+          Alert.alert('Sign-In Failed', 'Google Sign-In did not complete successfully. Please try again.');
+        }
+      } catch (error: any) {
+        let errorMessage = 'Failed to sign in with Google. Please try again.';
+
+        if (error.message?.includes('cancelled') || error.message?.includes('cancel')) {
+          errorMessage = 'Google Sign-In was cancelled. Please try again if you want to sign in with Google.';
+        } else if (error.message?.includes('timeout') || error.message?.includes('timed out')) {
+          errorMessage = 'Google Sign-In took too long to complete. Please try again.';
+        } else if (error.message?.includes('Passkey') || error.message?.includes('QR code') || error.message?.includes('barcode')) {
+          errorMessage = 'Google Sign-In requires additional verification. Please complete the verification and try again.';
+        } else if (error.message?.includes('network') || error.message?.includes('connection')) {
+          errorMessage = 'Network error. Please check your internet connection and try again.';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+
+        Alert.alert('Google Sign-In Error', errorMessage);
+      } finally {
+        setIsGoogleLoading(false);
+      }
+    } else if (provider === 'Apple') {
+      Alert.alert('Apple Sign-In', 'Apple Sign-In is not implemented yet.');
+    }
   };
 
   return (
@@ -193,7 +223,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
               <TouchableOpacity 
                 style={[styles.socialButton, styles.socialButtonGoogle]}
                 onPress={() => handleSocialLogin('Google')}
-                disabled={isLoading}
+                disabled={isLoading || isGoogleLoading}
               >
                 <Ionicons name="logo-google" size={18} color="#EA4335" />
                 <Text style={styles.socialButtonText}>Continue with Google</Text>
@@ -202,7 +232,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
               <TouchableOpacity 
                 style={[styles.socialButton, styles.socialButtonApple]}
                 onPress={() => handleSocialLogin('Apple')}
-                disabled={isLoading}
+                disabled={isLoading || isGoogleLoading}
               >
                 <Ionicons name="logo-apple" size={18} color="#ffffff" />
                 <Text style={[styles.socialButtonText, styles.socialButtonTextInverted]}>

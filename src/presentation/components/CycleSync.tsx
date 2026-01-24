@@ -168,6 +168,7 @@ export function CycleSync({ navigation }: CycleSyncProps) {
       // Backend error occurs when no cycle records exist yet
       if (error?.status === 400 || error?.status === 500) {
         // Expected error when user hasn't logged any cycles yet
+        console.log('Recommendations unavailable - user needs to log cycle data first');
       } else {
         console.error('Failed to fetch recommendations:', error);
       }
@@ -183,6 +184,7 @@ export function CycleSync({ navigation }: CycleSyncProps) {
       const parsedDate = parseDateLocal(user.lastPeriodDate);
       setPeriodStartDate(parsedDate);
       hasInitializedDateRef.current = true;
+      console.log('Initializing periodStartDate from user profile:', parsedDate.toLocaleDateString());
     }
   }, [user?.lastPeriodDate]); // Only run when user data changes, but ref prevents multiple initializations
 
@@ -335,6 +337,8 @@ export function CycleSync({ navigation }: CycleSyncProps) {
 
   const handleLogPeriod = async () => {
     // Pre-populate form with last cycle's info, but always create new entry
+    console.log('Opening log period modal - fetching last cycle for pre-population...');
+    
     // Fetch the most recent cycle to pre-populate form
     const recentCycle = await cycleApiService.getMostRecentCycle(user?.id);
     
@@ -348,15 +352,23 @@ export function CycleSync({ navigation }: CycleSyncProps) {
       setCycleLength(recentCycle.cycleLength.toString());
       setPeriodDuration(recentCycle.periodDuration.toString());
       setIsCycleRegular(recentCycle.isCycleRegular);
+      console.log('Pre-populating form with last cycle data:', {
+        date: cycleDate.toLocaleDateString(),
+        cycleLength: recentCycle.cycleLength,
+        periodDuration: recentCycle.periodDuration,
+        isCycleRegular: recentCycle.isCycleRegular
+      });
     } else {
       // No previous cycle - use defaults or user's lastPeriodDate
       if (user?.lastPeriodDate) {
         const parsedDate = parseDateLocal(user.lastPeriodDate);
         setPeriodStartDate(parsedDate);
+        console.log('Using lastPeriodDate from profile:', parsedDate.toLocaleDateString());
       } else {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         setPeriodStartDate(today);
+        console.log('No lastPeriodDate, using today:', today.toLocaleDateString());
       }
       // Reset form fields to defaults
       setCycleLength('28');
@@ -369,6 +381,13 @@ export function CycleSync({ navigation }: CycleSyncProps) {
   };
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
+    console.log('handleDateChange called:', { 
+      eventType: event?.type, 
+      selectedDate, 
+      platform: Platform.OS,
+      hasSelectedDate: !!selectedDate 
+    });
+    
     if (Platform.OS === 'android') {
       // On Android, the native dialog handles the selection
       if (event.type === 'set' && selectedDate) {
@@ -378,12 +397,17 @@ export function CycleSync({ navigation }: CycleSyncProps) {
         newDate.setHours(0, 0, 0, 0);
         setPeriodStartDate(newDate);
         setShowDatePicker(false);
+        console.log('Date selected on Android - New date:', newDate);
+        console.log('Date selected on Android - ISO:', newDate.toISOString());
+        console.log('Date selected on Android - Local:', newDate.toLocaleDateString());
       } else if (event.type === 'dismissed') {
         // User cancelled - revert to original date
         if (originalPeriodDate) {
           setPeriodStartDate(new Date(originalPeriodDate));
+          console.log('Date picker dismissed - reverted to original:', originalPeriodDate);
         }
         setShowDatePicker(false);
+        console.log('Date picker dismissed on Android');
       }
     } else {
       // On iOS, just update the date - user will confirm with button
@@ -393,11 +417,17 @@ export function CycleSync({ navigation }: CycleSyncProps) {
         const newDate = new Date(selectedDate);
         newDate.setHours(0, 0, 0, 0);
         setPeriodStartDate(newDate);
+        console.log('Date updated on iOS - New date:', newDate);
+        console.log('Date updated on iOS - ISO:', newDate.toISOString());
+        console.log('Date updated on iOS - Local:', newDate.toLocaleDateString());
       }
     }
   };
 
   const handleConfirmDate = () => {
+    console.log('Date confirmed on iOS - Final date:', periodStartDate);
+    console.log('Date confirmed on iOS - ISO:', periodStartDate.toISOString());
+    console.log('Date confirmed on iOS - Local:', periodStartDate.toLocaleDateString());
     setShowDatePicker(false);
     setOriginalPeriodDate(null); // Clear original date after confirmation
   };
@@ -406,17 +436,21 @@ export function CycleSync({ navigation }: CycleSyncProps) {
     // Revert to original date if user cancels
     if (originalPeriodDate) {
       setPeriodStartDate(new Date(originalPeriodDate));
+      console.log('Date picker cancelled - reverted to original:', originalPeriodDate);
     } else if (isEditingCycle && existingCycle) {
       setPeriodStartDate(new Date(existingCycle.periodStartDate));
+      console.log('Date picker cancelled - reverted to cycle date:', existingCycle.periodStartDate);
     } else if (user?.lastPeriodDate) {
       const dateStr = user.lastPeriodDate;
       const parsedDate = new Date(dateStr);
       if (!isNaN(parsedDate.getTime())) {
         setPeriodStartDate(parsedDate);
+        console.log('Date picker cancelled - reverted to profile date:', parsedDate);
       }
     }
     setShowDatePicker(false);
     setOriginalPeriodDate(null);
+    console.log('Date picker cancelled');
   };
 
   const handleSavePeriod = async () => {
@@ -457,8 +491,12 @@ export function CycleSync({ navigation }: CycleSyncProps) {
       const dateToUse = periodStartDate || new Date();
       dateToUse.setHours(0, 0, 0, 0); // Ensure time is midnight
       const periodStartDateStr = formatDateLocal(dateToUse); // Format as YYYY-MM-DD in local timezone
+      console.log('Creating new period entry with date:', periodStartDateStr);
+      console.log('Date object:', dateToUse);
+      console.log('Date local string:', dateToUse.toLocaleDateString());
 
       // Always create a new cycle entry (POST) to track all periods
+      console.log('Creating new cycle entry...');
       const response = await cycleApiService.createCycle({
         userId: user.id,
         periodStartDate: periodStartDateStr,
@@ -467,11 +505,14 @@ export function CycleSync({ navigation }: CycleSyncProps) {
         isCycleRegular: isCycleRegular
       });
       
+      console.log('Period logged successfully:', response);
       Alert.alert('Success', 'Period logged successfully!');
 
       // Refresh cycle data - fetch fresh data from API
+      console.log('Refreshing cycle data after save...');
       const recentCycle = await cycleApiService.getMostRecentCycle(user.id);
       if (recentCycle) {
+        console.log('Refreshed cycle data:', recentCycle);
         setExistingCycle(recentCycle);
         const cycleDataFromApi: CycleData = {
           cycleLength: recentCycle.cycleLength,
@@ -487,6 +528,7 @@ export function CycleSync({ navigation }: CycleSyncProps) {
         // Update the period start date in the form to match the saved data
         const savedDate = parseDateLocal(recentCycle.periodStartDate);
         setPeriodStartDate(savedDate);
+        console.log('Updated periodStartDate in form to:', savedDate.toLocaleDateString());
         
         // Refresh recommendations after saving - now we have cycle data
         fetchRecommendations(cycleDataFromApi.currentPhase);
@@ -508,6 +550,7 @@ export function CycleSync({ navigation }: CycleSyncProps) {
     setExistingCycle(null);
     setIsEditingCycle(false);
     setOriginalPeriodDate(null); // Clear original date
+    console.log('Period log modal cancelled');
   };
 
   const handleLogSymptoms = () => {
@@ -551,16 +594,15 @@ export function CycleSync({ navigation }: CycleSyncProps) {
 
   return (
     <View style={styles.container}>
-      {/* Static Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.title}>CycleSync</Text>
-          <Text style={styles.subtitle}>Track your menstrual cycle</Text>
-        </View>
-      </View>
-
-      {/* Scrollable Content */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.title}>CycleSync</Text>
+            <Text style={styles.subtitle}>Track your menstrual cycle</Text>
+          </View>
+        </View>
+
         {/* Current Phase Card */}
         <Card style={styles.phaseCard}>
           <CardHeader style={styles.cardHeader}>
@@ -588,123 +630,6 @@ export function CycleSync({ navigation }: CycleSyncProps) {
               </Text>
             </View>
           </View>
-          </CardContent>
-        </Card>
-
-        {/* Recommendations Section */}
-        <Card style={styles.recommendationsCard}>
-          <CardHeader style={styles.cardHeader}>
-            <View style={styles.cardTitle}>
-              <View style={[styles.titleIndicator, styles.recommendationsIndicator]} />
-              <Text style={styles.cardTitleText}>Recommendations</Text>
-            </View>
-          </CardHeader>
-          <CardContent style={styles.cardContent}>
-            {/* Tab Switcher */}
-            {(foodRecommendations || activityRecommendations || recommendationsLoading) && (
-              <View style={styles.tabContainer}>
-                <TouchableOpacity
-                  style={[styles.tab, recommendationsTab === 'food' && styles.tabActive]}
-                  onPress={() => setRecommendationsTab('food')}
-                >
-                  <MaterialIcons 
-                    name="restaurant" 
-                    size={18} 
-                    color={recommendationsTab === 'food' ? '#ffffff' : '#6b7280'} 
-                  />
-                  <Text style={[styles.tabText, recommendationsTab === 'food' && styles.tabTextActive]}>
-                    Food
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.tab, recommendationsTab === 'activity' && styles.tabActive]}
-                  onPress={() => setRecommendationsTab('activity')}
-                >
-                  <MaterialIcons 
-                    name="fitness-center" 
-                    size={18} 
-                    color={recommendationsTab === 'activity' ? '#ffffff' : '#6b7280'} 
-                  />
-                  <Text style={[styles.tabText, recommendationsTab === 'activity' && styles.tabTextActive]}>
-                    Activity
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Food Recommendations */}
-              {recommendationsTab === 'food' && foodRecommendations && (
-                <View style={styles.recommendationsContent}>
-                  <View style={styles.recommendationSection}>
-                    <View style={styles.recommendationList}>
-                      {foodRecommendations.recommendedFoods.map((food, index) => (
-                        <View key={index} style={styles.recommendationBadge}>
-                          <MaterialIcons name={getFoodIcon(food) as any} size={18} color="#10b981" />
-                          <Text style={styles.recommendationBadgeText}>{food}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-
-                  <View style={styles.recommendationDivider} />
-
-                  <View style={styles.recommendationSection}>
-                    <View style={styles.recommendationList}>
-                      {foodRecommendations.avoid.map((item, index) => (
-                        <View key={index} style={[styles.recommendationBadge, styles.recommendationBadgeAvoid]}>
-                          <MaterialIcons name={getFoodIcon(item) as any} size={18} color="#ef4444" />
-                          <Text style={[styles.recommendationBadgeText, styles.recommendationBadgeTextAvoid]}>{item}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                </View>
-              )}
-
-              {/* Activity Recommendations */}
-              {recommendationsTab === 'activity' && activityRecommendations && (
-                <View style={styles.recommendationsContent}>
-                  <View style={styles.recommendationSection}>
-                    <View style={styles.recommendationList}>
-                      {activityRecommendations.recommendedWorkouts.map((workout, index) => (
-                        <View key={index} style={styles.recommendationBadge}>
-                          <MaterialIcons name={getActivityIcon(workout) as any} size={18} color="#10b981" />
-                          <Text style={styles.recommendationBadgeText}>{workout}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-
-                  <View style={styles.recommendationDivider} />
-
-                  <View style={styles.recommendationSection}>
-                    <View style={styles.recommendationList}>
-                      {activityRecommendations.avoid.map((item, index) => (
-                        <View key={index} style={[styles.recommendationBadge, styles.recommendationBadgeAvoid]}>
-                          <MaterialIcons name={getActivityIcon(item) as any} size={18} color="#ef4444" />
-                          <Text style={[styles.recommendationBadgeText, styles.recommendationBadgeTextAvoid]}>{item}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                </View>
-              )}
-
-            {recommendationsLoading && (
-              <View style={styles.recommendationsLoading}>
-                <ActivityIndicator size="small" color="#4ecdc4" />
-                <Text style={styles.recommendationsLoadingText}>Loading recommendations...</Text>
-              </View>
-            )}
-
-            {!recommendationsLoading && !foodRecommendations && !activityRecommendations && (
-              <View style={styles.recommendationsEmpty}>
-                <MaterialIcons name="info-outline" size={24} color="#9ca3af" />
-                <Text style={styles.recommendationsEmptyText}>
-                  Log your cycle to see personalized recommendations
-                </Text>
-              </View>
-            )}
           </CardContent>
         </Card>
 
@@ -780,6 +705,148 @@ export function CycleSync({ navigation }: CycleSyncProps) {
           </CardContent>
         </Card>
 
+        {/* Recommendations Section */}
+        {(foodRecommendations || activityRecommendations) && (
+          <Card style={styles.recommendationsCard}>
+            <CardHeader style={styles.cardHeader}>
+              <View style={styles.cardTitle}>
+                <View style={[styles.titleIndicator, styles.recommendationsIndicator]} />
+                <Text style={styles.cardTitleText}>Recommendations</Text>
+              </View>
+            </CardHeader>
+            <CardContent style={styles.cardContent}>
+              {/* Tab Switcher */}
+              <View style={styles.tabContainer}>
+                <TouchableOpacity
+                  style={[styles.tab, recommendationsTab === 'food' && styles.tabActive]}
+                  onPress={() => setRecommendationsTab('food')}
+                >
+                  <MaterialIcons 
+                    name="restaurant" 
+                    size={18} 
+                    color={recommendationsTab === 'food' ? '#ffffff' : '#6b7280'} 
+                  />
+                  <Text style={[styles.tabText, recommendationsTab === 'food' && styles.tabTextActive]}>
+                    Food
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.tab, recommendationsTab === 'activity' && styles.tabActive]}
+                  onPress={() => setRecommendationsTab('activity')}
+                >
+                  <MaterialIcons 
+                    name="fitness-center" 
+                    size={18} 
+                    color={recommendationsTab === 'activity' ? '#ffffff' : '#6b7280'} 
+                  />
+                  <Text style={[styles.tabText, recommendationsTab === 'activity' && styles.tabTextActive]}>
+                    Activity
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Food Recommendations */}
+              {recommendationsTab === 'food' && foodRecommendations && (
+                <View style={styles.recommendationsContent}>
+                  <View style={styles.recommendationSection}>
+                    <View style={styles.recommendationHeader}>
+                      <MaterialIcons name="check-circle" size={20} color="#10b981" />
+                      <Text style={styles.recommendationSectionTitle}>Recommended Foods</Text>
+                    </View>
+                    <View style={styles.recommendationList}>
+                      {foodRecommendations.recommendedFoods.map((food, index) => (
+                        <View key={index} style={styles.recommendationBadge}>
+                          <View style={styles.recommendationBadgeIcon}>
+                            <MaterialIcons name={getFoodIcon(food) as any} size={16} color="#10b981" />
+                          </View>
+                          <Text style={styles.recommendationBadgeText}>{food}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View style={styles.recommendationSection}>
+                    <View style={styles.recommendationHeader}>
+                      <MaterialIcons name="cancel" size={20} color="#ef4444" />
+                      <Text style={styles.recommendationSectionTitle}>Avoid</Text>
+                    </View>
+                    <View style={styles.recommendationList}>
+                      {foodRecommendations.avoid.map((item, index) => (
+                        <View key={index} style={[styles.recommendationBadge, styles.recommendationBadgeAvoid]}>
+                          <View style={[styles.recommendationBadgeIcon, styles.recommendationBadgeIconAvoid]}>
+                            <MaterialIcons name={getFoodIcon(item) as any} size={16} color="#ef4444" />
+                          </View>
+                          <Text style={[styles.recommendationBadgeText, styles.recommendationBadgeTextAvoid]}>{item}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+
+                  {foodRecommendations.reasoning && (
+                    <View style={styles.reasoningBox}>
+                      <MaterialIcons name="lightbulb" size={18} color="#ffa726" />
+                      <Text style={styles.reasoningText}>{foodRecommendations.reasoning}</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* Activity Recommendations */}
+              {recommendationsTab === 'activity' && activityRecommendations && (
+                <View style={styles.recommendationsContent}>
+                  <View style={styles.recommendationSection}>
+                    <View style={styles.recommendationHeader}>
+                      <MaterialIcons name="check-circle" size={20} color="#10b981" />
+                      <Text style={styles.recommendationSectionTitle}>Recommended Activities</Text>
+                    </View>
+                    <View style={styles.recommendationList}>
+                      {activityRecommendations.recommendedWorkouts.map((workout, index) => (
+                        <View key={index} style={styles.recommendationBadge}>
+                          <View style={styles.recommendationBadgeIcon}>
+                            <MaterialIcons name={getActivityIcon(workout) as any} size={16} color="#10b981" />
+                          </View>
+                          <Text style={styles.recommendationBadgeText}>{workout}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View style={styles.recommendationSection}>
+                    <View style={styles.recommendationHeader}>
+                      <MaterialIcons name="cancel" size={20} color="#ef4444" />
+                      <Text style={styles.recommendationSectionTitle}>Avoid</Text>
+                    </View>
+                    <View style={styles.recommendationList}>
+                      {activityRecommendations.avoid.map((item, index) => (
+                        <View key={index} style={[styles.recommendationBadge, styles.recommendationBadgeAvoid]}>
+                          <View style={[styles.recommendationBadgeIcon, styles.recommendationBadgeIconAvoid]}>
+                            <MaterialIcons name={getActivityIcon(item) as any} size={16} color="#ef4444" />
+                          </View>
+                          <Text style={[styles.recommendationBadgeText, styles.recommendationBadgeTextAvoid]}>{item}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+
+                  {activityRecommendations.note && (
+                    <View style={styles.reasoningBox}>
+                      <MaterialIcons name="info" size={18} color="#4ecdc4" />
+                      <Text style={styles.reasoningText}>{activityRecommendations.note}</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {recommendationsLoading && (
+                <View style={styles.recommendationsLoading}>
+                  <ActivityIndicator size="small" color="#4ecdc4" />
+                  <Text style={styles.recommendationsLoadingText}>Loading recommendations...</Text>
+                </View>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Cycle Phases Info */}
         <Card style={styles.phasesInfoCard}>
           <CardHeader style={styles.cardHeader}>
@@ -838,6 +905,8 @@ export function CycleSync({ navigation }: CycleSyncProps) {
                   <TouchableOpacity
                     style={styles.dateButton}
                     onPress={() => {
+                      console.log('Date button pressed, showing date picker');
+                      console.log('Current periodStartDate:', periodStartDate, 'ISO:', periodStartDate.toISOString());
                       // Store the original date when opening picker
                       setOriginalPeriodDate(new Date(periodStartDate));
                       setShowDatePicker(true);
@@ -977,20 +1046,14 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 24,
-    paddingTop: 16, // Reduced since header is separate
+    paddingTop: 60, // More space from top
     paddingBottom: 100, // Space for bottom navigation
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 60, // Safe area from top
-    paddingHorizontal: 24,
-    paddingBottom: 16,
-    backgroundColor: '#fef7ed',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-    zIndex: 10,
+    marginBottom: 24,
   },
   headerLeft: {
     flex: 1,
@@ -1300,38 +1363,56 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   recommendationsContent: {
-    gap: 0,
+    gap: 16,
   },
   recommendationSection: {
-    marginBottom: 0,
+    marginBottom: 12,
   },
-  recommendationDivider: {
-    height: 1,
-    backgroundColor: '#e5e7eb',
-    marginVertical: 20,
-    marginHorizontal: -4,
+  recommendationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 8,
+  },
+  recommendationSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
   },
   recommendationList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
   },
   recommendationBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#ecfdf5',
     borderRadius: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderWidth: 0,
-    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#d1fae5',
+    gap: 6,
   },
   recommendationBadgeAvoid: {
     backgroundColor: '#fef2f2',
+    borderColor: '#fee2e2',
+  },
+  recommendationBadgeIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#d1fae5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recommendationBadgeIconAvoid: {
+    backgroundColor: '#fee2e2',
   },
   recommendationBadgeText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#065f46',
     lineHeight: 16,
   },
@@ -1342,19 +1423,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     backgroundColor: '#fef3c7',
-    borderRadius: 8,
-    padding: 10,
-    paddingVertical: 12,
+    borderRadius: 12,
+    padding: 16,
     marginTop: 8,
-    gap: 8,
+    gap: 12,
     borderWidth: 1,
     borderColor: '#fde68a',
   },
   reasoningText: {
     flex: 1,
-    fontSize: 12,
+    fontSize: 13,
     color: '#92400e',
-    lineHeight: 16,
+    lineHeight: 18,
     fontStyle: 'italic',
   },
   recommendationsLoading: {
@@ -1367,19 +1447,6 @@ const styles = StyleSheet.create({
   recommendationsLoadingText: {
     fontSize: 14,
     color: '#6b7280',
-  },
-  recommendationsEmpty: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  recommendationsEmptyText: {
-    fontSize: 14,
-    color: '#9ca3af',
-    textAlign: 'center',
-    lineHeight: 20,
   },
   // Modal styles
   modalOverlay: {
