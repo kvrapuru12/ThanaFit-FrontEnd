@@ -9,8 +9,9 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
-  Alert
+  Image
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../presentation/providers/AuthProvider';
 
 interface LoginData {
@@ -27,14 +28,13 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ navigation }: LoginScreenProps) {
-  const { login, loginWithGoogle, isLoading } = useAuth();
+  const { login, isLoading } = useAuth();
   const [loginData, setLoginData] = useState<LoginData>({
     username: '',
     password: ''
   });
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [showPassword, setShowPassword] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const updateLoginData = (field: keyof LoginData, value: string) => {
     setLoginData(prev => ({ ...prev, [field]: value }));
@@ -64,28 +64,12 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
   const handleLogin = async () => {
     if (!validateForm()) return;
 
-    try {
-      const success = await login(loginData);
-      
-      if (success) {
-        // Navigation will be handled automatically by the AuthContext
-        // The app will redirect to Dashboard when authentication is successful
-        console.log('Login successful!');
-      } else {
-        // Show error alert if login failed
-        Alert.alert(
-          'Login Failed',
-          'Invalid credentials or network error. Please check your username/password and try again.',
-          [{ text: 'OK' }]
-        );
-      }
-    } catch (error: any) {
-      console.error('Login error in LoginScreen:', error);
-      Alert.alert(
-        'Login Error',
-        error.message || 'An error occurred during login. Please try again.',
-        [{ text: 'OK' }]
-      );
+    const success = await login(loginData);
+    
+    if (success) {
+      // Navigation will be handled automatically by the AuthContext
+      // The app will redirect to Dashboard when authentication is successful
+      console.log('Login successful!');
     }
   };
 
@@ -93,47 +77,8 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
     console.log('Forgot Password clicked - functionality not implemented yet');
   };
 
-  const handleSocialLogin = async (provider: string) => {
-    console.log(`[LoginScreen] handleSocialLogin called with provider: ${provider}`);
-    if (provider === 'Google') {
-      setIsGoogleLoading(true);
-      try {
-        console.log('[LoginScreen] Starting Google Sign-In...');
-        const success = await loginWithGoogle();
-        if (success) {
-          console.log('[LoginScreen] Google Sign-In successful!');
-          // Navigation will be handled automatically by AuthContext
-        } else {
-          console.log('[LoginScreen] Google Sign-In returned false');
-          Alert.alert('Sign-In Failed', 'Google Sign-In did not complete successfully. Please try again.');
-        }
-      } catch (error: any) {
-        console.error('[LoginScreen] Error in handleSocialLogin:', error);
-        
-        // Provide user-friendly error messages
-        let errorMessage = 'Failed to sign in with Google. Please try again.';
-        
-        if (error.message?.includes('cancelled') || error.message?.includes('cancel')) {
-          errorMessage = 'Google Sign-In was cancelled. Please try again if you want to sign in with Google.';
-        } else if (error.message?.includes('timeout') || error.message?.includes('timed out')) {
-          errorMessage = 'Google Sign-In took too long to complete. Please try again and ensure you complete the verification promptly (scan QR code if prompted).';
-        } else if (error.message?.includes('Passkey') || error.message?.includes('QR code') || error.message?.includes('barcode')) {
-          errorMessage = 'Google Sign-In requires additional verification. Please complete the verification on the Google sign-in screen (scan QR code if prompted) and try again.';
-        } else if (error.message?.includes('network') || error.message?.includes('connection')) {
-          errorMessage = 'Network error. Please check your internet connection and try again.';
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-        
-        // Show alert to user
-        Alert.alert('Google Sign-In Error', errorMessage);
-      } finally {
-        setIsGoogleLoading(false);
-      }
-    } else if (provider === 'Apple') {
-      console.log('Apple Sign-In - to be implemented');
-      // TODO: Implement Apple Sign-In
-    }
+  const handleSocialLogin = (provider: string) => {
+    console.log(`${provider} login clicked - functionality not implemented yet`);
   };
 
   return (
@@ -149,105 +94,127 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
         <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>
+            <View style={styles.brandMark}>
+              <View style={styles.logoContainer}>
+                <Image
+                  source={require('../../../assets/icon.png')}
+                  style={styles.logo}
+                  resizeMode="contain"
+                />
+              </View>
+              <Text style={styles.appName}>ThanaFit</Text>
+              <Text style={styles.tagline}>Sync your fitness, nutrition, and wellness</Text>
+            </View>
             <Text style={styles.title}>Welcome Back</Text>
             <Text style={styles.subtitle}>Sign in to continue your fitness journey</Text>
           </View>
 
-          {/* Login Form */}
-          <View style={styles.form}>
-            <TextInput
-              placeholder="Username or Email"
-              style={[
-                styles.input,
-                errors.username ? styles.inputError : null
-              ]}
-              autoCapitalize="none"
-              autoCorrect={false}
-              value={loginData.username}
-              onChangeText={(value) => updateLoginData('username', value)}
-              editable={!isLoading}
-            />
-            {errors.username && (
-              <Text style={styles.errorText}>{errors.username}</Text>
-            )}
-
-            <View style={styles.passwordContainer}>
+          <View style={styles.formCard}>
+            {/* Login Form */}
+            <View style={styles.form}>
               <TextInput
-                placeholder="Password"
+                placeholder="Username or Email"
                 style={[
                   styles.input,
-                  styles.passwordInput,
-                  errors.password ? styles.inputError : null
+                  errors.username ? styles.inputError : null
                 ]}
-                secureTextEntry={!showPassword}
-                value={loginData.password}
-                onChangeText={(value) => updateLoginData('password', value)}
+                autoCapitalize="none"
+                autoCorrect={false}
+                value={loginData.username}
+                onChangeText={(value) => updateLoginData('username', value)}
                 editable={!isLoading}
               />
-              <TouchableOpacity
-                style={styles.showPasswordButton}
-                onPress={() => setShowPassword(!showPassword)}
+              {errors.username && (
+                <Text style={styles.errorText}>{errors.username}</Text>
+              )}
+
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  placeholder="Password"
+                  style={[
+                    styles.input,
+                    styles.passwordInput,
+                    errors.password ? styles.inputError : null
+                  ]}
+                  secureTextEntry={!showPassword}
+                  value={loginData.password}
+                  onChangeText={(value) => updateLoginData('password', value)}
+                  editable={!isLoading}
+                />
+                <TouchableOpacity
+                  style={styles.showPasswordButton}
+                  onPress={() => setShowPassword(!showPassword)}
+                  disabled={isLoading}
+                >
+                  <Text style={styles.showPasswordText}>
+                    {showPassword ? 'Hide' : 'Show'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {errors.password && (
+                <Text style={styles.errorText}>{errors.password}</Text>
+              )}
+
+              {/* Forgot Password */}
+              <TouchableOpacity 
+                style={styles.forgotPassword}
+                onPress={handleForgotPassword}
                 disabled={isLoading}
               >
-                <Text style={styles.showPasswordText}>
-                  {showPassword ? 'Hide' : 'Show'}
+                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+              </TouchableOpacity>
+
+              {/* Login Button */}
+              <TouchableOpacity 
+                style={[
+                  styles.loginButton,
+                  isLoading && styles.loginButtonDisabled
+                ]}
+                onPress={handleLogin}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <Text style={styles.loginButtonText}>Sign In</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* Divider */}
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Social Login Buttons */}
+            <View style={styles.socialButtons}>
+              <TouchableOpacity 
+                style={[styles.socialButton, styles.socialButtonGoogle]}
+                onPress={() => handleSocialLogin('Google')}
+                disabled={isLoading}
+              >
+                <Ionicons name="logo-google" size={18} color="#EA4335" />
+                <Text style={styles.socialButtonText}>Continue with Google</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.socialButton, styles.socialButtonApple]}
+                onPress={() => handleSocialLogin('Apple')}
+                disabled={isLoading}
+              >
+                <Ionicons name="logo-apple" size={18} color="#ffffff" />
+                <Text style={[styles.socialButtonText, styles.socialButtonTextInverted]}>
+                  Continue with Apple
                 </Text>
               </TouchableOpacity>
             </View>
-            {errors.password && (
-              <Text style={styles.errorText}>{errors.password}</Text>
-            )}
 
-            {/* Forgot Password */}
-            <TouchableOpacity 
-              style={styles.forgotPassword}
-              onPress={handleForgotPassword}
-              disabled={isLoading}
-            >
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-            </TouchableOpacity>
-
-            {/* Login Button */}
-            <TouchableOpacity 
-              style={[
-                styles.loginButton,
-                isLoading && styles.loginButtonDisabled
-              ]}
-              onPress={handleLogin}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="white" size="small" />
-              ) : (
-                <Text style={styles.loginButtonText}>Sign In</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* Divider */}
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {/* Social Login Buttons */}
-          <View style={styles.socialButtons}>
-            <TouchableOpacity 
-              style={styles.socialButton}
-              onPress={() => handleSocialLogin('Google')}
-              disabled={isLoading}
-            >
-              <Text style={styles.socialButtonText}>Continue with Google</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.socialButton}
-              onPress={() => handleSocialLogin('Apple')}
-              disabled={isLoading}
-            >
-              <Text style={styles.socialButtonText}>Continue with Apple</Text>
-            </TouchableOpacity>
+            <View style={styles.securityNote}>
+              <Ionicons name="lock-closed-outline" size={14} color="#6b7280" />
+              <Text style={styles.securityNoteText}>Secure login with encrypted sessions</Text>
+            </View>
           </View>
 
           {/* Sign Up Link */}
@@ -261,13 +228,6 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
             </TouchableOpacity>
           </View>
 
-          {/* Demo Credentials */}
-          <View style={styles.demoCredentials}>
-            <Text style={styles.demoTitle}>Demo Credentials (for testing):</Text>
-            <Text style={styles.demoText}>
-              Username: demo@example.com | Password: demo123
-            </Text>
-          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -292,6 +252,36 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 32,
+    alignItems: 'center',
+  },
+  brandMark: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  logoContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 20,
+    backgroundColor: '#eef2ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  logo: {
+    width: 56,
+    height: 56,
+  },
+  appName: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#2563eb',
+    textAlign: 'center',
+  },
+  tagline: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 4,
+    textAlign: 'center',
   },
   title: {
     fontSize: 28,
@@ -304,6 +294,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#6b7280',
     fontSize: 16,
+  },
+  formCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#111827',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
   form: {
     marginBottom: 24,
@@ -352,9 +353,11 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     backgroundColor: '#2563eb',
-    padding: 16,
+    paddingVertical: 16,
+    minHeight: 52,
     borderRadius: 8,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   loginButtonDisabled: {
     backgroundColor: '#93c5fd',
@@ -386,19 +389,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    paddingVertical: 12,
+    minHeight: 48,
     borderWidth: 1,
     borderColor: '#d1d5db',
     borderRadius: 8,
     backgroundColor: 'white',
   },
-  socialButtonDisabled: {
-    opacity: 0.6,
+  socialButtonGoogle: {
+    backgroundColor: '#ffffff',
+  },
+  socialButtonApple: {
+    backgroundColor: '#111827',
+    borderColor: '#111827',
   },
   socialButtonText: {
     color: '#374151',
     fontWeight: '500',
     marginLeft: 8,
+  },
+  socialButtonTextInverted: {
+    color: '#ffffff',
+  },
+  securityNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  securityNoteText: {
+    marginLeft: 6,
+    fontSize: 12,
+    color: '#6b7280',
   },
   signupLink: {
     flexDirection: 'row',
@@ -410,22 +432,5 @@ const styles = StyleSheet.create({
   signupLinkText: {
     color: '#2563eb',
     fontWeight: '600',
-  },
-  demoCredentials: {
-    marginTop: 32,
-    padding: 16,
-    backgroundColor: '#f9fafb',
-    borderRadius: 8,
-  },
-  demoTitle: {
-    color: '#6b7280',
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  demoText: {
-    color: '#9ca3af',
-    fontSize: 12,
-    textAlign: 'center',
   },
 });
