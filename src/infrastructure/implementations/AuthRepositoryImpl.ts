@@ -89,6 +89,8 @@ export class AuthRepositoryImpl implements IAuthRepository {
         platform,
       };
       console.log('[AuthRepository] Google login request body:', JSON.stringify(requestBody, null, 2));
+      console.log('[AuthRepository] API Base URL:', process.env.EXPO_PUBLIC_API_BASE_URL);
+      console.log('[AuthRepository] Full endpoint URL:', `${process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080/api'}/auth/google`);
       
       const response = await apiClient.post<LoginResponse>('/auth/google', requestBody);
 

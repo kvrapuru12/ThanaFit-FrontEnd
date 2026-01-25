@@ -34,44 +34,14 @@ export class GoogleAuthService {
   }
 
   /**
-   * Get the appropriate client ID based on platform and environment
-   * For Expo Go (exp:// URLs), use Web Client ID
-   * For native builds, use platform-specific Client ID
+   * Get the appropriate client ID based on platform
+   * For native builds with custom scheme URLs (com.prod.thanafit://), use platform-specific Client ID
+   * Note: Expo Go is not supported (throws error before this method is called)
    */
   private getClientId(redirectUri?: string): string {
-    // Check if we're in Expo Go by checking if redirect URI uses exp:// scheme
-    // OR check Constants.appOwnership for a more reliable detection
-    const isExpoGo = redirectUri?.startsWith('exp://') || Constants.appOwnership === 'expo';
+    // This method is only called for native builds (Expo Go is blocked earlier)
     
-    if (isExpoGo) {
-      if (this.config.webClientId) {
-        return this.config.webClientId;
-      }
-      // Fall back to iOS/Android Client IDs with a warning - this won't work in Expo Go
-      // but gives a better error message
-      console.warn(
-        '⚠️ Google Sign-In in Expo Go requires a Web Client ID.\n' +
-        'Option 1: Create a Web OAuth Client ID in Google Cloud Console and set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in .env\n' +
-        'Option 2: Use a development build instead: npx expo run:ios (or npx expo run:android)\n' +
-        'Development builds use iOS/Android Client IDs and don\'t require Web Client ID.'
-      );
-      // Try to use iOS/Android Client ID anyway (will fail with redirect URI error from Google)
-      const clientId = Platform.OS === 'ios' 
-        ? this.config.iosClientId 
-        : this.config.androidClientId;
-      if (clientId) {
-        return clientId;
-      }
-      throw new Error(
-        'Google Sign-In requires a Web Client ID when using Expo Go.\n' +
-        'Please either:\n' +
-        '1. Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in .env (create Web OAuth Client ID in Google Cloud Console)\n' +
-        '2. OR use a development build: npx expo run:ios (uses iOS Client ID)\n' +
-        'See GOOGLE_OAUTH_REDIRECT_URI_FIX.md for details.'
-      );
-    }
-    
-    // For native builds, use platform-specific Client ID
+    // For native builds with custom scheme, use platform-specific Client ID
     const clientId = Platform.OS === 'ios' 
       ? this.config.iosClientId 
       : this.config.androidClientId;
@@ -83,6 +53,7 @@ export class GoogleAuthService {
       );
     }
     
+    console.log(`[GoogleAuthService] Using ${Platform.OS} Client ID for native build`);
     return clientId;
   }
 
@@ -94,7 +65,7 @@ export class GoogleAuthService {
     codeVerifier: string,
     redirectUri: string
   ): Promise<string> {
-    // Use the same Client ID type (Web for Expo Go, iOS/Android for native)
+    // Use platform-specific Client ID (iOS/Android for native builds)
     const redirectUriForClientId = redirectUri; // Use the same redirect URI to get correct client ID
     const clientId = this.getClientId(redirectUriForClientId);
     const tokenEndpoint = 'https://oauth2.googleapis.com/token';
@@ -180,17 +151,55 @@ export class GoogleAuthService {
       console.log('[GoogleAuthService] signIn called');
       const discovery = await this.getDiscovery();
 
-      // Create redirect URI first to determine if we're in Expo Go
-      // In Expo Go, this will be exp://...; in native builds, it will use the custom scheme
+      // Determine if we're in Expo Go
+      const isExpoGo = Constants.appOwnership === 'expo';
+      
+      // Google OAuth does NOT work in Expo Go because:
+      // 1. Expo Go uses exp:// scheme which Google Cloud Console rejects (only accepts HTTP/HTTPS)
+      // 2. Expo proxy service is deprecated and unreliable
+      // Solution: Use development builds (npx expo run:android or npx expo run:ios)
+      if (isExpoGo) {
+        throw new Error(
+          'Google Sign-In is not supported in Expo Go.\n\n' +
+          'Google Cloud Console only accepts HTTP/HTTPS redirect URIs for Web OAuth Client IDs,\n' +
+          'but Expo Go uses exp:// scheme which cannot be registered.\n\n' +
+          '✅ Solution: Use a development build instead:\n' +
+          '   • Android: npx expo run:android\n' +
+          '   • iOS: npx expo run:ios\n\n' +
+          'Development builds use native Client IDs (iOS/Android) which support custom URL schemes\n' +
+          'and work perfectly with Google Sign-In.'
+        );
+      }
+      
+      // Create redirect URI for native builds (dev/production)
+      // In dev/production builds, use custom scheme
+      // makeRedirectUri() will generate the proper format with custom scheme
       const redirectUri = AuthSession.makeRedirectUri({
         scheme: 'com.prod.thanafit',
       });
-      console.log(`[GoogleAuthService] Redirect URI: ${redirectUri}`);
+      console.log(`[GoogleAuthService] Native build detected - using custom scheme: ${redirectUri}`);
+      console.log(`[GoogleAuthService] Platform: ${Platform.OS}`);
+      console.log(`[GoogleAuthService] Final redirect URI: ${redirectUri}`);
+      console.log(`[GoogleAuthService] Redirect URI length: ${redirectUri.length}`);
+      console.log(`[GoogleAuthService] Redirect URI format check: ${redirectUri.startsWith('com.prod.thanafit') ? '✅ Correct scheme' : '❌ Wrong scheme'}`);
       
-      // Get appropriate Client ID based on redirect URI (Expo Go vs native)
+      // Get appropriate Client ID (native builds use platform-specific Client IDs)
       const clientId = this.getClientId(redirectUri);
-      const clientIdType = redirectUri.startsWith('exp://') ? 'Web (Expo Go)' : Platform.OS === 'ios' ? 'iOS' : 'Android';
-      console.log(`[GoogleAuthService] Platform: ${Platform.OS}, Using Client ID type: ${clientIdType}`);
+      const clientIdType = Platform.OS === 'ios' ? 'iOS' : 'Android';
+      console.log(`[GoogleAuthService] Using Client ID type: ${clientIdType}`);
+      console.log(`[GoogleAuthService] Client ID (first 30 chars): ${clientId.substring(0, 30)}...`);
+      
+      // Android-specific diagnostic information
+      if (Platform.OS === 'android') {
+        console.log(`[GoogleAuthService] ⚠️ ANDROID DIAGNOSTICS:`);
+        console.log(`[GoogleAuthService]   1. Verify Android Client ID in Google Cloud Console:`);
+        console.log(`[GoogleAuthService]      - Package name: com.prod.thanafit (must match exactly)`);
+        console.log(`[GoogleAuthService]      - SHA-1 fingerprint: Must match your debug/release keystore`);
+        console.log(`[GoogleAuthService]   2. Redirect URI: ${redirectUri}`);
+        console.log(`[GoogleAuthService]      - Android Client IDs auto-validate redirect URIs with matching scheme`);
+        console.log(`[GoogleAuthService]      - No need to register redirect URI in Google Cloud Console`);
+        console.log(`[GoogleAuthService]   3. Get debug SHA-1: keytool -list -v -keystore android/app/debug.keystore -alias androiddebugkey -storepass android -keypass android | grep SHA1`);
+      }
 
       // Use authorization code flow with PKCE
       // expo-auth-session automatically handles PKCE when using ResponseType.Code
@@ -204,14 +213,19 @@ export class GoogleAuthService {
       });
       
       console.log('[GoogleAuthService] Auth request created with PKCE, prompting user...');
+      console.log(`[GoogleAuthService] Expected redirect URI: ${redirectUri}`);
+      console.log(`[GoogleAuthService] Client ID: ${clientId.substring(0, 20)}...`);
 
       // Perform authentication
       // Note: This can take a while if user is completing QR code/Passkey flow on their phone
       // We let this run without timeout since it's user interaction time
+      console.log('[GoogleAuthService] Calling promptAsync...');
       const result = await request.promptAsync(discovery, {
         showInRecents: true,
       });
+      console.log(`[GoogleAuthService] promptAsync completed`);
       console.log(`[GoogleAuthService] Auth result type: ${result.type}`);
+      console.log(`[GoogleAuthService] Auth result:`, JSON.stringify(result, null, 2));
 
       if (result.type === 'success') {
         // Extract authorization code from response
@@ -239,13 +253,30 @@ export class GoogleAuthService {
         const errorCode = result.error?.code;
         const errorMessage = result.error?.message || 'Unknown error';
         
+        console.log(`[GoogleAuthService] Error details - Code: ${errorCode}, Message: ${errorMessage}`);
+        console.log(`[GoogleAuthService] Full error object:`, JSON.stringify(result.error, null, 2));
+        
         // Handle specific Google OAuth errors
         if (errorCode === 'access_denied' || errorMessage.includes('access_denied')) {
           throw new Error('Google Sign-In was cancelled or denied. Please try again.');
         } else if (errorMessage.includes('popup') || errorMessage.includes('blocked')) {
           throw new Error('Pop-up was blocked. Please allow pop-ups for Google Sign-In and try again.');
+        } else if (errorMessage.includes('redirect_uri_mismatch') || errorCode === 'redirect_uri_mismatch') {
+          const platformSpecificHelp = Platform.OS === 'android' 
+            ? '\n\n🔧 Android Fix:\n' +
+              '1. Go to Google Cloud Console → Credentials → Android Client ID\n' +
+              '2. Verify Package name: com.prod.thanafit (must match exactly)\n' +
+              '3. Verify SHA-1 fingerprint matches your keystore\n' +
+              '4. Android Client IDs auto-validate redirect URIs - no need to register them\n' +
+              '5. Redirect URI scheme must match package name (com.prod.thanafit://)\n' +
+              '6. Current redirect URI: ' + redirectUri
+            : '\n\n🔧 iOS Fix:\n' +
+              '1. Go to Google Cloud Console → Credentials → iOS Client ID\n' +
+              '2. Verify Bundle ID: com.prod.thanafit\n' +
+              '3. Add redirect URI: ' + redirectUri;
+          throw new Error(`Redirect URI mismatch. The redirect URI "${redirectUri}" may not be valid.${platformSpecificHelp}`);
         } else {
-          throw new Error(`Google Sign-In error: ${errorMessage}`);
+          throw new Error(`Google Sign-In error: ${errorMessage} (Code: ${errorCode || 'unknown'})`);
         }
       } else if (result.type === 'dismiss') {
         // User dismissed the authentication modal (e.g., closed the QR code/passkey screen)

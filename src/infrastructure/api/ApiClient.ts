@@ -9,6 +9,12 @@ const API_CONFIG = {
   RETRY_DELAY: 1000,
 } as const;
 
+// Log API configuration on initialization
+console.log('=== API CLIENT INITIALIZATION ===');
+console.log('EXPO_PUBLIC_API_BASE_URL from env:', process.env.EXPO_PUBLIC_API_BASE_URL);
+console.log('Final BASE_URL:', API_CONFIG.BASE_URL);
+console.log('=================================');
+
 // HTTP Methods
 export enum HttpMethod {
   GET = 'GET',
