@@ -23,8 +23,8 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab, o
     { id: 'exercise', icon: 'fitness-center' as keyof typeof MaterialIcons.glyphMap, label: 'Exercise' },
   ];
 
-  // Add gender-specific tab - handle both enum and string values
-  const isFemale = userGender === Gender.FEMALE || userGender === 'FEMALE';
+  // Add gender-specific tab - handle enum values and null
+  const isFemale = userGender === Gender.FEMALE || (userGender as any) === 'FEMALE';
   const genderSpecificTab = isFemale
     ? { id: 'cyclesync', icon: 'favorite' as keyof typeof MaterialIcons.glyphMap, label: 'CycleSync' }
     : { id: 'progress', icon: 'trending-up' as keyof typeof MaterialIcons.glyphMap, label: 'Progress' };

@@ -1,4 +1,6 @@
 // Export global styles and theme constants
+// Note: CSS imports are handled by Metro bundler for web builds
+// @ts-ignore - CSS file import for web builds
 export { default as globalStyles } from './global.css';
 
 // Theme constants that can be used in React Native StyleSheet

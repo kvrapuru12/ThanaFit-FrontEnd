@@ -47,7 +47,7 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
   const [newFoodVisibility, setNewFoodVisibility] = useState<'public' | 'private'>('public');
   const [isCreatingFood, setIsCreatingFood] = useState(false);
   
-  const mealType = route?.params?.mealType || 'breakfast';
+  const mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack' = (route?.params?.mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack') || 'breakfast';
   const mealTypeLabels = {
     breakfast: 'Breakfast',
     lunch: 'Lunch', 
@@ -902,10 +902,6 @@ const styles = StyleSheet.create({
   inputGroupHalf: {
     flex: 1,
     marginBottom: 20,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    gap: 12,
   },
   modalInputLabel: {
     fontSize: 16,

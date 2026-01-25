@@ -19,8 +19,8 @@ import { AddFoodScreen } from './src/presentation/screens/AddFoodScreen';
 import { SettingsScreen } from './src/presentation/screens/SettingsScreen';
 import { PrivacyPolicyScreen, TermsOfServiceScreen, FAQScreen } from './src/presentation/screens/PrivacyAndLegalScreens';
 
-// Import global CSS for web builds
-import './src/styles/global.css';
+// Import global CSS for web builds (commented out for native builds)
+// import './src/styles/global.css';
 
 const Stack = createNativeStackNavigator();
 
@@ -147,7 +147,7 @@ const MainApp = ({ navigation }: { navigation?: any }) => {
             <BottomNavigation 
               activeTab={activeTab} 
               onTabChange={setActiveTab} 
-              userGender={user?.gender}
+              userGender={user?.gender || undefined}
             />
           </View>
         )}

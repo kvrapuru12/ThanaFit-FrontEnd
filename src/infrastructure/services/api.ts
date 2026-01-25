@@ -31,6 +31,8 @@ export interface LoginResponse {
   role: string;
   gender: string;
   message: string;
+  user?: UserData;
+  refreshToken?: string;
 }
 
 export interface UserData {
@@ -200,7 +202,9 @@ class ApiService {
     if (response.data) {
       // Store token and user data
       this.setToken(response.data.token);
-      await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data.user));
+      if (response.data.user) {
+        await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data.user));
+      }
       
       if (response.data.refreshToken) {
         await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, response.data.refreshToken);

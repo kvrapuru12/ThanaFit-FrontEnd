@@ -253,9 +253,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
 
   const updateUser = async (userData: Partial<User>): Promise<void> => {
     try {
+      if (!user?.id) {
+        console.error('Cannot update profile: no user logged in');
+        return;
+      }
       setIsLoading(true);
       
-      const updatedUser = await authRepository.updateProfile(userData);
+      const updatedUser = await authRepository.updateProfile(user.id, userData);
       setUser(updatedUser);
       await saveUserData(updatedUser);
       

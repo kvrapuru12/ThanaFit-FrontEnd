@@ -31,13 +31,21 @@ export interface WhisperResponse {
   duration?: number;
 }
 
+export interface AudioFile {
+  uri: string;
+  name?: string;
+  type?: string;
+  size?: number;
+  lastModified?: number;
+}
+
 export class WhisperApiService {
   /**
    * Transcribe audio file using OpenAI Whisper API
-   * @param audioFile - The audio file to transcribe
+   * @param audioFile - The audio file to transcribe (React Native file object with uri)
    * @returns Promise<WhisperResponse>
    */
-    async transcribeAudio(audioFile: File): Promise<WhisperResponse> {
+    async transcribeAudio(audioFile: AudioFile): Promise<WhisperResponse> {
         try {
           console.log('Starting Whisper transcription...');
           
@@ -88,9 +96,10 @@ export class WhisperApiService {
             duration: responseData.duration,
           };
           
-        } catch (error) {
+        } catch (error: unknown) {
           console.error('Transcription failed:', error);
-          throw new Error(`Whisper API failed: ${error.message || 'Unknown error'}. Please use manual input.`);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          throw new Error(`Whisper API failed: ${errorMessage}. Please use manual input.`);
         }
       }
 
@@ -99,7 +108,7 @@ export class WhisperApiService {
    * @param audioFile - The audio file to transcribe
    * @returns Promise<WhisperResponse>
    */
-  async transcribeAudioWithSDK(audioFile: File): Promise<WhisperResponse> {
+  async transcribeAudioWithSDK(audioFile: AudioFile): Promise<WhisperResponse> {
     try {
       console.log('Starting Whisper transcription with SDK...');
       
@@ -129,19 +138,19 @@ export class WhisperApiService {
        * @param audioUri - The URI of the recorded audio
        * @returns Promise<File>
        */
-      async audioUriToFile(audioUri: string, fileName: string = 'recording.wav'): Promise<File> {
+      async audioUriToFile(audioUri: string, fileName: string = 'recording.wav'): Promise<AudioFile> {
         try {
           console.log('Converting audio URI to File:', audioUri);
           
           // For React Native, we need to preserve the URI for FormData
           // Create a File-like object that includes the original URI
-          const file = {
+          const file: AudioFile = {
             uri: audioUri,
             name: fileName,
             type: 'audio/wav',
             size: 0, // We'll get this from the actual file if needed
             lastModified: Date.now()
-          } as File;
+          };
           
           console.log('Audio file created successfully:', {
             uri: file.uri,

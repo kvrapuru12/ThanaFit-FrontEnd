@@ -57,8 +57,8 @@ export const useDashboardData = (): UseDashboardDataReturn => {
       
       console.log('=== FETCHING DASHBOARD DATA ===');
       const userGoals = {
-        calorieIntakeTarget: user?.dailyCalorieIntakeTarget,
-        calorieBurnTarget: user?.dailyCalorieBurnTarget
+        calorieIntakeTarget: user?.dailyCalorieIntakeTarget != null ? user.dailyCalorieIntakeTarget : undefined,
+        calorieBurnTarget: user?.dailyCalorieBurnTarget != null ? user.dailyCalorieBurnTarget : undefined
       };
       const dashboardData = await dashboardApiService.getDashboardData(user?.id, userGoals);
       
