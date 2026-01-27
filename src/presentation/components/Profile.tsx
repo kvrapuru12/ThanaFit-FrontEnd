@@ -10,12 +10,12 @@ import {
   Modal,
   TextInput,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Image
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { MaterialIcons } from '@expo/vector-icons';
 import { ImageWithFallback } from './figma/ImageWithFallback';
@@ -666,10 +666,13 @@ export function Profile({ navigation }: ProfileProps) {
             <Text style={styles.title}>Profile</Text>
             <Text style={styles.subtitle}>Manage your account</Text>
           </View>
-          <Button variant="outline" style={styles.editButton}>
-            <MaterialIcons name="edit" size={16} color="#ff6b6b" />
-            <Text style={styles.editButtonText}>Edit</Text>
-          </Button>
+          <View style={styles.thanafitLogo}>
+            <Image
+              source={require('../../../assets/adaptive-icon.png')}
+              style={styles.thanafitLogoImage}
+              resizeMode="contain"
+            />
+          </View>
         </View>
 
         {/* Profile Card */}
@@ -1231,25 +1234,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6b7280',
   },
-  editButton: {
-    borderColor: '#ff6b6b',
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'transparent',
-    shadowColor: '#ff6b6b',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
+  thanafitLogo: {
+    width: 80,
+    height: 80,
   },
-  editButtonText: {
-    color: '#ff6b6b',
-    fontWeight: '600',
+  thanafitLogoImage: {
+    width: '100%',
+    height: '100%',
   },
   profileCard: {
     backgroundColor: '#ffa726',

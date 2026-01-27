@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, TextInput, Modal, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
@@ -304,15 +304,12 @@ export const Dashboard: React.FC = () => {
               </Text>
             </View>
           </View>
-          <View style={styles.streakCard}>
-            <View style={styles.streakHeader}>
-              <MaterialIcons name="emoji-events" size={16} color="#10b981" />
-              <Text style={styles.streakLabel}>Streak</Text>
-            </View>
-            <View style={styles.streakValue}>
-              <Text style={styles.streakEmoji}>🌺</Text>
-              <Text style={styles.streakNumber}>12</Text>
-            </View>
+          <View style={styles.thanafitLogo}>
+            <Image
+              source={require('../../../assets/adaptive-icon.png')}
+              style={styles.thanafitLogoImage}
+              resizeMode="contain"
+            />
           </View>
         </View>
 
@@ -841,39 +838,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
   },
-  streakCard: {
-    backgroundColor: 'white',
-    borderRadius: 24,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  thanafitLogo: {
+    width: 80,
+    height: 80,
   },
-  streakHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  streakLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-  },
-  streakValue: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  streakEmoji: {
-    fontSize: 24,
-  },
-  streakNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#10b981',
+  thanafitLogoImage: {
+    width: '100%',
+    height: '100%',
   },
   statsGrid: {
     flexDirection: 'row',

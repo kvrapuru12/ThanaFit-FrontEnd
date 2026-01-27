@@ -8,7 +8,8 @@ import {
   TextInput,
   Dimensions,
   ActivityIndicator,
-  Alert
+  Alert,
+  Image
 } from 'react-native';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './Input';
@@ -168,6 +169,13 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
           <View style={styles.headerLeft}>
             <Text style={styles.title}>Exercise</Text>
             <Text style={styles.subtitle}>Track your workouts</Text>
+          </View>
+          <View style={styles.thanafitLogo}>
+            <Image
+              source={require('../../../assets/adaptive-icon.png')}
+              style={styles.thanafitLogoImage}
+              resizeMode="contain"
+            />
           </View>
         </View>
 
@@ -470,6 +478,14 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: '#6b7280',
+  },
+  thanafitLogo: {
+    width: 80,
+    height: 80,
+  },
+  thanafitLogoImage: {
+    width: '100%',
+    height: '100%',
   },
   summaryCard: {
     backgroundColor: '#ff6b6b',

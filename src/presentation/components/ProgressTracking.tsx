@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Image } from 'react-native';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -111,10 +111,19 @@ export const ProgressTracking: React.FC = () => {
             <Text style={styles.title}>Progress</Text>
             <Text style={styles.subtitle}>Monitor your fitness journey</Text>
           </View>
-          <Badge variant="secondary" style={styles.headerBadge}>
-            <MaterialIcons name="trending-up" size={16} color="#10b981" />
-            <Text style={styles.badgeText}>This Week</Text>
-          </Badge>
+          <View style={styles.headerRight}>
+            <View style={styles.thanafitLogo}>
+              <Image
+                source={require('../../../assets/adaptive-icon.png')}
+                style={styles.thanafitLogoImage}
+                resizeMode="contain"
+              />
+            </View>
+            <Badge variant="secondary" style={styles.headerBadge}>
+              <MaterialIcons name="trending-up" size={16} color="#10b981" />
+              <Text style={styles.badgeText}>This Week</Text>
+            </Badge>
+          </View>
         </View>
 
         {/* Goal Stats */}
@@ -268,6 +277,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
     marginTop: 4,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  thanafitLogo: {
+    width: 80,
+    height: 80,
+  },
+  thanafitLogoImage: {
+    width: '100%',
+    height: '100%',
   },
   headerBadge: {
     flexDirection: 'row',

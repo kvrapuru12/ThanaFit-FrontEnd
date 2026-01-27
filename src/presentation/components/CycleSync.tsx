@@ -12,7 +12,8 @@ import {
   TextInput,
   Switch,
   Platform,
-  KeyboardAvoidingView
+  KeyboardAvoidingView,
+  Image
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Card, CardContent, CardHeader } from './ui/card';
@@ -601,6 +602,13 @@ export function CycleSync({ navigation }: CycleSyncProps) {
             <Text style={styles.title}>CycleSync</Text>
             <Text style={styles.subtitle}>Track your menstrual cycle</Text>
           </View>
+          <View style={styles.thanafitLogo}>
+            <Image
+              source={require('../../../assets/adaptive-icon.png')}
+              style={styles.thanafitLogoImage}
+              resizeMode="contain"
+            />
+          </View>
         </View>
 
         {/* Current Phase Card */}
@@ -1067,6 +1075,14 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: '#6b7280',
+  },
+  thanafitLogo: {
+    width: 80,
+    height: 80,
+  },
+  thanafitLogoImage: {
+    width: '100%',
+    height: '100%',
   },
   loadingContainer: {
     flex: 1,

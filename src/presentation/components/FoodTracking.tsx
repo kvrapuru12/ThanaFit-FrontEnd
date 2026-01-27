@@ -7,7 +7,8 @@ import {
   StyleSheet, 
   Dimensions,
   ActivityIndicator,
-  Alert
+  Alert,
+  Image
 } from 'react-native';
 import { Card, CardContent, CardHeader } from './ui/card';
 import { Input } from './Input';
@@ -179,6 +180,13 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
         <View style={styles.headerLeft}>
           <Text style={styles.title}>Food Diary</Text>
           <Text style={styles.subtitle}>Track your meals and nutrition</Text>
+        </View>
+        <View style={styles.thanafitLogo}>
+          <Image
+            source={require('../../../assets/adaptive-icon.png')}
+            style={styles.thanafitLogoImage}
+            resizeMode="contain"
+          />
         </View>
       </View>
 
@@ -510,6 +518,14 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: '#6b7280',
+  },
+  thanafitLogo: {
+    width: 80,
+    height: 80,
+  },
+  thanafitLogoImage: {
+    width: '100%',
+    height: '100%',
   },
   mealsGrid: {
     flexDirection: 'row',
