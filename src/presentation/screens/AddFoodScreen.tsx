@@ -46,6 +46,7 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
   const [newFoodFiberPerUnit, setNewFoodFiberPerUnit] = useState('');
   const [newFoodVisibility, setNewFoodVisibility] = useState<'public' | 'private'>('public');
   const [isCreatingFood, setIsCreatingFood] = useState(false);
+  const [showServingUnitPicker, setShowServingUnitPicker] = useState(false);
   
   const mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack' = (route?.params?.mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack') || 'breakfast';
   const mealTypeLabels = {
@@ -160,6 +161,7 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
       
       // Close modal and reset form
       setShowCreateModal(false);
+      setShowServingUnitPicker(false);
       setNewFoodName('');
       setNewFoodCategory('snack');
       setNewFoodDefaultUnit('grams');
@@ -404,7 +406,7 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
         visible={showCreateModal}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setShowCreateModal(false)}
+        onRequestClose={() => { setShowCreateModal(false); setShowServingUnitPicker(false); }}
       >
         <KeyboardAvoidingView 
           style={styles.modalContainer}
@@ -413,7 +415,7 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
           <View style={styles.modalHeader}>
             <TouchableOpacity 
               style={styles.modalCloseButton}
-              onPress={() => setShowCreateModal(false)}
+              onPress={() => { setShowCreateModal(false); setShowServingUnitPicker(false); }}
             >
               <MaterialIcons name="close" size={24} color="#6b7280" />
             </TouchableOpacity>
@@ -459,23 +461,24 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
 
                 <View style={styles.inputRow}>
                   <View style={styles.inputGroupHalf}>
-                    <Text style={styles.modalInputLabel}>Default Unit</Text>
+                    <Text style={styles.modalInputLabel}>Serving size</Text>
                     <TextInput
-                      placeholder="grams, pieces, cups"
-                      value={newFoodDefaultUnit}
-                      onChangeText={setNewFoodDefaultUnit}
-                      style={styles.modalInput}
-                    />
-                  </View>
-                  <View style={styles.inputGroupHalf}>
-                    <Text style={styles.modalInputLabel}>Quantity per Unit</Text>
-                    <TextInput
-                      placeholder="100"
+                      placeholder="e.g. 100, 1"
                       value={newFoodQuantityPerUnit}
                       onChangeText={setNewFoodQuantityPerUnit}
                       keyboardType="numeric"
                       style={styles.modalInput}
                     />
+                  </View>
+                  <View style={styles.inputGroupHalf}>
+                    <Text style={styles.modalInputLabel}>Serving unit</Text>
+                    <TouchableOpacity
+                      style={styles.servingUnitDropdown}
+                      onPress={() => setShowServingUnitPicker(true)}
+                    >
+                      <Text style={styles.servingUnitDropdownText}>{newFoodDefaultUnit}</Text>
+                      <MaterialIcons name="arrow-drop-down" size={24} color="#6b7280" />
+                    </TouchableOpacity>
                   </View>
                 </View>
 
@@ -596,6 +599,48 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
               </Button>
             </View>
           </ScrollView>
+
+          {/* Serving unit picker overlay - inside Create modal so it appears on top */}
+          {showServingUnitPicker && (
+            <View style={styles.servingUnitPickerOverlay} pointerEvents="box-none">
+              <TouchableOpacity
+                style={styles.servingUnitPickerDimmer}
+                activeOpacity={1}
+                onPress={() => setShowServingUnitPicker(false)}
+              />
+              <View style={styles.servingUnitPickerContent} pointerEvents="box-none">
+                <View style={styles.servingUnitPickerHeader}>
+                  <Text style={styles.servingUnitPickerTitle}>Serving unit</Text>
+                  <TouchableOpacity onPress={() => setShowServingUnitPicker(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                    <MaterialIcons name="close" size={24} color="#6b7280" />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={styles.servingUnitOptionsList} showsVerticalScrollIndicator={false}>
+                  <TouchableOpacity
+                    style={[styles.servingUnitOption, newFoodDefaultUnit === 'grams' && styles.servingUnitOptionSelected]}
+                    onPress={() => { setNewFoodDefaultUnit('grams'); setShowServingUnitPicker(false); }}
+                  >
+                    <Text style={[styles.servingUnitOptionText, newFoodDefaultUnit === 'grams' && styles.servingUnitOptionTextSelected]}>grams</Text>
+                    {newFoodDefaultUnit === 'grams' && <MaterialIcons name="check-circle" size={24} color="#ff6b6b" />}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.servingUnitOption, newFoodDefaultUnit === 'pieces' && styles.servingUnitOptionSelected]}
+                    onPress={() => { setNewFoodDefaultUnit('pieces'); setShowServingUnitPicker(false); }}
+                  >
+                    <Text style={[styles.servingUnitOptionText, newFoodDefaultUnit === 'pieces' && styles.servingUnitOptionTextSelected]}>pieces</Text>
+                    {newFoodDefaultUnit === 'pieces' && <MaterialIcons name="check-circle" size={24} color="#ff6b6b" />}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.servingUnitOption, newFoodDefaultUnit === 'cup' && styles.servingUnitOptionSelected]}
+                    onPress={() => { setNewFoodDefaultUnit('cup'); setShowServingUnitPicker(false); }}
+                  >
+                    <Text style={[styles.servingUnitOptionText, newFoodDefaultUnit === 'cup' && styles.servingUnitOptionTextSelected]}>cup</Text>
+                    {newFoodDefaultUnit === 'cup' && <MaterialIcons name="check-circle" size={24} color="#ff6b6b" />}
+                  </TouchableOpacity>
+                </ScrollView>
+              </View>
+            </View>
+          )}
         </KeyboardAvoidingView>
       </Modal>
     </KeyboardAvoidingView>
@@ -917,6 +962,86 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
+  },
+  servingUnitDropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f9fafb',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 48,
+  },
+  servingUnitDropdownText: {
+    fontSize: 16,
+    color: '#1f2937',
+  },
+  servingUnitPickerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'column',
+    justifyContent: 'flex-end',
+  },
+  servingUnitPickerDimmer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: 0,
+  },
+  servingUnitPickerContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    zIndex: 1,
+  },
+  servingUnitPickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  servingUnitPickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  servingUnitOptionsList: {
+    maxHeight: 280,
+  },
+  servingUnitOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: '#f9fafb',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  servingUnitOptionSelected: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#ff6b6b',
+    borderWidth: 2,
+  },
+  servingUnitOptionText: {
+    fontSize: 16,
+    color: '#1f2937',
+  },
+  servingUnitOptionTextSelected: {
+    fontWeight: '600',
+    color: '#ff6b6b',
   },
   categoryContainer: {
     flexDirection: 'row',

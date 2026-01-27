@@ -127,7 +127,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
             <View style={styles.brandMark}>
               <View style={styles.logoContainer}>
                 <Image
-                  source={require('../../../assets/icon.png')}
+                  source={require('../../../assets/logo-icon.png')}
                   style={styles.logo}
                   resizeMode="contain"
                 />

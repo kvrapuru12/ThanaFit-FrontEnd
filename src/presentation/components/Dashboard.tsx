@@ -306,7 +306,7 @@ export const Dashboard: React.FC = () => {
           </View>
           <View style={styles.thanafitLogo}>
             <Image
-              source={require('../../../assets/adaptive-icon.png')}
+              source={require('../../../assets/logo-icon.png')}
               style={styles.thanafitLogoImage}
               resizeMode="contain"
             />

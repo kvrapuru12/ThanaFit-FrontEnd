@@ -114,7 +114,7 @@ export const ProgressTracking: React.FC = () => {
           <View style={styles.headerRight}>
             <View style={styles.thanafitLogo}>
               <Image
-                source={require('../../../assets/adaptive-icon.png')}
+                source={require('../../../assets/logo-icon.png')}
                 style={styles.thanafitLogoImage}
                 resizeMode="contain"
               />
