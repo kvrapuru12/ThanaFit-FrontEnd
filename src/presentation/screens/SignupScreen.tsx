@@ -99,8 +99,10 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
 
     if (!userData.username.trim()) {
       newErrors.username = 'Username is required';
-    } else if (userData.username.length < 3) {
-      newErrors.username = 'Username must be at least 3 characters';
+    } else if (userData.username.length < 3 || userData.username.length > 20) {
+      newErrors.username = 'Username must be 3-20 characters';
+    } else if (!/^[a-zA-Z0-9_]+$/.test(userData.username)) {
+      newErrors.username = 'Username can only contain letters, numbers, and underscores';
     }
 
     if (!userData.password) {
@@ -453,6 +455,7 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
           errors.username ? styles.inputError : null
         ]}
         autoCapitalize="none"
+        maxLength={20}
         value={userData.username}
         onChangeText={(value) => updateUserData('username', value)}
       />

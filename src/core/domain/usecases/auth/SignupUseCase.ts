@@ -51,10 +51,13 @@ export class SignupUseCase {
       console.error('Validation failed: Username is required');
       throw new Error('Username is required');
     }
-    
-    if (userData.username.length < 3) {
-      console.error('Validation failed: Username too short');
-      throw new Error('Username must be at least 3 characters');
+    if (userData.username.length < 3 || userData.username.length > 20) {
+      console.error('Validation failed: Username length must be 3-20');
+      throw new Error('Username must be 3-20 characters');
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(userData.username)) {
+      console.error('Validation failed: Username must be alphanumeric + underscores');
+      throw new Error('Username can only contain letters, numbers, and underscores');
     }
     
     console.log('All user data validation checks passed');
