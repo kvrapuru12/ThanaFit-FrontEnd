@@ -409,6 +409,7 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
 
       <TextInput
         placeholder="First Name"
+        placeholderTextColor="#9ca3af"
         style={[
           styles.input,
           errors.firstName ? styles.inputError : null
@@ -420,6 +421,7 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
 
       <TextInput
         placeholder="Last Name"
+        placeholderTextColor="#9ca3af"
         style={[
           styles.input,
           errors.lastName ? styles.inputError : null
@@ -431,6 +433,7 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
 
       <TextInput
         placeholder="Email"
+        placeholderTextColor="#9ca3af"
         style={[
           styles.input,
           errors.email ? styles.inputError : null
@@ -444,6 +447,7 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
 
       <TextInput
         placeholder="Username"
+        placeholderTextColor="#9ca3af"
         style={[
           styles.input,
           errors.username ? styles.inputError : null
@@ -456,6 +460,7 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
 
       <TextInput
         placeholder="Password"
+        placeholderTextColor="#9ca3af"
         style={[
           styles.input,
           errors.password ? styles.inputError : null
@@ -477,6 +482,7 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
 
       <TextInput
         placeholder="Confirm Password"
+        placeholderTextColor="#9ca3af"
         style={[
           styles.input,
           errors.confirmPassword ? styles.inputError : null
@@ -506,7 +512,8 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
       </Text>
 
       <TextInput
-        placeholder="Phone Number (e.g., +447912150965 or 07912150965)"
+        placeholder="Phone Number (e.g., +447912150000)"
+        placeholderTextColor="#9ca3af"
         style={[
           styles.input,
           errors.phoneNumber ? styles.inputError : null
@@ -519,6 +526,7 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
 
       <TextInput
         placeholder="Date of Birth (YYYY-MM-DD)"
+        placeholderTextColor="#9ca3af"
         style={[
           styles.input,
           errors.dob ? styles.inputError : null
@@ -572,6 +580,7 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
         
         <TextInput
           placeholder="Weight (kg) - e.g., 70"
+          placeholderTextColor="#9ca3af"
           style={[
             styles.input,
             errors.weight ? styles.inputError : null
@@ -586,6 +595,7 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
           <View style={styles.heightInput}>
             <TextInput
               placeholder={`Height - e.g., ${userData.heightUnit === 'CM' ? '170' : '5.7'}`}
+              placeholderTextColor="#9ca3af"
               style={[
                 styles.input,
                 styles.heightInputField,
@@ -638,6 +648,7 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
         
         <TextInput
           placeholder="Daily Calorie Intake (1500-2500)"
+          placeholderTextColor="#9ca3af"
           style={[
             styles.input,
             errors.dailyCalorieIntakeTarget ? styles.inputError : null
@@ -650,6 +661,7 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
 
         <TextInput
           placeholder="Daily Calorie Burn Goal (200-800)"
+          placeholderTextColor="#9ca3af"
           style={[
             styles.input,
             errors.dailyCalorieBurnTarget ? styles.inputError : null
