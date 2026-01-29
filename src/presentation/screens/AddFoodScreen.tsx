@@ -307,7 +307,7 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
                       <View style={styles.foodItemInfo}>
                         <Text style={styles.foodItemName}>{food.name}</Text>
                         <Text style={styles.foodItemMeta}>
-                          {food.quantityPerUnit} {food.defaultUnit} • {Math.round(food.caloriesPerUnit)} cal
+                          {Number(food.quantityPerUnit) % 1 === 0 ? Math.round(food.quantityPerUnit) : Number(food.quantityPerUnit).toFixed(1)} {food.defaultUnit} • {Math.round(food.caloriesPerUnit)} cal
                         </Text>
                       </View>
                       <View style={styles.foodItemBadges}>
@@ -349,7 +349,7 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
               <View style={styles.selectedFoodInfo}>
                 <Text style={styles.selectedFoodName}>{selectedFood.name}</Text>
                 <Text style={styles.selectedFoodMeta}>
-                  {selectedFood.quantityPerUnit} {selectedFood.defaultUnit} • {Math.round(selectedFood.caloriesPerUnit)} cal
+                  {Number(selectedFood.quantityPerUnit) % 1 === 0 ? Math.round(selectedFood.quantityPerUnit) : Number(selectedFood.quantityPerUnit).toFixed(1)} {selectedFood.defaultUnit} • {Math.round(selectedFood.caloriesPerUnit)} cal
                 </Text>
                 
                 <View style={styles.inputRow}>

@@ -350,7 +350,7 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
                                 </Badge>
                               </View>
                               <Text style={styles.foodCardMeta}>
-                                {log.quantity} {log.unit} • {Math.round(log.food?.caloriesPerUnit || (log.calories / log.quantity))} cal per unit
+                                {Number(log.quantity) % 1 === 0 ? Math.round(log.quantity) : Number(log.quantity).toFixed(1)} {log.unit} • {Math.round(log.food?.caloriesPerUnit || (log.calories / log.quantity))} cal per unit
                               </Text>
                               <View style={styles.nutritionBadges}>
                                 <View style={styles.nutritionBadge}>
@@ -430,7 +430,7 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
                 </TouchableOpacity>
               </View>
                     <Text style={styles.foodCardMeta}>
-                      {food.quantityPerUnit}{food.defaultUnit} • {Math.round(food.caloriesPerUnit)} cal
+                      {Number(food.quantityPerUnit) % 1 === 0 ? Math.round(food.quantityPerUnit) : Number(food.quantityPerUnit).toFixed(1)}{food.defaultUnit} • {Math.round(food.caloriesPerUnit)} cal
                     </Text>
                     <View style={styles.nutritionBadges}>
                       <View style={styles.nutritionBadge}>

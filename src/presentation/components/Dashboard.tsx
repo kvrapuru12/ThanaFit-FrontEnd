@@ -323,8 +323,8 @@ export const Dashboard: React.FC = () => {
                 </View>
                 <Text style={styles.statLabel}>Calories</Text>
               </View>
-              <Text style={styles.statValue}>{todayStats.calories.consumed}</Text>
-              <Text style={styles.statSubtext}>of {todayStats.calories.goal} target</Text>
+              <Text style={styles.statValue}>{Math.round(todayStats.calories.consumed)}</Text>
+              <Text style={styles.statSubtext}>of {Math.round(todayStats.calories.goal)} target</Text>
               <View style={styles.progressBar}>
                 <View style={[styles.progressFill, { width: `${calorieProgress}%` }]} />
               </View>
@@ -339,8 +339,8 @@ export const Dashboard: React.FC = () => {
                 </View>
                 <Text style={styles.statLabel}>Exercise</Text>
               </View>
-              <Text style={styles.statValue}>{todayStats.exercise.burned}</Text>
-              <Text style={styles.statSubtext}>of {todayStats.exercise.goal} target</Text>
+              <Text style={styles.statValue}>{Math.round(todayStats.exercise.burned)}</Text>
+              <Text style={styles.statSubtext}>of {Math.round(todayStats.exercise.goal)} target</Text>
               <View style={styles.progressBar}>
                 <View style={[styles.progressFill, { width: `${exerciseProgress}%` }]} />
               </View>
@@ -364,7 +364,7 @@ export const Dashboard: React.FC = () => {
                   <View style={styles.macroHeader}>
                     <Text style={styles.macroName}>{macro}</Text>
                     <Text style={styles.macroValue}>
-                      {data.consumed}g / {data.goal}g
+                      {Math.round(data.consumed)}g / {Math.round(data.goal)}g
                     </Text>
                   </View>
                   <View style={styles.macroProgressBar}>
@@ -544,7 +544,7 @@ export const Dashboard: React.FC = () => {
                   <View style={styles.mealInfo}>
                     <Text style={styles.mealName}>{meal.name}</Text>
                     <Text style={styles.mealDetails}>
-                      {meal.time} • {meal.calories} cal
+                      {meal.time} • {Math.round(meal.calories)} cal
                     </Text>
                     {meal.macros && (
                       <View style={styles.mealMacros}>
@@ -601,7 +601,7 @@ export const Dashboard: React.FC = () => {
                     </Text>
                   </View>
                   <View style={styles.activityCalories}>
-                    <Text style={styles.caloriesText}>{activity.caloriesBurned}</Text>
+                    <Text style={styles.caloriesText}>{Math.round(activity.caloriesBurned)}</Text>
                     <Text style={styles.caloriesLabel}>cal</Text>
                   </View>
                 </View>
