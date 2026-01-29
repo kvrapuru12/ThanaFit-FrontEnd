@@ -39,6 +39,22 @@ export interface AudioFile {
   lastModified?: number;
 }
 
+/** MIME type for Whisper API by file extension (Whisper supports: mp3, mp4, mpeg, mpga, m4a, wav, webm) */
+function mimeForExtension(fileName: string): string {
+  const ext = (fileName.split('.').pop() || '').toLowerCase();
+  const mime: Record<string, string> = {
+    wav: 'audio/wav',
+    m4a: 'audio/mp4',
+    mp4: 'audio/mp4',
+    mp3: 'audio/mpeg',
+    mpeg: 'audio/mpeg',
+    mpga: 'audio/mpeg',
+    webm: 'audio/webm',
+    '3gp': 'audio/3gpp',
+  };
+  return mime[ext] ?? 'audio/wav';
+}
+
 export class WhisperApiService {
   /**
    * Transcribe audio file using OpenAI Whisper API
@@ -49,17 +65,15 @@ export class WhisperApiService {
         try {
           console.log('Starting Whisper transcription...');
           
-          // Get the original audio URI from the file (we'll need this for React Native FormData)
           const audioUri = audioFile.uri || '';
+          const fileName = audioFile.name || 'recording.wav';
+          const mimeType = audioFile.type || mimeForExtension(fileName);
           
-          // Create FormData with React Native compatible structure
           const formData = new FormData();
-          
-          // Use React Native FormData format: { uri, name, type }
           formData.append('file', {
             uri: audioUri,
-            name: 'workout-recording.wav',
-            type: 'audio/wav'
+            name: fileName,
+            type: mimeType,
           } as any);
           formData.append('model', 'whisper-1');
           formData.append('language', 'en');
@@ -67,8 +81,8 @@ export class WhisperApiService {
 
           console.log('FormData created with file:', {
             uri: audioUri,
-            name: 'workout-recording.wav',
-            type: 'audio/wav'
+            name: fileName,
+            type: mimeType,
           });
 
           // Use fetch instead of axios for React Native compatibility
@@ -141,14 +155,12 @@ export class WhisperApiService {
       async audioUriToFile(audioUri: string, fileName: string = 'recording.wav'): Promise<AudioFile> {
         try {
           console.log('Converting audio URI to File:', audioUri);
-          
-          // For React Native, we need to preserve the URI for FormData
-          // Create a File-like object that includes the original URI
+          const mimeType = mimeForExtension(fileName);
           const file: AudioFile = {
             uri: audioUri,
             name: fileName,
-            type: 'audio/wav',
-            size: 0, // We'll get this from the actual file if needed
+            type: mimeType,
+            size: 0,
             lastModified: Date.now()
           };
           

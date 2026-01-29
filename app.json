@@ -11,7 +11,10 @@
     ],
     "jsEngine": "hermes",
     "ios": {
-      "bundleIdentifier": "com.prod.thanafit"
+      "bundleIdentifier": "com.prod.thanafit",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "ThanaFit uses the microphone to log food and exercise by voice."
+      }
     },
     "plugins": [
     ],

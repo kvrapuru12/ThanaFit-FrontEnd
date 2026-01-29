@@ -22,7 +22,6 @@ import { useAuth } from '../providers/AuthProvider';
 import { useActivities } from '../hooks/useActivities';
 import { useTodayWorkouts } from '../hooks/useTodayWorkouts';
 import { dashboardApiService } from '../../infrastructure/services/dashboardApi';
-import { hasVoiceLogAccess } from '../../core/utils/roleUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -258,15 +257,13 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
                     <Text style={styles.addWorkoutText}>Add Exercise</Text>
                   </TouchableOpacity>
                   
-                  {hasVoiceLogAccess(user) && (
-                    <TouchableOpacity 
-                      style={styles.voiceLogButton}
-                      onPress={() => setShowVoiceRecorder(true)}
-                    >
-                      <MaterialIcons name="mic" size={20} color="#4ecdc4" />
-                      <Text style={styles.voiceLogText}>Voice Log</Text>
-                    </TouchableOpacity>
-                  )}
+                  <TouchableOpacity 
+                    style={styles.voiceLogButton}
+                    onPress={() => setShowVoiceRecorder(true)}
+                  >
+                    <MaterialIcons name="mic" size={20} color="#4ecdc4" />
+                    <Text style={styles.voiceLogText}>Voice Log</Text>
+                  </TouchableOpacity>
                 </View>
               </>
             ) : (
@@ -288,15 +285,13 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
                     <Text style={styles.addWorkoutText}>Add Exercise</Text>
                   </TouchableOpacity>
                   
-                  {hasVoiceLogAccess(user) && (
-                    <TouchableOpacity 
-                      style={styles.voiceLogButton}
-                      onPress={() => setShowVoiceRecorder(true)}
-                    >
-                      <MaterialIcons name="mic" size={20} color="#4ecdc4" />
-                      <Text style={styles.voiceLogText}>Voice Log</Text>
-                    </TouchableOpacity>
-                  )}
+                  <TouchableOpacity 
+                    style={styles.voiceLogButton}
+                    onPress={() => setShowVoiceRecorder(true)}
+                  >
+                    <MaterialIcons name="mic" size={20} color="#4ecdc4" />
+                    <Text style={styles.voiceLogText}>Voice Log</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             )}
@@ -436,16 +431,13 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
         </Card>
       </View>
 
-      {/* Voice Recorder Modal - Only show for PREMIUM and ADMIN users */}
-      {hasVoiceLogAccess(user) && (
-        <VoiceRecorder
-          visible={showVoiceRecorder}
-          onVoiceLog={handleVoiceLog}
-          onVoiceLogSuccess={handleVoiceLogSuccess}
-          userId={user?.id}
-          onClose={() => setShowVoiceRecorder(false)}
-        />
-      )}
+      <VoiceRecorder
+        visible={showVoiceRecorder}
+        onVoiceLog={handleVoiceLog}
+        onVoiceLogSuccess={handleVoiceLogSuccess}
+        userId={user?.id}
+        onClose={() => setShowVoiceRecorder(false)}
+      />
     </ScrollView>
   );
 }
