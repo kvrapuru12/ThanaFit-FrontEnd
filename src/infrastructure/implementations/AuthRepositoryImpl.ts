@@ -43,12 +43,13 @@ export class AuthRepositoryImpl implements IAuthRepository {
         throw new Error('Invalid login response structure');
       }
       
-      const { token, userId, username, role, gender } = response.data;
+      const { token, userId, username, role, gender, profileComplete } = response.data;
       
       // Store userId for later use
       await AsyncStorage.setItem('userId', userId.toString());
       
       // Create user object from backend response
+      // Backend returns profileComplete in LoginResponse (POST /auth/login)
       const user: User = {
         id: userId,
         firstName: username, // Backend doesn't return firstName, using username
@@ -67,6 +68,7 @@ export class AuthRepositoryImpl implements IAuthRepository {
         accountStatus: AccountStatus.ACTIVE, // Default value
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        profileComplete: profileComplete ?? false,
       };
     
       const tokens: AuthTokens = {
@@ -130,7 +132,7 @@ export class AuthRepositoryImpl implements IAuthRepository {
         accountStatus: AccountStatus.ACTIVE,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        profileComplete: profileComplete !== undefined ? profileComplete : false, // Default to false for new Google users
+        profileComplete: profileComplete ?? false, // Backend returns in LoginResponse (POST /auth/google)
       };
 
       const tokens: AuthTokens = {
@@ -234,6 +236,9 @@ export class AuthRepositoryImpl implements IAuthRepository {
       targetSteps: backendUser.targetSteps,
       targetWeight: backendUser.targetWeight,
       lastPeriodDate: backendUser.lastPeriodDate,
+
+      // Profile completion (UserResponse from GET /users/:id)
+      profileComplete: backendUser.profileComplete,
     };
     
     return user;

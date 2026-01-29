@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -11,7 +11,8 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  Image
+  Image,
+  Animated,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
@@ -28,6 +29,17 @@ const { width } = Dimensions.get('window');
 
 // API Configuration - Load from environment variable
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080/api';
+
+/** Extract user-facing message from profile PATCH error (fieldErrors, message, or fallback). */
+function getProfileUpdateErrorMessage(error: any): string {
+  const data = error?.responseData ?? {};
+  const fieldErrors = data.fieldErrors as Record<string, string> | undefined;
+  if (fieldErrors && typeof fieldErrors === 'object') {
+    const messages = Object.values(fieldErrors).filter(Boolean) as string[];
+    if (messages.length) return messages.join('\n');
+  }
+  return (data?.message || error?.message || 'Something went wrong. Please try again.') as string;
+}
 
 interface ProfileProps {
   navigation?: any;
@@ -64,6 +76,13 @@ export function Profile({ navigation }: ProfileProps) {
   const [pickerOptions, setPickerOptions] = useState<Array<{label: string; value: string}>>([]);
   const [pickerTitle, setPickerTitle] = useState('');
   
+  // Incomplete-profile toast banner (top of screen)
+  const [incompleteBannerDismissed, setIncompleteBannerDismissed] = useState(false);
+  const incompleteBannerOpacity = useRef(new Animated.Value(0)).current;
+
+  // Inline validation error for profile field updates (shown under active edit)
+  const [fieldUpdateError, setFieldUpdateError] = useState<string | null>(null);
+  
   // Debug: Log user data
   console.log('Profile - user data:', user);
   
@@ -80,6 +99,18 @@ export function Profile({ navigation }: ProfileProps) {
     
     fetchFreshUserData();
   }, []); // Empty dependency array - run only on mount
+
+  // Fade-in incomplete-profile banner when shown
+  const showIncompleteBanner = !!(user?.profileComplete === false && !incompleteBannerDismissed);
+  useEffect(() => {
+    if (!showIncompleteBanner) return;
+    incompleteBannerOpacity.setValue(0);
+    Animated.timing(incompleteBannerOpacity, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
+  }, [showIncompleteBanner]);
 
   // Debug: Log when user object changes
   useEffect(() => {
@@ -167,9 +198,9 @@ export function Profile({ navigation }: ProfileProps) {
       setEditValue('');
       
       Alert.alert('Success', `${editingGoal.title} updated successfully!`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Update goal error:', error);
-      Alert.alert('Error', 'Failed to update goal. Please try again.');
+      Alert.alert('Update failed', getProfileUpdateErrorMessage(error));
     } finally {
       setIsUpdating(false);
     }
@@ -209,9 +240,45 @@ export function Profile({ navigation }: ProfileProps) {
         valueToUpdate = selectedDate.toISOString().split('T')[0]; // Format as YYYY-MM-DD
       }
       
-      const updateData = {
-        [editingBasicInfo.field]: valueToUpdate
-      };
+      let updateData: Record<string, any> = { [editingBasicInfo.field]: valueToUpdate };
+      if (editingBasicInfo.field === 'phoneNumber') {
+        const v = valueToUpdate.trim();
+        if (v === '') {
+          updateData.phoneNumber = null;
+        } else {
+          const intl = /^\+[1-9]\d{1,14}$/;
+          const uk = /^0\d{10}$/;
+          if (intl.test(v)) {
+            updateData.phoneNumber = v;
+          } else if (uk.test(v)) {
+            updateData.phoneNumber = '+44' + v.substring(1);
+          } else {
+            Alert.alert('Validation', 'Phone number must be in international format (e.g. +447912150965) or UK format (07912150965).');
+            return;
+          }
+        }
+      } else if (editingBasicInfo.field === 'height') {
+        const v = valueToUpdate.trim();
+        if (!v) {
+          Alert.alert('Validation', 'Please enter a height.');
+          return;
+        }
+        const num = parseFloat(v);
+        if (isNaN(num)) {
+          Alert.alert('Validation', 'Please enter a valid number.');
+          return;
+        }
+        const unit = (user?.height?.unit || 'CM') as 'CM' | 'FEET';
+        if (unit === 'CM' && (num < 100 || num > 250)) {
+          Alert.alert('Validation', 'Height must be between 100 and 250 cm.');
+          return;
+        }
+        if (unit === 'FEET' && (num < 3.3 || num > 8.2)) {
+          Alert.alert('Validation', 'Height must be between 3.3 and 8.2 feet.');
+          return;
+        }
+        updateData.height = { value: num, unit };
+      }
 
       // Use apiClient instead of direct fetch for proper token handling
       console.log('Updating basic info via apiClient:', updateData);
@@ -227,9 +294,9 @@ export function Profile({ navigation }: ProfileProps) {
       setBasicInfoEditValue('');
       
       Alert.alert('Success', `${editingBasicInfo.label} updated successfully!`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Update basic info error:', error);
-      Alert.alert('Error', 'Failed to update basic info. Please try again.');
+      Alert.alert('Update failed', getProfileUpdateErrorMessage(error));
     } finally {
       setIsUpdatingBasicInfo(false);
     }
@@ -264,9 +331,9 @@ export function Profile({ navigation }: ProfileProps) {
 
       await refreshUserData();
       Alert.alert('Success', 'Date updated successfully!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Date update error:', error);
-      Alert.alert('Error', 'Failed to update date. Please try again.');
+      Alert.alert('Update failed', getProfileUpdateErrorMessage(error));
     } finally {
       setIsUpdatingField(false);
     }
@@ -306,6 +373,7 @@ export function Profile({ navigation }: ProfileProps) {
   };
 
   const handleFieldEdit = (field: string, currentValue: string) => {
+    setFieldUpdateError(null);
     setEditingField(field);
     
     // Initialize selectedDate for date fields
@@ -367,9 +435,7 @@ export function Profile({ navigation }: ProfileProps) {
       const weightValue = user?.weight ? user.weight.toString() : '';
       setEditingValue(weightValue);
     } else if (field === 'height') {
-      // Height is an object, keep the display format for now
-      // TODO: Implement proper height editing with unit selection
-      setEditingValue(currentValue);
+      setEditingValue(user?.height ? String(user.height.value) : '');
     } else {
       setEditingValue(currentValue === 'Not set' ? '' : currentValue);
     }
@@ -378,6 +444,7 @@ export function Profile({ navigation }: ProfileProps) {
   const handleFieldUpdate = async () => {
     if (!user || !editingField) return;
 
+    setFieldUpdateError(null);
     setIsUpdatingField(true);
     try {
       let valueToUpdate = editingValue;
@@ -415,6 +482,49 @@ export function Profile({ navigation }: ProfileProps) {
       } else if (editingField === 'weight') {
         const numValue = parseFloat(valueToUpdate);
         updateData[editingField] = isNaN(numValue) ? null : numValue;
+      } else if (editingField === 'phoneNumber') {
+        const v = valueToUpdate.trim();
+        if (v === '') {
+          updateData.phoneNumber = null;
+        } else {
+          const intl = /^\+[1-9]\d{1,14}$/;
+          const uk = /^0\d{10}$/;
+          if (intl.test(v)) {
+            updateData.phoneNumber = v;
+          } else if (uk.test(v)) {
+            updateData.phoneNumber = '+44' + v.substring(1);
+          } else {
+            const msg = 'Phone number must be in international format (e.g. +447912150965) or UK format (07912150965).';
+            setFieldUpdateError(msg);
+            Alert.alert('Validation', msg);
+            return;
+          }
+        }
+      } else if (editingField === 'height') {
+        const v = valueToUpdate.trim();
+        if (!v) {
+          setFieldUpdateError('Please enter a height.');
+          Alert.alert('Validation', 'Please enter a height.');
+          return;
+        }
+        const num = parseFloat(v);
+        if (isNaN(num)) {
+          setFieldUpdateError('Please enter a valid number.');
+          Alert.alert('Validation', 'Please enter a valid number.');
+          return;
+        }
+        const unit = (user?.height?.unit || 'CM') as 'CM' | 'FEET';
+        if (unit === 'CM' && (num < 100 || num > 250)) {
+          setFieldUpdateError('Height must be between 100 and 250 cm.');
+          Alert.alert('Validation', 'Height must be between 100 and 250 cm.');
+          return;
+        }
+        if (unit === 'FEET' && (num < 3.3 || num > 8.2)) {
+          setFieldUpdateError('Height must be between 3.3 and 8.2 feet.');
+          Alert.alert('Validation', 'Height must be between 3.3 and 8.2 feet.');
+          return;
+        }
+        updateData.height = { value: num, unit };
       } else {
         updateData[editingField] = valueToUpdate;
       }
@@ -457,6 +567,7 @@ export function Profile({ navigation }: ProfileProps) {
         
         setEditingField(null);
         setEditingValue('');
+        setFieldUpdateError(null);
         
         Alert.alert('Success', 'Field updated successfully!');
       } catch (refreshError) {
@@ -464,17 +575,21 @@ export function Profile({ navigation }: ProfileProps) {
         // Still show success since the update worked
         setEditingField(null);
         setEditingValue('');
+        setFieldUpdateError(null);
         Alert.alert('Success', 'Field updated, but refresh failed. Please reload the page.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Field update error:', error);
-      Alert.alert('Error', 'Failed to update field. Please try again.');
+      const msg = getProfileUpdateErrorMessage(error);
+      setFieldUpdateError(msg);
+      Alert.alert('Update failed', msg);
     } finally {
       setIsUpdatingField(false);
     }
   };
 
   const handleFieldCancel = () => {
+    setFieldUpdateError(null);
     setEditingField(null);
     setEditingValue('');
   };
@@ -660,6 +775,30 @@ export function Profile({ navigation }: ProfileProps) {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.content}>
+        {/* Incomplete-profile toast banner (top of screen) */}
+        {showIncompleteBanner && (
+          <Animated.View style={[styles.incompleteBanner, { opacity: incompleteBannerOpacity }]}>
+            <View style={styles.incompleteBannerInner}>
+              <View style={styles.incompleteBannerIconWrap}>
+                <MaterialIcons name="info-outline" size={22} color="#b45309" />
+              </View>
+              <View style={styles.incompleteBannerText}>
+                <Text style={styles.incompleteBannerTitle}>Complete your profile</Text>
+                <Text style={styles.incompleteBannerSubtitle}>
+                  You’re here so we can personalize your experience. Add your goals, health details, and preferences below.
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.incompleteBannerDismiss}
+                onPress={() => setIncompleteBannerDismissed(true)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <MaterialIcons name="close" size={22} color="#92400e" />
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        )}
+
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -712,6 +851,7 @@ export function Profile({ navigation }: ProfileProps) {
                     <View style={styles.basicInfoDetails}>
                       <Text style={styles.basicInfoLabel}>{field.label}</Text>
                       {editingField === field.field ? (
+                        <View style={styles.inlineEditWrapper}>
                         <View style={styles.inlineEditContainer}>
                           {(field.field === 'lastPeriodDate' || field.field === 'dob') ? (
                             <TouchableOpacity 
@@ -766,10 +906,19 @@ export function Profile({ navigation }: ProfileProps) {
                             <TextInput
                               style={styles.inlineTextInput}
                               value={editingValue}
-                              onChangeText={setEditingValue}
+                              onChangeText={(t) => { setFieldUpdateError(null); setEditingValue(t); }}
                               autoFocus={true}
-                              placeholder={`Enter ${field.label.toLowerCase()}`}
-                              keyboardType={field.field === 'phoneNumber' ? 'phone-pad' : 'default'}
+                              placeholder={
+                                field.field === 'phoneNumber' ? 'e.g. +447912150965'
+                                : field.field === 'height' ? (user?.height?.unit === 'FEET' ? 'e.g. 5.7' : 'e.g. 170')
+                                : `Enter ${field.label.toLowerCase()}`
+                              }
+                              placeholderTextColor="#9ca3af"
+                              keyboardType={
+                                field.field === 'phoneNumber' ? 'phone-pad'
+                                : (field.field === 'height' || field.field === 'weight') ? 'decimal-pad'
+                                : 'default'
+                              }
                               autoCapitalize={field.field === 'email' ? 'none' : 'words'}
                             />
                           )}
@@ -788,6 +937,10 @@ export function Profile({ navigation }: ProfileProps) {
                               <MaterialIcons name="close" size={16} color="#6b7280" />
                             </TouchableOpacity>
                           </View>
+                        </View>
+                          {editingField === field.field && fieldUpdateError ? (
+                            <Text style={styles.inlineFieldError}>{fieldUpdateError}</Text>
+                          ) : null}
                         </View>
                       ) : (
                         <TouchableOpacity 
@@ -1215,6 +1368,50 @@ const styles = StyleSheet.create({
     paddingTop: 60, // More space from top
     paddingBottom: 100, // Space for bottom navigation
   },
+  incompleteBanner: {
+    marginBottom: 20,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#fef3c7',
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  incompleteBannerInner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 16,
+  },
+  incompleteBannerIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fde68a',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  incompleteBannerText: {
+    flex: 1,
+  },
+  incompleteBannerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#92400e',
+    marginBottom: 4,
+  },
+  incompleteBannerSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#b45309',
+  },
+  incompleteBannerDismiss: {
+    padding: 4,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1613,10 +1810,20 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     fontWeight: '500',
   },
+  inlineEditWrapper: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
   inlineEditContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  inlineFieldError: {
+    fontSize: 13,
+    color: '#dc2626',
+    marginTop: 2,
   },
   inlineTextInput: {
     flex: 1,

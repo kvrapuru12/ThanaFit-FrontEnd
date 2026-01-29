@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View, StyleSheet, Text, TouchableOpacity } from 'react-native';
@@ -110,6 +110,16 @@ const AppNavigator = () => {
 const MainApp = ({ navigation }: { navigation?: any }) => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const hasRedirectedForIncompleteProfile = useRef(false);
+
+  // Land on Profile when profile is incomplete (profileComplete === false)
+  useEffect(() => {
+    if (!user || hasRedirectedForIncompleteProfile.current) return;
+    if (user.profileComplete === false) {
+      setActiveTab('profile');
+      hasRedirectedForIncompleteProfile.current = true;
+    }
+  }, [user]);
 
   // Debug logging
   console.log('MainApp - user:', user);
