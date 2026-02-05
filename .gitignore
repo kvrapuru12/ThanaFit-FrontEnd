@@ -17,6 +17,10 @@ web-build/
 *.key
 *.mobileprovision
 
+# Android / EAS build outputs
+build-*.aab
+build-*.apk
+
 # Metro
 .metro-health-check*
 

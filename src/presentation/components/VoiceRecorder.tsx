@@ -9,9 +9,11 @@ import {
   Modal,
   Dimensions,
   TextInput,
+  Platform,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
+import * as FileSystem from 'expo-file-system';
 import { MaterialIcons } from '@expo/vector-icons';
 import { dashboardApiService } from '../../infrastructure/services/dashboardApi';
 import { whisperApiService } from '../../infrastructure/services/whisperApi';
@@ -37,7 +39,6 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
-  const [permissionResponse, requestPermission] = Audio.usePermissions();
   const [pulseAnim] = useState(new Animated.Value(1));
   const [waveAnim] = useState(new Animated.Value(0));
   const [showTranscriptInput, setShowTranscriptInput] = useState(false);
@@ -121,15 +122,15 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const startRecording = async () => {
     try {
       console.log('Starting audio recording...');
-      
-      // Request permissions
-      if (permissionResponse?.status !== 'granted') {
-        console.log('Requesting permission...');
-        const permission = await requestPermission();
-        if (permission.status !== 'granted') {
-          Alert.alert('Permission Required', 'Microphone permission is required to record audio.');
-          return;
-        }
+
+      // Explicit runtime permission (required on Android)
+      const { status } = await Audio.requestPermissionsAsync();
+      if (Platform.OS === 'android') {
+        console.log('[Android] Microphone permission status:', status);
+      }
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Microphone permission is required to record audio.');
+        return;
       }
 
       // Ensure audio mode is set for recording
@@ -141,8 +142,11 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         playThroughEarpieceAndroid: false,
       });
 
-      // Android: use M4A (Whisper supports it); DEFAULT on Android can produce 3GP which Whisper rejects
-      // iOS: WAV (LINEARPCM) for best Whisper compatibility
+      // Avoid TTS/recording conflict: stop speech and short delay (helps Android audio focus)
+      await Speech.stop();
+      await new Promise((r) => setTimeout(r, 400));
+
+      // Android: M4A mono 16kHz. iOS: WAV for best Whisper compatibility.
       const { recording: newRecording } = await Audio.Recording.createAsync({
         android: {
           extension: '.m4a',
@@ -174,14 +178,8 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       setRecordingDuration(0);
       
       console.log('Recording started');
-      
-          // Speak instructions with natural female voice
-          Speech.speak('Please describe your workout', {
-            language: 'en-US',
-            pitch: 1.0, // Natural pitch for female voice
-            rate: 0.8, // Natural speaking rate
-          });
-      
+      // No TTS here – it would be picked up by the mic and appear in the transcript. Instructions are on screen only.
+
     } catch (err) {
       console.error('Failed to start recording', err);
       Alert.alert('Error', 'Failed to start recording. Please try again.');
@@ -204,12 +202,28 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
       const uri = recording.getURI();
       console.log('Recording stopped and stored at:', uri);
-      
+      if (Platform.OS === 'android') {
+        console.log('[Android] Recording URI:', uri);
+      }
+
       if (!uri) {
         throw new Error('Failed to get recording URI');
       }
-      
-      // Now transcribe with Whisper
+
+      try {
+        const info = await FileSystem.getInfoAsync(uri, { size: true });
+        const size = 'size' in info ? info.size : 0;
+        console.log('Audio file size:', size);
+        if (Platform.OS === 'android') {
+          console.log('[Android] Audio file size:', size);
+        }
+        if (typeof size === 'number' && (size === 0 || size < 1024)) {
+          console.warn('[Android] Audio file very small or empty – possible recording issue');
+        }
+      } catch (e) {
+        console.warn('Could not get audio file info:', e);
+      }
+
       await transcribeWithWhisper(uri);
       
     } catch (err) {

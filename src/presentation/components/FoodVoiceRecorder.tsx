@@ -9,9 +9,11 @@ import {
   Modal,
   Dimensions,
   TextInput,
+  Platform,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
+import * as FileSystem from 'expo-file-system';
 import { MaterialIcons } from '@expo/vector-icons';
 import { dashboardApiService } from '../../infrastructure/services/dashboardApi';
 import { whisperApiService } from '../../infrastructure/services/whisperApi';
@@ -37,7 +39,6 @@ export const FoodVoiceRecorder: React.FC<FoodVoiceRecorderProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
-  const [permissionResponse, requestPermission] = Audio.usePermissions();
   const [pulseAnim] = useState(new Animated.Value(1));
   const [waveAnim] = useState(new Animated.Value(0));
   const [showTranscriptInput, setShowTranscriptInput] = useState(false);
@@ -121,15 +122,15 @@ export const FoodVoiceRecorder: React.FC<FoodVoiceRecorderProps> = ({
   const startRecording = async () => {
     try {
       console.log('Starting food voice recording...');
-      
-      // Request permissions
-      if (permissionResponse?.status !== 'granted') {
-        console.log('Requesting permission...');
-        const permission = await requestPermission();
-        if (permission.status !== 'granted') {
-          Alert.alert('Permission Required', 'Microphone permission is required to record audio.');
-          return;
-        }
+
+      // Explicit runtime permission (required on Android)
+      const { status } = await Audio.requestPermissionsAsync();
+      if (Platform.OS === 'android') {
+        console.log('[Android] Microphone permission status:', status);
+      }
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Microphone permission is required to record audio.');
+        return;
       }
 
       // Ensure audio mode is set for recording
@@ -141,8 +142,11 @@ export const FoodVoiceRecorder: React.FC<FoodVoiceRecorderProps> = ({
         playThroughEarpieceAndroid: false,
       });
 
-      // Android: use M4A (Whisper supports it); DEFAULT on Android can produce 3GP which Whisper rejects
-      // iOS: WAV (LINEARPCM) for best Whisper compatibility
+      // Avoid TTS/recording conflict: stop speech and short delay before starting (helps Android audio focus)
+      await Speech.stop();
+      await new Promise((r) => setTimeout(r, 400));
+
+      // Android: M4A mono 16kHz (Whisper-compatible). iOS: WAV for best compatibility.
       const { recording: newRecording } = await Audio.Recording.createAsync({
         android: {
           extension: '.m4a',
@@ -174,14 +178,8 @@ export const FoodVoiceRecorder: React.FC<FoodVoiceRecorderProps> = ({
       setRecordingDuration(0);
       
       console.log('Food recording started');
-      
-      // Speak instructions with natural female voice
-      Speech.speak('Please describe what you ate', {
-        language: 'en-US',
-        pitch: 1.0, // Natural pitch for female voice
-        rate: 0.8, // Natural speaking rate
-      });
-      
+      // No TTS here – speaking would be recorded by the mic and show up in the transcript. Instructions are on screen only.
+
     } catch (err) {
       console.error('Failed to start food recording', err);
       Alert.alert('Error', 'Failed to start recording. Please try again.');
@@ -204,12 +202,29 @@ export const FoodVoiceRecorder: React.FC<FoodVoiceRecorderProps> = ({
 
       const uri = recording.getURI();
       console.log('Food recording stopped and stored at:', uri);
-      
+      if (Platform.OS === 'android') {
+        console.log('[Android] Recording URI:', uri);
+      }
+
       if (!uri) {
         throw new Error('Failed to get recording URI');
       }
-      
-      // Now transcribe with Whisper
+
+      // Check file size (if 0 or tiny, recording failed – helps debug Android)
+      try {
+        const info = await FileSystem.getInfoAsync(uri, { size: true });
+        const size = 'size' in info ? info.size : 0;
+        console.log('Audio file size:', size);
+        if (Platform.OS === 'android') {
+          console.log('[Android] Audio file size:', size);
+        }
+        if (typeof size === 'number' && (size === 0 || size < 1024)) {
+          console.warn('[Android] Audio file very small or empty – possible recording issue');
+        }
+      } catch (e) {
+        console.warn('Could not get audio file info:', e);
+      }
+
       await transcribeWithWhisper(uri);
       
     } catch (err) {
@@ -246,10 +261,11 @@ export const FoodVoiceRecorder: React.FC<FoodVoiceRecorderProps> = ({
       
       console.log('Whisper transcription result for food:', result);
       
-      // Filter out instruction text and update state with transcript
-      const filteredText = result.text
+      // Filter out any instruction phrase that might have been picked up (we no longer use TTS; this is a safety net)
+      const filteredText = (result.text || '')
         .replace(/^start speaking about what you ate[.,]?\s*/i, '')
         .replace(/^please describe what you ate[.,]?\s*/i, '')
+        .replace(/^describe what you ate[.,]?\s*/i, '')
         .trim();
           
       setTranscript(filteredText);

@@ -1,4 +1,5 @@
-import axios from 'axios';
+import { Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system';
 
 // Lazy initialization of OpenAI client - only create when needed
 let openai: any = null;
@@ -64,11 +65,55 @@ export class WhisperApiService {
     async transcribeAudio(audioFile: AudioFile): Promise<WhisperResponse> {
         try {
           console.log('Starting Whisper transcription...');
-          
+          const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
+          if (!apiKey) {
+            throw new Error('OpenAI API key not configured. Please set EXPO_PUBLIC_OPENAI_API_KEY in your environment variables.');
+          }
+
           const audioUri = audioFile.uri || '';
           const fileName = audioFile.name || 'recording.wav';
           const mimeType = audioFile.type || mimeForExtension(fileName);
-          
+          const url = 'https://api.openai.com/v1/audio/transcriptions';
+
+          // Android: fetch + FormData often fails to read file:// URIs. Use native upload.
+          if (Platform.OS === 'android') {
+            console.log('[Android] Using FileSystem.uploadAsync for Whisper (reliable file read)');
+            const result = await FileSystem.uploadAsync(url, audioUri, {
+              uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+              fieldName: 'file',
+              mimeType,
+              parameters: {
+                model: 'whisper-1',
+                language: 'en',
+                response_format: 'json',
+              },
+              headers: {
+                Authorization: `Bearer ${apiKey}`,
+              },
+            });
+
+            if (result.status < 200 || result.status >= 300) {
+              let errMsg = result.body || `HTTP ${result.status}`;
+              try {
+                const errJson = JSON.parse(result.body);
+                errMsg = errJson.error?.message || result.body;
+              } catch {
+                // use result.body as-is
+              }
+              console.error('Whisper API error (Android upload):', result.status, errMsg);
+              throw new Error(`Whisper API failed: ${result.status}. ${errMsg}`);
+            }
+
+            const responseData = JSON.parse(result.body);
+            console.log('Whisper transcription completed (Android):', responseData);
+            return {
+              text: responseData.text,
+              language: responseData.language,
+              duration: responseData.duration,
+            };
+          }
+
+          // iOS: fetch + FormData works correctly with file URI
           const formData = new FormData();
           formData.append('file', {
             uri: audioUri,
@@ -79,18 +124,12 @@ export class WhisperApiService {
           formData.append('language', 'en');
           formData.append('response_format', 'json');
 
-          console.log('FormData created with file:', {
-            uri: audioUri,
-            name: fileName,
-            type: mimeType,
-          });
+          console.log('FormData created with file:', { uri: audioUri, name: fileName, type: mimeType });
 
-          // Use fetch instead of axios for React Native compatibility
-          const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+          const response = await fetch(url, {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${process.env.EXPO_PUBLIC_OPENAI_API_KEY}`,
-              // Don't set Content-Type - let fetch handle multipart boundaries
+              Authorization: `Bearer ${apiKey}`,
             },
             body: formData,
           });
@@ -109,7 +148,6 @@ export class WhisperApiService {
             language: responseData.language,
             duration: responseData.duration,
           };
-          
         } catch (error: unknown) {
           console.error('Transcription failed:', error);
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';

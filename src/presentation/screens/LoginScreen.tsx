@@ -132,11 +132,9 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
                   resizeMode="contain"
                 />
               </View>
-              <Text style={styles.appName}>ThanaFit</Text>
-              <Text style={styles.tagline}>Sync your fitness, nutrition, and wellness</Text>
             </View>
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>Sign in to continue your fitness journey</Text>
+            <Text style={styles.title}>Welcome to ThanaFit</Text>
+            <Text style={styles.subtitle}>Track your fitness, nutrition, and wellness — all in one app.</Text>
           </View>
 
           <View style={styles.formCard}>
