@@ -76,7 +76,20 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
   };
 
   const handleForgotPassword = () => {
-    console.log('Forgot Password clicked - functionality not implemented yet');
+    console.log('Forgot Password button pressed');
+    try {
+      Alert.alert(
+        'Feature Coming Soon',
+        'We\'re working on password reset functionality. For now, please contact support to reset your password.',
+        [
+          { text: 'OK', style: 'cancel' }
+        ]
+      );
+    } catch (error) {
+      console.error('Alert error:', error);
+      // Fallback for web or if Alert fails
+      alert('Feature Coming Soon\n\nWe\'re working on password reset functionality. For now, please contact support to reset your password.');
+    }
   };
 
   const handleSocialLogin = async (provider: string) => {
