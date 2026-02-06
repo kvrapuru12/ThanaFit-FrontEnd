@@ -24,6 +24,8 @@ import { useAuth } from '../providers/AuthProvider';
 import * as SecureStore from 'expo-secure-store';
 import { apiClient } from '../../infrastructure/api/ApiClient';
 import { HttpMethod } from '../../infrastructure/api/ApiClient';
+import { cycleApiService } from '../../infrastructure/services/cycleApi';
+import { formatDateLocal } from '../../core/utils/dateUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -39,6 +41,28 @@ function getProfileUpdateErrorMessage(error: any): string {
     if (messages.length) return messages.join('\n');
   }
   return (data?.message || error?.message || 'Something went wrong. Please try again.') as string;
+}
+
+/** Sync cycle record when Profile updates lastPeriodDate (Profile → CycleSync two-way sync). */
+async function syncCycleWithLastPeriodDate(userId: number, dateStr: string): Promise<void> {
+  try {
+    const recentCycle = await cycleApiService.getMostRecentCycle(userId);
+    if (recentCycle) {
+      await cycleApiService.updateCycle(recentCycle.id, { periodStartDate: dateStr });
+      console.log('Profile → CycleSync: Updated existing cycle with lastPeriodDate:', dateStr);
+    } else {
+      await cycleApiService.createCycle({
+        userId,
+        periodStartDate: dateStr,
+        cycleLength: 28,
+        periodDuration: 5,
+        isCycleRegular: true,
+      });
+      console.log('Profile → CycleSync: Created new cycle with lastPeriodDate:', dateStr);
+    }
+  } catch (err) {
+    console.warn('Could not sync lastPeriodDate to CycleSync:', err);
+  }
 }
 
 interface ProfileProps {
@@ -235,9 +259,9 @@ export function Profile({ navigation }: ProfileProps) {
     try {
       let valueToUpdate = basicInfoEditValue;
       
-      // For date fields, format the date
+      // For date fields, format the date (use local timezone to match CycleSync)
       if (editingBasicInfo.field === 'lastPeriodDate' || editingBasicInfo.field === 'dob') {
-        valueToUpdate = selectedDate.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+        valueToUpdate = formatDateLocal(selectedDate); // Format as YYYY-MM-DD
       }
       
       let updateData: Record<string, any> = { [editingBasicInfo.field]: valueToUpdate };
@@ -286,6 +310,11 @@ export function Profile({ navigation }: ProfileProps) {
       
       console.log('Basic info update successful - Response:', response.data);
 
+      // Profile → CycleSync two-way sync: create/update cycle when lastPeriodDate changes
+      if (editingBasicInfo.field === 'lastPeriodDate') {
+        await syncCycleWithLastPeriodDate(user.id, valueToUpdate);
+      }
+
       // Refresh user data
       await refreshUserData();
       
@@ -318,7 +347,7 @@ export function Profile({ navigation }: ProfileProps) {
     
     setIsUpdatingField(true);
     try {
-      const valueToUpdate = date.toISOString().split('T')[0];
+      const valueToUpdate = formatDateLocal(date);
       const updateData = {
         [field]: valueToUpdate
       };
@@ -328,6 +357,11 @@ export function Profile({ navigation }: ProfileProps) {
       const response = await apiClient.patch(`/users/${user.id}`, updateData);
       
       console.log('Date update successful - Response:', response.data);
+
+      // Profile → CycleSync two-way sync: create/update cycle when lastPeriodDate changes
+      if (field === 'lastPeriodDate') {
+        await syncCycleWithLastPeriodDate(user.id, valueToUpdate);
+      }
 
       await refreshUserData();
       Alert.alert('Success', 'Date updated successfully!');
@@ -464,9 +498,9 @@ export function Profile({ navigation }: ProfileProps) {
       // Check if this is a goal field
       const backendFieldName = goalFieldMap[editingField];
       
-      // For date fields, format the date
+      // For date fields, format the date (use local timezone to match CycleSync)
       if (editingField === 'lastPeriodDate' || editingField === 'dob') {
-        valueToUpdate = selectedDate.toISOString().split('T')[0];
+        valueToUpdate = formatDateLocal(selectedDate);
       }
       
       // Handle weight field - convert to number
@@ -550,6 +584,11 @@ export function Profile({ navigation }: ProfileProps) {
           throw new Error('Authentication failed. Please log in again.');
         }
         throw error;
+      }
+
+      // Profile → CycleSync two-way sync: create/update cycle when lastPeriodDate changes
+      if (editingField === 'lastPeriodDate' && updateData.lastPeriodDate) {
+        await syncCycleWithLastPeriodDate(user.id, updateData.lastPeriodDate as string);
       }
 
       // Refresh user data from backend

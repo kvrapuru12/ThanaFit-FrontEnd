@@ -13,7 +13,8 @@ import {
   Switch,
   Platform,
   KeyboardAvoidingView,
-  Image
+  Image,
+  FlatList,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Card, CardContent, CardHeader } from './ui/card';
@@ -23,6 +24,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../providers/AuthProvider';
 import { Gender } from '../../core/domain/entities/User';
 import { cycleApiService, Cycle, FoodRecommendation, ActivityRecommendation } from '../../infrastructure/services/cycleApi';
+import { apiClient } from '../../infrastructure/api/ApiClient';
+import { formatDateLocal, parseDateLocal } from '../../core/utils/dateUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -45,7 +48,7 @@ interface CycleData {
 }
 
 export function CycleSync({ navigation }: CycleSyncProps) {
-  const { user } = useAuth();
+  const { user, refreshUserData } = useAuth();
   const [cycleData, setCycleData] = useState<CycleData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPeriodLog, setShowPeriodLog] = useState(false);
@@ -81,20 +84,6 @@ export function CycleSync({ navigation }: CycleSyncProps) {
   //     </View>
   //   );
   // }
-
-  // Helper function to format date as YYYY-MM-DD in local timezone (avoid timezone offset issues)
-  const formatDateLocal = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  // Helper function to parse date string (YYYY-MM-DD) in local timezone
-  const parseDateLocal = (dateStr: string): Date => {
-    const [year, month, day] = dateStr.split('-').map(Number);
-    return new Date(year, month - 1, day);
-  };
 
   // Initialize period start date from user profile if available (only once on mount)
   const hasInitializedDateRef = React.useRef(false);
@@ -260,7 +249,7 @@ export function CycleSync({ navigation }: CycleSyncProps) {
     } else {
       setLoading(false);
     }
-  }, [user?.id]); // Removed user?.lastPeriodDate from dependencies to prevent resets
+  }, [user?.id, user?.lastPeriodDate]); // Refetch when lastPeriodDate changes (e.g. updated in Profile)
 
   // Helper function to get food icon based on food name
   const getFoodIcon = (foodName: string): string => {
@@ -507,6 +496,15 @@ export function CycleSync({ navigation }: CycleSyncProps) {
       });
       
       console.log('Period logged successfully:', response);
+
+      // Sync to Profile: update user's lastPeriodDate so Profile shows the same date
+      try {
+        await apiClient.patch(`/users/${user.id}`, { lastPeriodDate: periodStartDateStr });
+        await refreshUserData();
+      } catch (profileErr) {
+        console.warn('Could not sync lastPeriodDate to profile:', profileErr);
+      }
+
       Alert.alert('Success', 'Period logged successfully!');
 
       // Refresh cycle data - fetch fresh data from API
@@ -713,16 +711,22 @@ export function CycleSync({ navigation }: CycleSyncProps) {
           </CardContent>
         </Card>
 
-        {/* Recommendations Section */}
-        {(foodRecommendations || activityRecommendations) && (
-          <Card style={styles.recommendationsCard}>
-            <CardHeader style={styles.cardHeader}>
-              <View style={styles.cardTitle}>
-                <View style={[styles.titleIndicator, styles.recommendationsIndicator]} />
-                <Text style={styles.cardTitleText}>Recommendations</Text>
+        {/* Recommendations Section - always visible */}
+        <Card style={styles.recommendationsCard}>
+          <CardHeader style={styles.cardHeader}>
+            <View style={styles.cardTitle}>
+              <View style={[styles.titleIndicator, styles.recommendationsIndicator]} />
+              <Text style={styles.cardTitleText}>Recommendations</Text>
+            </View>
+          </CardHeader>
+          <CardContent style={styles.cardContent}>
+            {recommendationsLoading ? (
+              <View style={styles.recommendationsLoading}>
+                <ActivityIndicator size="small" color="#4ecdc4" />
+                <Text style={styles.recommendationsLoadingText}>Loading recommendations...</Text>
               </View>
-            </CardHeader>
-            <CardContent style={styles.cardContent}>
+            ) : (foodRecommendations || activityRecommendations) ? (
+              <>
               {/* Tab Switcher */}
               <View style={styles.tabContainer}>
                 <TouchableOpacity
@@ -845,15 +849,37 @@ export function CycleSync({ navigation }: CycleSyncProps) {
                 </View>
               )}
 
-              {recommendationsLoading && (
-                <View style={styles.recommendationsLoading}>
-                  <ActivityIndicator size="small" color="#4ecdc4" />
-                  <Text style={styles.recommendationsLoadingText}>Loading recommendations...</Text>
-                </View>
-              )}
-            </CardContent>
-          </Card>
-        )}
+              </>
+            ) : (
+              <View style={styles.recommendationsEmptyCarousel}>
+                <FlatList
+                  data={[
+                    { id: '1', icon: 'restaurant' as const, title: 'Food & exercise tips', subtitle: 'Get personalized food and workout recommendations based on your cycle phase.' },
+                    { id: '2', icon: 'fitness-center' as const, title: 'What to eat & do', subtitle: 'Know which foods and activities are best for your current phase.' },
+                    { id: '3', icon: 'lightbulb' as const, title: 'Log your period', subtitle: 'Log your period start above to unlock food and activity recommendations.' },
+                  ]}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  keyExtractor={(item) => item.id}
+                  renderItem={({ item }) => (
+                    <View style={[styles.recommendationsEmptyCarouselSlide, { width: width - 88 }]}>
+                      <View style={styles.recommendationsEmptyCarouselIcon}>
+                        <MaterialIcons name={item.icon} size={32} color="#f59e0b" />
+                      </View>
+                      <Text style={styles.recommendationsEmptyCarouselTitle}>{item.title}</Text>
+                      <Text style={styles.recommendationsEmptyCarouselSubtitle}>{item.subtitle}</Text>
+                    </View>
+                  )}
+                />
+                <TouchableOpacity style={styles.recommendationsEmptyCarouselButton} onPress={handleLogPeriod}>
+                  <MaterialIcons name="favorite" size={18} color="#ffffff" />
+                  <Text style={styles.recommendationsEmptyCarouselButtonText}>Log Period</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Cycle Phases Info */}
         <Card style={styles.phasesInfoCard}>
@@ -1106,6 +1132,53 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6b7280',
     textAlign: 'center',
+  },
+  // Recommendations empty state carousel
+  recommendationsEmptyCarousel: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  recommendationsEmptyCarouselSlide: {
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recommendationsEmptyCarouselIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#fef3c7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  recommendationsEmptyCarouselTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  recommendationsEmptyCarouselSubtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  recommendationsEmptyCarouselButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f59e0b',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+    marginTop: 24,
+  },
+  recommendationsEmptyCarouselButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
   },
   phaseCard: {
     backgroundColor: '#f0fdfa',
