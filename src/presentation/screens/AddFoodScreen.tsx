@@ -26,7 +26,7 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
   const { user } = useAuth();
   const { foods, searchFoods, loadPopularFoods } = useFoods();
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
-  const [quantity, setQuantity] = useState('100');
+  const [quantity, setQuantity] = useState('1');
   const [note, setNote] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<FoodItem[]>([]);
@@ -99,7 +99,8 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
   // Handle selecting a food item
   const handleSelectFood = (food: FoodItem) => {
     setSelectedFood(food);
-    setQuantity(food.quantityPerUnit.toString());
+    const isGrams = food.defaultUnit?.toLowerCase().includes('gram') || food.defaultUnit?.toLowerCase() === 'g';
+    setQuantity(isGrams ? '1' : food.quantityPerUnit.toString());
   };
 
   // Handle creating new food
@@ -157,7 +158,8 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
       // Add the new food to the search results and select it
       setSearchResults(prev => [tempFood, ...prev]);
       setSelectedFood(tempFood);
-      setQuantity(tempFood.quantityPerUnit.toString());
+      const isGrams = tempFood.defaultUnit?.toLowerCase().includes('gram') || tempFood.defaultUnit?.toLowerCase() === 'g';
+      setQuantity(isGrams ? '1' : tempFood.quantityPerUnit.toString());
       
       // Close modal and reset form
       setShowCreateModal(false);
@@ -354,7 +356,11 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
                 
                 <View style={styles.inputRow}>
                   <View style={styles.quantityInputContainer}>
-                    <Text style={styles.inputLabel}>Quantity ({selectedFood.defaultUnit})</Text>
+                    <Text style={styles.inputLabel}>
+                      {selectedFood.defaultUnit?.toLowerCase().includes('gram') || selectedFood.defaultUnit?.toLowerCase() === 'g'
+                        ? 'Serving'
+                        : 'Quantity'}
+                    </Text>
                     <TextInput
                       style={styles.quantityInput}
                       value={quantity}
