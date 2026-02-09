@@ -26,6 +26,7 @@ import { apiClient } from '../../infrastructure/api/ApiClient';
 import { HttpMethod } from '../../infrastructure/api/ApiClient';
 import { cycleApiService } from '../../infrastructure/services/cycleApi';
 import { formatDateLocal } from '../../core/utils/dateUtils';
+import Constants from 'expo-constants';
 
 const { width } = Dimensions.get('window');
 
@@ -1127,6 +1128,13 @@ export function Profile({ navigation }: ProfileProps) {
             </TouchableOpacity>
           </CardContent>
         </Card>
+
+        {/* App Version */}
+        <View style={styles.versionContainer}>
+          <Text style={styles.versionText}>
+            Version {Constants.expoConfig?.version || '1.0.0'}
+          </Text>
+        </View>
       </View>
 
       {/* Edit Goal Modal */}
@@ -2090,5 +2098,15 @@ const styles = StyleSheet.create({
   pickerOptionTextSelected: {
     color: '#ff6b6b',
     fontWeight: '600',
+  },
+  versionContainer: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    marginTop: 8,
+  },
+  versionText: {
+    fontSize: 12,
+    color: '#9ca3af',
+    fontWeight: '400',
   },
 });
