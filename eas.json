@@ -5,6 +5,7 @@
   },
   "build": {
     "production": {
+      "prebuildCommand": "node scripts/bump-version.js",
       "android": {
         "autoIncrement": "versionCode",
         "buildType": "app-bundle",
