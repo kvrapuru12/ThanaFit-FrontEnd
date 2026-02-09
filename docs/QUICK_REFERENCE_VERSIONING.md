@@ -3,20 +3,21 @@
 ## TL;DR - How to Release
 
 ```bash
-# Most common: Bug fix release
+# Most common: Bug fix release (3.0.0 → 3.0.1, versionCode 25 → 26)
 npm run build:prod
 
-# New feature release
+# New feature release (3.0.1 → 3.1.0, versionCode 26 → 27)
 npm run build:prod:minor
 
-# Major update
+# Major update (3.1.0 → 4.0.0, versionCode 27 → 28)
 npm run build:prod:major
 
-# Submit to Play Store after build completes
-npm run submit:prod
-
-# Or do both at once
-npm run release
+# What happens automatically:
+# 1. Bumps semantic version in app.json
+# 2. Auto-increments versionCode in app.json
+# 3. Commits both changes to git
+# 4. Pushes to GitHub
+# 5. Triggers EAS build with new versions
 ```
 
 ## What Each Command Does
@@ -45,49 +46,57 @@ npm run build:prod:minor  # New features
 npm run build:prod:major  # Major updates
 ```
 
-**What happens:**
-- ✅ Version auto-increments in `app.json`
-- ✅ EAS builds AAB (~10-15 min)
-- ✅ versionCode auto-increments
+**What happens automatically:**
+1. ✅ Bumps semantic version in `app.json` (e.g., 3.0.0 → 4.0.0)
+2. ✅ Auto-increments versionCode in `app.json` (e.g., 25 → 26)
+3. ✅ Commits both changes to git
+4. ✅ Pushes to GitHub
+5. ✅ Triggers EAS build (~10-15 min)
+6. ✅ Build uses the updated versions
 
-### 3. Commit Version Change
-```bash
-git add app.json
-git commit -m "chore: bump version to 1.0.X"
-git push
-```
+**Note:** Version bumping happens locally BEFORE the build starts, not during the build.
 
-### 4. Submit to Play Store
+### 3. Download & Submit to Play Store
+
+### 4. Download AAB and Upload to Play Store
+**Option A: Download from EAS**
+1. Go to build page on Expo dashboard
+2. Download the `.aab` file
+3. Upload manually to Play Console
+
+**Option B: Automated Submit (requires setup)**
 ```bash
 npm run submit:prod
 ```
-
-**What happens:**
-- ✅ Uploads to Play Store internal track
-- ✅ Uses service account authentication
+Requires `google-service-account.json` in project root.
 
 ### 5. Verify in Play Console
-- Check version shows up
+- Check version shows up in Play Console
 - Promote to beta/production when ready
 
 ## Version Examples
 
-Starting: `1.0.1` (versionCode: 3)
+**Current State:** `3.0.0` (versionCode: 25)
 
 ```bash
-npm run build:prod        # → 1.0.2 (4) - Bug fixes
-npm run build:prod        # → 1.0.3 (5) - More fixes
-npm run build:prod:minor  # → 1.1.0 (6) - New feature!
-npm run build:prod        # → 1.1.1 (7) - Fix in new feature
-npm run build:prod:major  # → 2.0.0 (8) - Major redesign!
+npm run build:prod        # → 3.0.1 (26) - Bug fixes
+npm run build:prod        # → 3.0.2 (27) - More fixes
+npm run build:prod:minor  # → 3.1.0 (28) - New feature!
+npm run build:prod        # → 3.1.1 (29) - Fix in new feature
+npm run build:prod:major  # → 4.0.0 (30) - Major redesign!
 ```
+
+**Both semantic version AND versionCode increment automatically with each build.**
 
 ## Files Modified by System
 
 | File | What Changes | When |
 |------|--------------|------|
-| `app.json` | `expo.version` | During build (by script) |
-| `app.json` | `expo.android.versionCode` | Tracked by EAS (remote) |
+| `app.json` | `expo.version` | Locally before build (by script) |
+| `app.json` | `expo.android.versionCode` | Locally before build (auto-increment) |
+| `android/app/build.gradle` | `versionCode`, `versionName` | EAS syncs during build |
+
+**All version changes are committed to git automatically before the build starts.**
 
 ## Troubleshooting
 
