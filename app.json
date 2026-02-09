@@ -24,7 +24,7 @@
     },
     "android": {
       "package": "com.prod.thanafit",
-      "versionCode": 3
+      "versionCode": 25
     }
   }
 }

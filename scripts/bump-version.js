@@ -12,6 +12,10 @@ const appJson = JSON.parse(fs.readFileSync(appJsonPath, 'utf8'));
 const currentVersion = appJson.expo.version;
 const [major, minor, patch] = currentVersion.split('.').map(Number);
 
+// Get current versionCode
+const currentVersionCode = appJson.expo.android?.versionCode || 1;
+const newVersionCode = currentVersionCode + 1;
+
 // Calculate new version based on bump type
 let newVersion;
 switch(bumpType) {
@@ -30,11 +34,16 @@ switch(bumpType) {
     break;
 }
 
-// Update version in app.json
+// Update version and versionCode in app.json
 appJson.expo.version = newVersion;
+if (!appJson.expo.android) {
+  appJson.expo.android = {};
+}
+appJson.expo.android.versionCode = newVersionCode;
 
 // Write back to app.json
 fs.writeFileSync(appJsonPath, JSON.stringify(appJson, null, 2) + '\n');
 
 console.log(`✅ Updated app.json version to ${newVersion}`);
-console.log(`📦 Build will use: Version ${newVersion} (versionCode will auto-increment)`);
+console.log(`✅ Updated versionCode: ${currentVersionCode} → ${newVersionCode}`);
+console.log(`📦 Build will use: Version ${newVersion} (versionCode ${newVersionCode})`);
