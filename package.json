@@ -10,8 +10,8 @@
     "build:android:apk": "eas build --platform android --profile preview",
     "build:android:apk:local": "cd android && ./gradlew assembleRelease",
     "build:prod": "npx eas build --platform android --profile production",
-    "build:prod:minor": "VERSION_BUMP=minor npx eas build --platform android --profile production",
-    "build:prod:major": "VERSION_BUMP=major npx eas build --platform android --profile production",
+    "build:prod:minor": "npx eas build --platform android --profile production-minor",
+    "build:prod:major": "npx eas build --platform android --profile production-major",
     "submit:prod": "npx eas submit --platform android --profile production",
     "release": "npm run build:prod && npm run submit:prod"
   },
