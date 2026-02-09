@@ -4,9 +4,13 @@ You are a senior engineer helping build and release an Android App Bundle (AAB) 
 Build an AAB for production and submit to Google Play Store with automatic version bumping.
 
 ## Automatic Versioning
-- **Version (semantic)**: Auto-increments via `scripts/bump-version.js` before each build
+- **Version (semantic)**: Auto-increments via `scripts/bump-version.js` *locally before build*
 - **versionCode**: Auto-increments by EAS on each build
-- **Control**: Use `VERSION_BUMP` environment variable (patch/minor/major)
+- **How it works**: 
+  1. Script bumps version in `app.json` locally
+  2. Commits and pushes the version change
+  3. Triggers EAS build with the new version
+- **Note**: EAS skips `prebuildCommand` when native code exists, so version bumping happens locally
 
 ## Build Commands
 
