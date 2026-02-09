@@ -19,7 +19,12 @@
       }
     },
     "production-minor": {
-      "extends": "production",
+      "prebuildCommand": "node scripts/bump-version.js",
+      "android": {
+        "autoIncrement": "versionCode",
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease"
+      },
       "env": {
         "VERSION_BUMP": "minor",
         "EXPO_PUBLIC_API_BASE_URL": "http://healthapp-alb-1571435665.us-east-1.elb.amazonaws.com/api",
@@ -28,7 +33,12 @@
       }
     },
     "production-major": {
-      "extends": "production",
+      "prebuildCommand": "node scripts/bump-version.js",
+      "android": {
+        "autoIncrement": "versionCode",
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease"
+      },
       "env": {
         "VERSION_BUMP": "major",
         "EXPO_PUBLIC_API_BASE_URL": "http://healthapp-alb-1571435665.us-east-1.elb.amazonaws.com/api",
