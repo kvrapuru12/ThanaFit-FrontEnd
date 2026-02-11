@@ -54,6 +54,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       setIsProcessing(false);
       setRecordingDuration(0);
       setIsTranscribing(false);
+      setRecording(null); // Clear any existing recording object
     }
   }, [visible]);
 
@@ -206,6 +207,9 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         console.log('[Android] Recording URI:', uri);
       }
 
+      // Clear the recording object after getting URI
+      setRecording(null);
+
       if (!uri) {
         throw new Error('Failed to get recording URI');
       }
@@ -230,6 +234,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       console.error('Failed to stop recording', err);
       setIsRecording(false);
       setIsTranscribing(false);
+      setRecording(null); // Clear recording on error
       Alert.alert('Error', 'Failed to stop recording. Please try again.');
     }
   };

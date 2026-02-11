@@ -54,6 +54,7 @@ export const FoodVoiceRecorder: React.FC<FoodVoiceRecorderProps> = ({
       setIsProcessing(false);
       setRecordingDuration(0);
       setIsTranscribing(false);
+      setRecording(null); // Clear any existing recording object
     }
   }, [visible]);
 
@@ -206,6 +207,9 @@ export const FoodVoiceRecorder: React.FC<FoodVoiceRecorderProps> = ({
         console.log('[Android] Recording URI:', uri);
       }
 
+      // Clear the recording object after getting URI
+      setRecording(null);
+
       if (!uri) {
         throw new Error('Failed to get recording URI');
       }
@@ -231,6 +235,7 @@ export const FoodVoiceRecorder: React.FC<FoodVoiceRecorderProps> = ({
       console.error('Failed to stop food recording', err);
       setIsRecording(false);
       setIsTranscribing(false);
+      setRecording(null); // Clear recording on error
       Alert.alert('Error', 'Failed to stop recording. Please try again.');
     }
   };
