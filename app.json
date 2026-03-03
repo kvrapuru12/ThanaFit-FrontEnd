@@ -2,7 +2,7 @@
   "expo": {
     "name": "ThanaFit",
     "slug": "thanafit-auth",
-    "version": "3.0.2",
+    "version": "3.0.3",
     "sdkVersion": "53.0.0",
     "scheme": "com.prod.thanafit",
     "platforms": [
@@ -24,7 +24,7 @@
     },
     "android": {
       "package": "com.prod.thanafit",
-      "versionCode": 31
+      "versionCode": 32
     }
   }
 }
