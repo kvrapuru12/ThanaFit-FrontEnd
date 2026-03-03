@@ -281,7 +281,10 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
               </View>
               <TouchableOpacity
                 style={styles.createFoodHeaderButton}
-                onPress={() => setShowCreateModal(true)}
+                onPress={() => {
+                  setNewFoodCategory(mealType);
+                  setShowCreateModal(true);
+                }}
               >
                 <MaterialIcons name="add-circle-outline" size={20} color="#ff6b6b" />
                 <Text style={styles.createFoodHeaderButtonText}>Create New</Text>
