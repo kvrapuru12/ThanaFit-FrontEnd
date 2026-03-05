@@ -15,9 +15,11 @@ interface AuthContextType {
   // Actions
   login: (credentials: AuthCredentials) => Promise<boolean>;
   loginWithGoogle: () => Promise<boolean>;
+  loginWithApple: () => Promise<boolean>;
   signup: (userData: any) => Promise<boolean>;
   logout: () => Promise<void>;
   updateUser: (userData: Partial<User>) => Promise<void>;
+  deleteAccount: () => Promise<void>;
   
   // Utilities
   refreshUserData: () => Promise<void>;
@@ -154,6 +156,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
     }
   };
 
+  const loginWithApple = async (): Promise<boolean> => {
+    if (Platform.OS !== 'ios') {
+      throw new Error('Sign in with Apple is only available on iOS.');
+    }
+    try {
+      setIsLoading(true);
+      const AppleAuthentication = await import('expo-apple-authentication');
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      if (!credential.identityToken) {
+        throw new Error('No identity token from Apple.');
+      }
+      const result = await authRepository.loginWithApple({
+        idToken: credential.identityToken,
+        platform: 'ios',
+        email: credential.email ?? undefined,
+        firstName: credential.fullName?.givenName ?? undefined,
+        lastName: credential.fullName?.familyName ?? undefined,
+      });
+      await authRepository.saveTokens(result.tokens);
+      setUser(result.user);
+      await saveUserData(result.user);
+      return true;
+    } catch (error) {
+      console.error('Apple login error:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const signup = async (userData: any): Promise<boolean> => {
     try {
       setIsLoading(true);
@@ -283,6 +320,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
     }
   };
 
+  const deleteAccount = async (): Promise<void> => {
+    if (!user?.id) return;
+    try {
+      setIsLoading(true);
+      await authRepository.deleteAccount(user.id);
+      await authRepository.clearTokens();
+      await AsyncStorage.removeItem('userId');
+      await clearUserData();
+      setUser(null);
+    } catch (error) {
+      console.error('Delete account failed:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const refreshUserData = async (): Promise<void> => {
     try {
       const isAuth = await authRepository.isAuthenticated();
@@ -335,9 +389,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
     isAuthenticated: !!user,
     login,
     loginWithGoogle,
+    loginWithApple,
     signup,
     logout,
     updateUser,
+    deleteAccount,
     refreshUserData,
   };
 

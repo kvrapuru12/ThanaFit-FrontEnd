@@ -17,6 +17,7 @@ import * as FileSystem from 'expo-file-system';
 import { MaterialIcons } from '@expo/vector-icons';
 import { dashboardApiService } from '../../infrastructure/services/dashboardApi';
 import { whisperApiService } from '../../infrastructure/services/whisperApi';
+import { isSilentOrEmptyTranscript } from '../../core/utils/voiceUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -214,18 +215,29 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         throw new Error('Failed to get recording URI');
       }
 
+      let size: number = 0;
       try {
         const info = await FileSystem.getInfoAsync(uri, { size: true });
-        const size = 'size' in info ? info.size : 0;
+        size = 'size' in info ? (info.size as number) : 0;
         console.log('Audio file size:', size);
         if (Platform.OS === 'android') {
           console.log('[Android] Audio file size:', size);
         }
-        if (typeof size === 'number' && (size === 0 || size < 1024)) {
-          console.warn('[Android] Audio file very small or empty – possible recording issue');
-        }
       } catch (e) {
         console.warn('Could not get audio file info:', e);
+      }
+
+      if (size === 0 || size < 1024) {
+        setIsTranscribing(false);
+        Alert.alert(
+          'Recording Failed',
+          'No audio was captured. Please try again.' +
+            (Platform.OS === 'android'
+              ? ' If you\'re using an emulator, try on a real device—the emulator microphone often doesn\'t work.'
+              : ''),
+          [{ text: 'OK' }]
+        );
+        return;
       }
 
       await transcribeWithWhisper(uri);
@@ -266,11 +278,25 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       console.log('Whisper transcription result:', result);
       
           // Filter out instruction text and update state with transcript
-          const filteredText = result.text
+          const filteredText = (result.text || '')
             .replace(/^start speaking about your workout[.,]?\s*/i, '')
             .replace(/^please describe your workout[.,]?\s*/i, '')
             .trim();
-          
+
+          if (isSilentOrEmptyTranscript(filteredText)) {
+            console.log('[Voice] No speech detected in transcript, showing alert. Raw:', JSON.stringify(result.text));
+            setIsTranscribing(false);
+            Alert.alert(
+              'No speech detected',
+              "We couldn't hear any speech in the recording. Please try again and speak clearly." +
+                (Platform.OS === 'android'
+                  ? " If you're on an emulator, try a real device—the emulator microphone often doesn't capture voice properly."
+                  : ''),
+              [{ text: 'OK' }]
+            );
+            return;
+          }
+
           setTranscript(filteredText);
           setIsTranscribing(false);
           setShowTranscriptInput(true);

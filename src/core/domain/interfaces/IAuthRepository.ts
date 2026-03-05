@@ -5,6 +5,7 @@ export interface IAuthRepository {
   // Authentication methods
   login(credentials: AuthCredentials): Promise<{ user: User; tokens: AuthTokens }>;
   loginWithGoogle(idToken: string, platform: string): Promise<{ user: User; tokens: AuthTokens }>;
+  loginWithApple(payload: AppleSignInPayload): Promise<{ user: User; tokens: AuthTokens }>;
   signup(userData: CreateUserRequest): Promise<User>;
   logout(): Promise<void>;
   refreshToken(refreshToken: string): Promise<AuthTokens>;
@@ -12,6 +13,7 @@ export interface IAuthRepository {
   // User management
   getCurrentUser(userId: number): Promise<User>;
   updateProfile(userId: number, userData: Partial<User>): Promise<User>;
+  deleteAccount(userId: number): Promise<void>;
   
   // Token management
   saveTokens(tokens: AuthTokens): Promise<void>;
@@ -20,6 +22,15 @@ export interface IAuthRepository {
   
   // Session management
   isAuthenticated(): Promise<boolean>;
+}
+
+/** Matches backend POST /api/auth/apple: idToken required; email/firstName/lastName sent on first login when Apple provides them. */
+export interface AppleSignInPayload {
+  idToken: string;
+  platform: 'ios' | 'android' | 'web';
+  email?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
 }
 
 export interface CreateUserRequest {

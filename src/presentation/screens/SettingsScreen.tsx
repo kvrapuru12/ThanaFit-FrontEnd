@@ -10,10 +10,16 @@ import {
   Switch,
   Platform,
 } from 'react-native';
+import Constants from 'expo-constants';
+import * as Application from 'expo-application';
 import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { MaterialIcons } from '@expo/vector-icons';
 import appJson from '../../../app.json';
 import { PreferencesService, AppPreferences } from '../../infrastructure/services/preferencesService';
+
+const extra = (Constants.expoConfig?.extra ?? {}) as { appStoreAppId?: string; playStorePackageId?: string };
+const appStoreAppId = extra.appStoreAppId || 'YOUR_APP_ID';
+const playStorePackageId = extra.playStorePackageId || appJson.expo?.android?.package || 'com.prod.thanafit';
 
 interface SettingsScreenProps {
   navigation?: any;
@@ -53,16 +59,21 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
 
   const handleRateApp = () => {
     const appStoreUrl = Platform.OS === 'ios'
-      ? 'https://apps.apple.com/app/idYOUR_APP_ID'
-      : 'https://play.google.com/store/apps/details?id=YOUR_PACKAGE_NAME';
-    
-    Linking.openURL(appStoreUrl).catch(err => {
-      Alert.alert('Error', 'Could not open App Store');
+      ? `https://apps.apple.com/app/id${appStoreAppId}`
+      : `https://play.google.com/store/apps/details?id=${playStorePackageId}`;
+    Linking.openURL(appStoreUrl).catch(() => {
+      Alert.alert('Error', 'Could not open store.');
     });
   };
 
   const appVersion = appJson.expo?.version || '1.0.0';
-  const buildNumber = '1';
+  const buildNumber = (() => {
+    try {
+      return Application.nativeBuildVersion ?? '1';
+    } catch {
+      return '1';
+    }
+  })();
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>

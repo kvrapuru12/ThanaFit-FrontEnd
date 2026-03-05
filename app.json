@@ -16,15 +16,17 @@
         "NSMicrophoneUsageDescription": "ThanaFit uses the microphone to log food and exercise by voice."
       }
     },
-    "plugins": [],
+    "plugins": ["expo-apple-authentication"],
     "extra": {
       "eas": {
         "projectId": "1776aca5-7c52-4555-8dc0-4946589c5440"
-      }
+      },
+      "appStoreAppId": "",
+      "playStorePackageId": "com.prod.thanafit"
     },
     "android": {
       "package": "com.prod.thanafit",
-      "versionCode": 32
+      "versionCode": 34
     }
   }
 }

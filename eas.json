@@ -9,6 +9,9 @@
         "buildType": "app-bundle",
         "gradleCommand": ":app:bundleRelease"
       },
+      "ios": {
+        "autoIncrement": "buildNumber"
+      },
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "http://healthapp-alb-1571435665.us-east-1.elb.amazonaws.com/api",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "383964637006-pp6ooio84sr55aro70j1srpjt5909ibh.apps.googleusercontent.com",
@@ -21,6 +24,9 @@
         "buildType": "app-bundle",
         "gradleCommand": ":app:bundleRelease"
       },
+      "ios": {
+        "autoIncrement": "buildNumber"
+      },
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "http://healthapp-alb-1571435665.us-east-1.elb.amazonaws.com/api",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "383964637006-pp6ooio84sr55aro70j1srpjt5909ibh.apps.googleusercontent.com",
@@ -32,6 +38,9 @@
         "autoIncrement": "versionCode",
         "buildType": "app-bundle",
         "gradleCommand": ":app:bundleRelease"
+      },
+      "ios": {
+        "autoIncrement": "buildNumber"
       },
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "http://healthapp-alb-1571435665.us-east-1.elb.amazonaws.com/api",
@@ -64,7 +73,8 @@
       "android": {
         "serviceAccountKeyPath": "./google-service-account.json",
         "track": "internal"
-      }
+      },
+      "ios": {}
     }
   }
 }

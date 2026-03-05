@@ -5,7 +5,7 @@
 ### 1. **FormData + file URI handling**
 
 - **iOS:** When you do `formData.append('file', { uri, name, type })` and call `fetch(url, { body: formData })`, the native iOS networking layer reads the file from the `uri` (e.g. `file:///...`) and builds the multipart body correctly.
-- **Android:** The same JS code uses React Native’s networking, which on Android does **not** always read from `file://` (or cache) URIs when building the multipart request. The request can be sent with an empty or invalid file part, so Whisper returns an error or “empty file”.
+- **Android:** The same JS code uses React Native's networking, which on Android does **not** always read from `file://` (or cache) URIs when building the multipart request. The request can be sent with an empty or invalid file part, so Whisper returns an error or “empty file”.
 - **Result:** Same code path works on iOS; on Android the upload often fails even though the recording file exists on disk.
 
 ### 2. **Recording format and storage**
@@ -16,7 +16,7 @@
 
 ### 3. **Permissions and timing**
 
-- **Android** requires explicit **runtime** `RECORD_AUDIO`; the first time you must call `Audio.requestPermissionsAsync()` and wait for “granted” before starting the recording. If you don’t, recording can fail or produce empty files.
+- **Android** requires explicit **runtime** `RECORD_AUDIO`; the first time you must call `Audio.requestPermissionsAsync()` and wait for “granted” before starting the recording. If you don't, recording can fail or produce empty files.
 - **iOS** also needs permission but is often more forgiving with timing; the same code can appear to “just work” on iOS.
 
 ### 4. **Audio focus (TTS vs recording)**
@@ -34,15 +34,17 @@
 
 ## What we do to make it work on both platforms
 
-1. **Android upload: use native file upload**
+1. **Android upload: copy then native file upload**
    - On **Android**, we **do not** use `fetch` + FormData with the recording URI.
-   - We use **`expo-file-system`’s `FileSystem.uploadAsync()`** with:
+   - We **copy** the recording to `FileSystem.documentDirectory` first (e.g. `whisper-upload-<timestamp>.<ext>`), because the URI from expo-av points at app cache and on some devices the native layer cannot read from that path. Using a copy in documentDirectory works reliably on all device types.
+   - Then we use **`expo-file-system`'s `FileSystem.uploadAsync()`** with the **copy** URI:
      - Same Whisper API URL
      - `uploadType: FileSystem.FileSystemUploadType.MULTIPART`
      - `fieldName: 'file'`
      - `mimeType` and optional `parameters` (e.g. model, language)
      - `headers: { Authorization: 'Bearer ...' }`
-   - The **native** Android code reads the file from the URI and builds the multipart request, which works reliably.
+   - After a successful response we delete the copy. If the copy step fails (e.g. recording already unavailable), we show "Recording unavailable; please try again."
+   - The **native** Android code reads the file from the copy URI and builds the multipart request, which works reliably.
    - On **iOS**, we keep using **`fetch` + FormData** with `{ uri, name, type }` because it already works.
 
 2. **Recording**
@@ -53,8 +55,8 @@
 3. **TTS vs recording**
    - Before starting the recorder: **`Speech.stop()`** then **`await new Promise(r => setTimeout(r, 400))`** (or similar) so the recorder gets a clean audio focus.
 
-4. **Visibility**
-   - After stopping the recording, **log or check file size** (e.g. with `FileSystem.getInfoAsync(uri, { size: true })`). If size is 0 or very small, the issue is recording; if size is normal but Whisper fails, the issue is upload or API.
+4. **Validate file size before calling Whisper**
+   - After stopping the recording we **check file size** with `FileSystem.getInfoAsync(uri, { size: true })`. If size is 0 or &lt; 1024 bytes we **do not** call Whisper: we show a "Recording failed" alert (and on Android suggest trying a real device if using an emulator) and clear transcribing state. This distinguishes "recording failed" from "upload/API failed" and avoids misleading Whisper errors.
 
 With these changes, the same feature (record → upload → Whisper) works on **both iOS and Android**: iOS keeps using fetch + FormData; Android uses FileSystem.uploadAsync so the file is read and sent by the native layer.
 

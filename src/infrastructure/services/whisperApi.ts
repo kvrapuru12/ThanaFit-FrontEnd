@@ -75,42 +75,54 @@ export class WhisperApiService {
           const mimeType = audioFile.type || mimeForExtension(fileName);
           const url = 'https://api.openai.com/v1/audio/transcriptions';
 
-          // Android: fetch + FormData often fails to read file:// URIs. Use native upload.
+          // Android: copy to documentDirectory then upload (cache URIs are unreliable on some devices).
           if (Platform.OS === 'android') {
-            console.log('[Android] Using FileSystem.uploadAsync for Whisper (reliable file read)');
-            const result = await FileSystem.uploadAsync(url, audioUri, {
-              uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-              fieldName: 'file',
-              mimeType,
-              parameters: {
-                model: 'whisper-1',
-                language: 'en',
-                response_format: 'json',
-              },
-              headers: {
-                Authorization: `Bearer ${apiKey}`,
-              },
-            });
-
-            if (result.status < 200 || result.status >= 300) {
-              let errMsg = result.body || `HTTP ${result.status}`;
-              try {
-                const errJson = JSON.parse(result.body);
-                errMsg = errJson.error?.message || result.body;
-              } catch {
-                // use result.body as-is
-              }
-              console.error('Whisper API error (Android upload):', result.status, errMsg);
-              throw new Error(`Whisper API failed: ${result.status}. ${errMsg}`);
+            const ext = (fileName.split('.').pop() || 'm4a').toLowerCase();
+            const copyUri = `${FileSystem.documentDirectory}whisper-upload-${Date.now()}.${ext}`;
+            try {
+              await FileSystem.copyAsync({ from: audioUri, to: copyUri });
+            } catch (copyErr) {
+              console.error('[Android] Failed to copy recording for upload:', copyErr);
+              throw new Error('Recording unavailable; please try again.');
             }
+            console.log('[Android] Using FileSystem.uploadAsync for Whisper (reliable file read)');
+            try {
+              const result = await FileSystem.uploadAsync(url, copyUri, {
+                uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+                fieldName: 'file',
+                mimeType,
+                parameters: {
+                  model: 'whisper-1',
+                  language: 'en',
+                  response_format: 'json',
+                },
+                headers: {
+                  Authorization: `Bearer ${apiKey}`,
+                },
+              });
 
-            const responseData = JSON.parse(result.body);
-            console.log('Whisper transcription completed (Android):', responseData);
-            return {
-              text: responseData.text,
-              language: responseData.language,
-              duration: responseData.duration,
-            };
+              if (result.status < 200 || result.status >= 300) {
+                let errMsg = result.body || `HTTP ${result.status}`;
+                try {
+                  const errJson = JSON.parse(result.body);
+                  errMsg = errJson.error?.message || result.body;
+                } catch {
+                  // use result.body as-is
+                }
+                console.error('Whisper API error (Android upload):', result.status, errMsg);
+                throw new Error(`Whisper API failed: ${result.status}. ${errMsg}`);
+              }
+
+              const responseData = JSON.parse(result.body);
+              console.log('Whisper transcription completed (Android):', responseData);
+              return {
+                text: responseData.text,
+                language: responseData.language,
+                duration: responseData.duration,
+              };
+            } finally {
+              await FileSystem.deleteAsync(copyUri, { idempotent: true });
+            }
           }
 
           // iOS: fetch + FormData works correctly with file URI

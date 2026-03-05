@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
-import { IAuthRepository, CreateUserRequest } from '../../core/domain/interfaces/IAuthRepository';
+import { IAuthRepository, CreateUserRequest, AppleSignInPayload } from '../../core/domain/interfaces/IAuthRepository';
 import { User, AuthCredentials, AuthTokens, Gender, ActivityLevel, UserRole, AccountStatus } from '../../core/domain/entities/User';
 import { apiClient } from '../api/ApiClient';
 import { HttpMethod } from '../api/ApiClient';
@@ -148,6 +148,54 @@ export class AuthRepositoryImpl implements IAuthRepository {
     }
   }
 
+  async loginWithApple(payload: AppleSignInPayload): Promise<{ user: User; tokens: AuthTokens }> {
+    try {
+      const requestBody: Record<string, unknown> = {
+        idToken: payload.idToken,
+        platform: payload.platform,
+      };
+      if (payload.email != null && payload.email !== '') requestBody.email = payload.email;
+      if (payload.firstName != null && payload.firstName !== '') requestBody.firstName = payload.firstName;
+      if (payload.lastName != null && payload.lastName !== '') requestBody.lastName = payload.lastName;
+      const response = await apiClient.post<LoginResponse>('/auth/apple', requestBody);
+      if (!response.data || !response.data.token || !response.data.userId) {
+        throw new Error('Invalid Apple login response structure');
+      }
+      const { token, userId, username, role, gender, firstName, lastName, email, profileComplete } = response.data;
+      await AsyncStorage.setItem('userId', userId.toString());
+      const mappedRole = this.mapRole(role);
+      const user: User = {
+        id: userId,
+        firstName: firstName || username || '',
+        lastName: lastName || '',
+        email: email || username || '',
+        username: username,
+        phoneNumber: '',
+        dob: null,
+        gender: this.mapGender(gender || null),
+        activityLevel: ActivityLevel.MODERATE,
+        dailyCalorieIntakeTarget: 2000,
+        dailyCalorieBurnTarget: 500,
+        weight: 70,
+        height: { value: 170, unit: 'CM' },
+        role: mappedRole,
+        accountStatus: AccountStatus.ACTIVE,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        profileComplete: profileComplete ?? false,
+      };
+      const tokens: AuthTokens = {
+        accessToken: token,
+        refreshToken: undefined,
+        expiresIn: 3600,
+      };
+      return { user, tokens };
+    } catch (error) {
+      console.error('Apple login failed:', error);
+      throw error;
+    }
+  }
+
   async signup(userData: CreateUserRequest): Promise<User> {
     try {
       console.log('=== SIGNUP REQUEST START ===');
@@ -247,6 +295,10 @@ export class AuthRepositoryImpl implements IAuthRepository {
   async updateProfile(userId: number, userData: Partial<User>): Promise<User> {
     const response = await apiClient.patch<User>(`/users/${userId}`, userData);
     return response.data;
+  }
+
+  async deleteAccount(userId: number): Promise<void> {
+    await apiClient.delete(`/users/${userId}`);
   }
 
   // Token management

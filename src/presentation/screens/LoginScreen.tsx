@@ -29,7 +29,7 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ navigation }: LoginScreenProps) {
-  const { login, loginWithGoogle, isLoading } = useAuth();
+  const { login, loginWithGoogle, loginWithApple, isLoading } = useAuth();
   const [loginData, setLoginData] = useState<LoginData>({
     username: '',
     password: ''
@@ -37,6 +37,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [showPassword, setShowPassword] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isAppleLoading, setIsAppleLoading] = useState(false);
 
   const updateLoginData = (field: keyof LoginData, value: string) => {
     setLoginData(prev => ({ ...prev, [field]: value }));
@@ -120,7 +121,22 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
         setIsGoogleLoading(false);
       }
     } else if (provider === 'Apple') {
-      Alert.alert('Apple Sign-In', 'Apple Sign-In is not implemented yet.');
+      setIsAppleLoading(true);
+      try {
+        const success = await loginWithApple();
+        if (!success) {
+          Alert.alert('Sign-In Failed', 'Apple Sign-In did not complete successfully. Please try again.');
+        }
+      } catch (error: any) {
+        if (error?.code === 'ERR_REQUEST_CANCELED') {
+          // User cancelled - no alert
+          return;
+        }
+        const msg = error?.message ?? 'Failed to sign in with Apple. Please try again.';
+        Alert.alert('Apple Sign-In Error', msg);
+      } finally {
+        setIsAppleLoading(false);
+      }
     }
   };
 
@@ -236,20 +252,34 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
                 onPress={() => handleSocialLogin('Google')}
                 disabled={isLoading || isGoogleLoading}
               >
-                <Ionicons name="logo-google" size={18} color="#EA4335" />
-                <Text style={styles.socialButtonText}>Continue with Google</Text>
+                {isGoogleLoading ? (
+                  <ActivityIndicator color="#EA4335" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="logo-google" size={18} color="#EA4335" />
+                    <Text style={styles.socialButtonText}>Continue with Google</Text>
+                  </>
+                )}
               </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={[styles.socialButton, styles.socialButtonApple]}
-                onPress={() => handleSocialLogin('Apple')}
-                disabled={isLoading || isGoogleLoading}
-              >
-                <Ionicons name="logo-apple" size={18} color="#ffffff" />
-                <Text style={[styles.socialButtonText, styles.socialButtonTextInverted]}>
-                  Continue with Apple
-                </Text>
-              </TouchableOpacity>
+              {Platform.OS === 'ios' && (
+                <TouchableOpacity 
+                  style={[styles.socialButton, styles.socialButtonApple]}
+                  onPress={() => handleSocialLogin('Apple')}
+                  disabled={isLoading || isAppleLoading}
+                >
+                  {isAppleLoading ? (
+                    <ActivityIndicator color="#ffffff" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="logo-apple" size={18} color="#ffffff" />
+                      <Text style={[styles.socialButtonText, styles.socialButtonTextInverted]}>
+                        Continue with Apple
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
 
             <View style={styles.securityNote}>
