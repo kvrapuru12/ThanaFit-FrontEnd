@@ -34,25 +34,30 @@ export class GoogleAuthService {
   }
 
   /**
-   * Get the appropriate client ID based on platform
-   * For native builds with custom scheme URLs (com.prod.thanafit://), use platform-specific Client ID
-   * Note: Expo Go is not supported (throws error before this method is called)
+   * Get the appropriate client ID based on platform.
+   * Web: EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID (register redirect URI in Google Cloud Console).
+   * Native: iOS/Android client IDs with custom scheme.
    */
   private getClientId(redirectUri?: string): string {
-    // This method is only called for native builds (Expo Go is blocked earlier)
-    
-    // For native builds with custom scheme, use platform-specific Client ID
-    const clientId = Platform.OS === 'ios' 
-      ? this.config.iosClientId 
+    if (Platform.OS === 'web') {
+      const clientId = this.config.webClientId;
+      if (!clientId) {
+        throw new Error(
+          'Google Web Client ID not configured. Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in .env and add your site redirect URI in Google Cloud Console.'
+        );
+      }
+      console.log('[GoogleAuthService] Using Web Client ID');
+      return clientId;
+    }
+    const clientId = Platform.OS === 'ios'
+      ? this.config.iosClientId
       : this.config.androidClientId;
-    
     if (!clientId) {
       throw new Error(
         `Google Client ID not configured for ${Platform.OS}. ` +
         `Please set EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID or EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID in .env.`
       );
     }
-    
     console.log(`[GoogleAuthService] Using ${Platform.OS} Client ID for native build`);
     return clientId;
   }
@@ -151,14 +156,9 @@ export class GoogleAuthService {
       console.log('[GoogleAuthService] signIn called');
       const discovery = await this.getDiscovery();
 
-      // Determine if we're in Expo Go
       const isExpoGo = Constants.appOwnership === 'expo';
-      
-      // Google OAuth does NOT work in Expo Go because:
-      // 1. Expo Go uses exp:// scheme which Google Cloud Console rejects (only accepts HTTP/HTTPS)
-      // 2. Expo proxy service is deprecated and unreliable
-      // Solution: Use development builds (npx expo run:android or npx expo run:ios)
-      if (isExpoGo) {
+      // Google OAuth does NOT work in Expo Go on native (web is fine with Web Client ID)
+      if (Platform.OS !== 'web' && isExpoGo) {
         throw new Error(
           'Google Sign-In is not supported in Expo Go.\n\n' +
           'Google Cloud Console only accepts HTTP/HTTPS redirect URIs for Web OAuth Client IDs,\n' +
@@ -170,22 +170,15 @@ export class GoogleAuthService {
           'and work perfectly with Google Sign-In.'
         );
       }
-      
-      // Create redirect URI for native builds (dev/production)
-      // In dev/production builds, use custom scheme
-      // makeRedirectUri() will generate the proper format with custom scheme
-      const redirectUri = AuthSession.makeRedirectUri({
-        scheme: 'com.prod.thanafit',
-      });
-      console.log(`[GoogleAuthService] Native build detected - using custom scheme: ${redirectUri}`);
-      console.log(`[GoogleAuthService] Platform: ${Platform.OS}`);
-      console.log(`[GoogleAuthService] Final redirect URI: ${redirectUri}`);
-      console.log(`[GoogleAuthService] Redirect URI length: ${redirectUri.length}`);
-      console.log(`[GoogleAuthService] Redirect URI format check: ${redirectUri.startsWith('com.prod.thanafit') ? '✅ Correct scheme' : '❌ Wrong scheme'}`);
-      
-      // Get appropriate Client ID (native builds use platform-specific Client IDs)
+
+      // Web: current origin (e.g. https://thanafit.com). Native: custom scheme.
+      const redirectUri = Platform.OS === 'web'
+        ? AuthSession.makeRedirectUri()
+        : AuthSession.makeRedirectUri({ scheme: 'com.prod.thanafit' });
+      console.log(`[GoogleAuthService] Platform: ${Platform.OS}, redirect URI: ${redirectUri}`);
+
       const clientId = this.getClientId(redirectUri);
-      const clientIdType = Platform.OS === 'ios' ? 'iOS' : 'Android';
+      const clientIdType = Platform.OS === 'web' ? 'Web' : Platform.OS === 'ios' ? 'iOS' : 'Android';
       console.log(`[GoogleAuthService] Using Client ID type: ${clientIdType}`);
       console.log(`[GoogleAuthService] Client ID (first 30 chars): ${clientId.substring(0, 30)}...`);
       

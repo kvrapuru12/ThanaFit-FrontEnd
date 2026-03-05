@@ -139,7 +139,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
       const googleAuth = getGoogleAuthService();
 
       const idToken = await googleAuth.signIn();
-      const platform = Platform.OS === 'ios' ? 'ios' : 'android';
+      const platform = Platform.OS === 'web' ? 'web' : Platform.OS === 'ios' ? 'ios' : 'android';
 
       const result = await authRepository.loginWithGoogle(idToken, platform);
       await authRepository.saveTokens(result.tokens);

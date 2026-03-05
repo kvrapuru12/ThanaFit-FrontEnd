@@ -1,5 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
+import { getStoredAuthToken } from '../../core/utils/tokenStorage';
 
 // API Configuration
 const API_CONFIG = {
@@ -250,15 +249,9 @@ export class ApiClient {
     };
   }
 
-  // Token management
+  // Token management (uses tokenStorage: SecureStore on native, AsyncStorage on web)
   private async getStoredToken(): Promise<string | null> {
-    try {
-      // Get token from SecureStore (where we now store sensitive tokens)
-      return await SecureStore.getItemAsync('authToken');
-    } catch (error) {
-      console.error('Failed to get stored token:', error);
-      return null;
-    }
+    return getStoredAuthToken();
   }
 
   // Utility methods

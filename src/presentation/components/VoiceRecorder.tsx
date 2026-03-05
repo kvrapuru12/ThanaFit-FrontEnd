@@ -59,8 +59,9 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   }, [visible]);
 
-  // Set up audio mode for recording
+  // Set up audio mode for recording (expo-av recording not supported on web)
   useEffect(() => {
+    if (Platform.OS === 'web') return;
     const setupAudio = async () => {
       try {
         await Audio.setAudioModeAsync({
@@ -74,7 +75,6 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         console.error('Failed to set up audio mode:', error);
       }
     };
-
     setupAudio();
   }, []);
 
@@ -122,6 +122,10 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   }, [isRecording]);
 
   const startRecording = async () => {
+    if (Platform.OS === 'web') {
+      Alert.alert('Voice recording', 'Voice recording is available in the ThanaFit mobile app.');
+      return;
+    }
     try {
       console.log('Starting audio recording...');
 

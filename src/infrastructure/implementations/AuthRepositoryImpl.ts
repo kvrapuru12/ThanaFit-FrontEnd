@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
+import { tokenStorage } from '../../core/utils/tokenStorage';
 import { IAuthRepository, CreateUserRequest, AppleSignInPayload } from '../../core/domain/interfaces/IAuthRepository';
 import { User, AuthCredentials, AuthTokens, Gender, ActivityLevel, UserRole, AccountStatus } from '../../core/domain/entities/User';
 import { apiClient } from '../api/ApiClient';
@@ -301,16 +301,13 @@ export class AuthRepositoryImpl implements IAuthRepository {
     await apiClient.delete(`/users/${userId}`);
   }
 
-  // Token management
+  // Token management (SecureStore on native, AsyncStorage on web via tokenStorage)
   async saveTokens(tokens: AuthTokens): Promise<void> {
     try {
-      // Store sensitive tokens in SecureStore
-      await SecureStore.setItemAsync('authToken', tokens.accessToken);
+      await tokenStorage.setItemAsync('authToken', tokens.accessToken);
       if (tokens.refreshToken) {
-        await SecureStore.setItemAsync('refreshToken', tokens.refreshToken);
+        await tokenStorage.setItemAsync('refreshToken', tokens.refreshToken);
       }
-      
-      // Store non-sensitive data in AsyncStorage
       await AsyncStorage.setItem('tokenExpiry', (Date.now() + tokens.expiresIn * 1000).toString());
     } catch (error) {
       console.error('Failed to save tokens:', error);
@@ -320,11 +317,8 @@ export class AuthRepositoryImpl implements IAuthRepository {
 
   async getStoredTokens(): Promise<AuthTokens | null> {
     try {
-      // Get sensitive tokens from SecureStore
-      const accessToken = await SecureStore.getItemAsync('authToken');
-      const refreshToken = await SecureStore.getItemAsync('refreshToken');
-      
-      // Get non-sensitive data from AsyncStorage
+      const accessToken = await tokenStorage.getItemAsync('authToken');
+      const refreshToken = await tokenStorage.getItemAsync('refreshToken');
       const expiry = await AsyncStorage.getItem('tokenExpiry');
 
       if (!accessToken) {
@@ -344,11 +338,8 @@ export class AuthRepositoryImpl implements IAuthRepository {
 
   async clearTokens(): Promise<void> {
     try {
-      // Clear sensitive tokens from SecureStore
-      await SecureStore.deleteItemAsync('authToken');
-      await SecureStore.deleteItemAsync('refreshToken');
-      
-      // Clear non-sensitive data from AsyncStorage
+      await tokenStorage.deleteItemAsync('authToken');
+      await tokenStorage.deleteItemAsync('refreshToken');
       await AsyncStorage.multiRemove([
         'tokenExpiry',
         'userData',

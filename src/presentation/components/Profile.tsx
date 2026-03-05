@@ -21,7 +21,6 @@ import { Badge } from './ui/badge';
 import { MaterialIcons } from '@expo/vector-icons';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { useAuth } from '../providers/AuthProvider';
-import * as SecureStore from 'expo-secure-store';
 import { apiClient } from '../../infrastructure/api/ApiClient';
 import { HttpMethod } from '../../infrastructure/api/ApiClient';
 import { cycleApiService } from '../../infrastructure/services/cycleApi';
