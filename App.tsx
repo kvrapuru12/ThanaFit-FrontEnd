@@ -18,6 +18,8 @@ import { AddExerciseScreen } from './src/presentation/screens/AddExerciseScreen'
 import { AddFoodScreen } from './src/presentation/screens/AddFoodScreen';
 import { SettingsScreen } from './src/presentation/screens/SettingsScreen';
 import { PrivacyPolicyScreen, TermsOfServiceScreen, FAQScreen } from './src/presentation/screens/PrivacyAndLegalScreens';
+import { SupportScreen } from './src/presentation/screens/SupportScreen';
+import { WorkInProgressScreen } from './src/presentation/screens/WorkInProgressScreen';
 
 // Import global CSS for web builds (commented out for native builds)
 // import './src/styles/global.css';
@@ -84,6 +86,22 @@ const AppNavigator = () => {
               name="Terms"
               component={TermsOfServiceScreen}
               options={{ title: 'Terms of Service' }}
+            />
+            <Stack.Screen
+              name="Support"
+              component={SupportScreen}
+              options={{ title: 'Support' }}
+            />
+            <Stack.Screen
+              name="Notifications"
+              component={WorkInProgressScreen}
+              options={{
+                title: 'Notifications',
+                initialParams: {
+                  title: 'Notifications',
+                  message: "We're working on notification settings. Check back soon!",
+                },
+              }}
             />
           </>
         ) : (

@@ -9,6 +9,7 @@
     "web": "expo start --web",
     "build:web": "expo export --platform web",
     "build:android:apk": "eas build --platform android --profile preview",
+    "build:ios": "npx eas build --platform ios --profile production",
     "build:android:apk:local": "cd android && ./gradlew assembleRelease",
     "version:patch": "node scripts/bump-version.js",
     "version:minor": "VERSION_BUMP=minor node scripts/bump-version.js",

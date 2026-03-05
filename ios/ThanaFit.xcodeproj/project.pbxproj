@@ -352,7 +352,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.anonymous.thanafit-auth";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.prod.thanafit";
 				PRODUCT_NAME = ThanaFit;
 				SWIFT_OBJC_BRIDGING_HEADER = "ThanaFit/ThanaFit-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -383,7 +383,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.anonymous.thanafit-auth";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.prod.thanafit";
 				PRODUCT_NAME = ThanaFit;
 				SWIFT_OBJC_BRIDGING_HEADER = "ThanaFit/ThanaFit-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
