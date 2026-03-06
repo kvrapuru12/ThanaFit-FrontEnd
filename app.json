@@ -32,6 +32,10 @@
       "playStorePackageId": "com.prod.thanafit"
     },
     "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
       "package": "com.prod.thanafit",
       "versionCode": 39
     }
