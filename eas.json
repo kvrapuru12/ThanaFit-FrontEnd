@@ -10,7 +10,8 @@
         "gradleCommand": ":app:bundleRelease"
       },
       "ios": {
-        "autoIncrement": "buildNumber"
+        "autoIncrement": "buildNumber",
+        "image": "latest"
       },
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "http://healthapp-alb-1571435665.us-east-1.elb.amazonaws.com/api",
@@ -25,7 +26,8 @@
         "gradleCommand": ":app:bundleRelease"
       },
       "ios": {
-        "autoIncrement": "buildNumber"
+        "autoIncrement": "buildNumber",
+        "image": "latest"
       },
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "http://healthapp-alb-1571435665.us-east-1.elb.amazonaws.com/api",
@@ -40,7 +42,8 @@
         "gradleCommand": ":app:bundleRelease"
       },
       "ios": {
-        "autoIncrement": "buildNumber"
+        "autoIncrement": "buildNumber",
+        "image": "latest"
       },
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "http://healthapp-alb-1571435665.us-east-1.elb.amazonaws.com/api",
@@ -74,7 +77,9 @@
         "serviceAccountKeyPath": "./google-service-account.json",
         "track": "internal"
       },
-      "ios": {}
+      "ios": {
+        "ascAppId": "6760138156"
+      }
     }
   }
 }
