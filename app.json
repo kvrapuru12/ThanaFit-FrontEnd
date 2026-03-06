@@ -2,7 +2,7 @@
   "expo": {
     "name": "ThanaFit",
     "slug": "thanafit-auth",
-    "version": "3.0.3",
+    "version": "3.0.4",
     "sdkVersion": "53.0.0",
     "scheme": "com.prod.thanafit",
     "platforms": [
@@ -14,9 +14,11 @@
     "ios": {
       "bundleIdentifier": "com.prod.thanafit",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "ThanaFit uses the microphone to log food and exercise by voice."
+        "NSMicrophoneUsageDescription": "ThanaFit uses the microphone to log food and exercise by voice.",
+        "NSSpeechRecognitionUsageDescription": "ThanaFit uses speech recognition to turn your voice into text when you log food and exercise by voice.",
+        "NSPhotoLibraryUsageDescription": "ThanaFit may access your photo library so you can attach photos to your entries, if you choose."
       },
-      "buildNumber": "2"
+      "buildNumber": "5"
     },
     "plugins": [
       "expo-apple-authentication"
@@ -25,12 +27,12 @@
       "eas": {
         "projectId": "1776aca5-7c52-4555-8dc0-4946589c5440"
       },
-      "appStoreAppId": "",
+      "appStoreAppId": "6760138156",
       "playStorePackageId": "com.prod.thanafit"
     },
     "android": {
       "package": "com.prod.thanafit",
-      "versionCode": 34
+      "versionCode": 35
     }
   }
 }
