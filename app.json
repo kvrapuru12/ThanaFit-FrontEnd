@@ -19,7 +19,7 @@
         "NSSpeechRecognitionUsageDescription": "ThanaFit uses speech recognition to turn your voice into text when you log food and exercise by voice.",
         "NSPhotoLibraryUsageDescription": "ThanaFit may access your photo library so you can attach photos to your entries, if you choose."
       },
-      "buildNumber": "9"
+      "buildNumber": "10"
     },
     "plugins": [
       "expo-apple-authentication"

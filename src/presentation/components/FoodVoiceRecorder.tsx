@@ -63,24 +63,32 @@ export const FoodVoiceRecorder: React.FC<FoodVoiceRecorderProps> = ({
     }
   }, [visible]);
 
-  // Set up audio mode for recording (expo-av recording not supported on web)
+  // Pre-warm permission/audio session when modal opens to avoid first-tap failures on iOS.
   useEffect(() => {
     if (Platform.OS === 'web') return;
-    const setupAudio = async () => {
+    const preWarmAudioSession = async () => {
       try {
+        if (!visible) return;
+
+        const currentPermission = await Audio.getPermissionsAsync();
+        if (currentPermission.status !== 'granted') {
+          await Audio.requestPermissionsAsync();
+        }
+
+        // Keep normal playback mode until actual recording starts.
         await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
+          allowsRecordingIOS: false,
           playsInSilentModeIOS: true,
           staysActiveInBackground: false,
           shouldDuckAndroid: true,
           playThroughEarpieceAndroid: false,
         });
       } catch (error) {
-        console.error('Failed to set up audio mode:', error);
+        console.error('Failed to pre-warm audio session:', error);
       }
     };
-    setupAudio();
-  }, []);
+    preWarmAudioSession();
+  }, [visible]);
 
   useEffect(() => {
     if (isRecording) {
@@ -133,14 +141,25 @@ export const FoodVoiceRecorder: React.FC<FoodVoiceRecorderProps> = ({
     try {
       console.log('Starting food voice recording...');
 
-      // Explicit runtime permission (required on Android)
-      const { status } = await Audio.requestPermissionsAsync();
+      // Explicit runtime permission (required on Android, and may prompt first-use on iOS)
+      let { status } = await Audio.getPermissionsAsync();
+      let justGrantedPermission = false;
+      if (status !== 'granted') {
+        const request = await Audio.requestPermissionsAsync();
+        status = request.status;
+        justGrantedPermission = request.status === 'granted';
+      }
       if (Platform.OS === 'android') {
         console.log('[Android] Microphone permission status:', status);
       }
       if (status !== 'granted') {
         Alert.alert('Permission Required', 'Microphone permission is required to record audio.');
         return;
+      }
+
+      // iOS may need a short beat after system permission dialog before recorder init.
+      if (Platform.OS === 'ios' && justGrantedPermission) {
+        await new Promise((r) => setTimeout(r, 350));
       }
 
       // Ensure audio mode is set for recording
