@@ -1,6 +1,13 @@
-# Android vs iOS: Voice Recording & Transcription (Whisper)
+# Android & iOS: Voice Recording & Transcription (Whisper)
 
-## Why it works on iOS but often fails on Android
+## iOS TestFlight / production builds
+
+- **API key:** Production (EAS) builds do not use your local `.env`. For voice transcription to work in TestFlight (or any EAS production build), you must set **`EXPO_PUBLIC_OPENAI_API_KEY`** as an **EAS Secret**: [expo.dev](https://expo.dev) → project → **Secrets** (or `eas secret:create`). Then create a new iOS production build. Without this, the app will show "OpenAI API key not configured" when transcribing.
+- **Upload path:** iOS now uses the same copy-then-`FileSystem.uploadAsync` path as Android, so uploads are reliable in release/TestFlight (avoiding `fetch` + FormData with `file://` URIs in release builds).
+
+---
+
+## Why it used to work on iOS dev but often failed on Android
 
 ### 1. **FormData + file URI handling**
 

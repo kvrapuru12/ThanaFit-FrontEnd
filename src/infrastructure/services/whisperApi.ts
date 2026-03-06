@@ -1,4 +1,3 @@
-import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 
 // Lazy initialization of OpenAI client - only create when needed
@@ -75,91 +74,54 @@ export class WhisperApiService {
           const mimeType = audioFile.type || mimeForExtension(fileName);
           const url = 'https://api.openai.com/v1/audio/transcriptions';
 
-          // Android: copy to documentDirectory then upload (cache URIs are unreliable on some devices).
-          if (Platform.OS === 'android') {
-            const ext = (fileName.split('.').pop() || 'm4a').toLowerCase();
-            const copyUri = `${FileSystem.documentDirectory}whisper-upload-${Date.now()}.${ext}`;
-            try {
-              await FileSystem.copyAsync({ from: audioUri, to: copyUri });
-            } catch (copyErr) {
-              console.error('[Android] Failed to copy recording for upload:', copyErr);
-              throw new Error('Recording unavailable; please try again.');
-            }
-            console.log('[Android] Using FileSystem.uploadAsync for Whisper (reliable file read)');
-            try {
-              const result = await FileSystem.uploadAsync(url, copyUri, {
-                uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-                fieldName: 'file',
-                mimeType,
-                parameters: {
-                  model: 'whisper-1',
-                  language: 'en',
-                  response_format: 'json',
-                },
-                headers: {
-                  Authorization: `Bearer ${apiKey}`,
-                },
-              });
+          // Copy to documentDirectory then upload via native FileSystem.uploadAsync.
+          // This is reliable on both Android (cache URIs unreliable) and iOS (TestFlight/release
+          // can be flaky with fetch+FormData and file:// URIs).
+          const ext = (fileName.split('.').pop() || 'wav').toLowerCase();
+          const copyUri = `${FileSystem.documentDirectory}whisper-upload-${Date.now()}.${ext}`;
+          try {
+            await FileSystem.copyAsync({ from: audioUri, to: copyUri });
+          } catch (copyErr) {
+            console.error('Failed to copy recording for upload:', copyErr);
+            throw new Error('Recording unavailable; please try again.');
+          }
+          try {
+            const result = await FileSystem.uploadAsync(url, copyUri, {
+              uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+              fieldName: 'file',
+              mimeType,
+              parameters: {
+                model: 'whisper-1',
+                language: 'en',
+                response_format: 'json',
+              },
+              headers: {
+                Authorization: `Bearer ${apiKey}`,
+              },
+            });
 
-              if (result.status < 200 || result.status >= 300) {
-                let errMsg = result.body || `HTTP ${result.status}`;
-                try {
-                  const errJson = JSON.parse(result.body);
-                  errMsg = errJson.error?.message || result.body;
-                } catch {
-                  // use result.body as-is
-                }
-                console.error('Whisper API error (Android upload):', result.status, errMsg);
-                throw new Error(`Whisper API failed: ${result.status}. ${errMsg}`);
+            if (result.status < 200 || result.status >= 300) {
+              let errMsg = result.body || `HTTP ${result.status}`;
+              try {
+                const errJson = JSON.parse(result.body);
+                errMsg = errJson.error?.message || result.body;
+              } catch {
+                // use result.body as-is
               }
-
-              const responseData = JSON.parse(result.body);
-              console.log('Whisper transcription completed (Android):', responseData);
-              return {
-                text: responseData.text,
-                language: responseData.language,
-                duration: responseData.duration,
-              };
-            } finally {
-              await FileSystem.deleteAsync(copyUri, { idempotent: true });
+              console.error('Whisper API error:', result.status, errMsg);
+              throw new Error(`Whisper API failed: ${result.status}. ${errMsg}`);
             }
+
+            const responseData = JSON.parse(result.body);
+            console.log('Whisper transcription completed:', responseData);
+            return {
+              text: responseData.text,
+              language: responseData.language,
+              duration: responseData.duration,
+            };
+          } finally {
+            await FileSystem.deleteAsync(copyUri, { idempotent: true });
           }
-
-          // iOS: fetch + FormData works correctly with file URI
-          const formData = new FormData();
-          formData.append('file', {
-            uri: audioUri,
-            name: fileName,
-            type: mimeType,
-          } as any);
-          formData.append('model', 'whisper-1');
-          formData.append('language', 'en');
-          formData.append('response_format', 'json');
-
-          console.log('FormData created with file:', { uri: audioUri, name: fileName, type: mimeType });
-
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-            },
-            body: formData,
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            console.error('Whisper API error response:', errorData);
-            throw new Error(`Whisper API failed: ${response.status}. ${errorData.error?.message || 'Unknown error'}`);
-          }
-
-          const responseData = await response.json();
-          console.log('Whisper transcription completed:', responseData);
-
-          return {
-            text: responseData.text,
-            language: responseData.language,
-            duration: responseData.duration,
-          };
         } catch (error: unknown) {
           console.error('Transcription failed:', error);
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';

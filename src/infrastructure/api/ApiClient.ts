@@ -45,6 +45,7 @@ export interface RequestConfig {
   headers?: Record<string, string>;
   timeout?: number;
   retryAttempts?: number;
+  skipAuth?: boolean;
 }
 
 // API Client Class
@@ -64,8 +65,9 @@ export class ApiClient {
   // Main request method with retry logic
   async request<T>(config: RequestConfig): Promise<ApiResponse<T>> {
     let lastError: ApiError;
+    const maxRetryAttempts = config.retryAttempts ?? this.retryAttempts;
 
-    for (let attempt = 0; attempt <= this.retryAttempts; attempt++) {
+    for (let attempt = 0; attempt <= maxRetryAttempts; attempt++) {
       try {
         return await this.makeRequest<T>(config);
       } catch (error: any) {
@@ -77,7 +79,7 @@ export class ApiClient {
         }
         
         // Don't retry on last attempt
-        if (attempt === this.retryAttempts) {
+        if (attempt === maxRetryAttempts) {
           throw lastError;
         }
         
@@ -109,7 +111,7 @@ export class ApiClient {
       ...config.headers,
     };
 
-    if (token) {
+    if (!config.skipAuth && token) {
       // Check if token already has Bearer prefix
       const authToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
       headers.Authorization = authToken;

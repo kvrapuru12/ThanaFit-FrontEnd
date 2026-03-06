@@ -183,7 +183,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
       setUser(result.user);
       await saveUserData(result.user);
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Apple login error:', error);
       throw error;
     } finally {

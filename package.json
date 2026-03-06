@@ -18,6 +18,7 @@
     "build:prod:minor": "npm run version:minor && git add app.json && git commit -m 'chore: bump version [skip ci]' && git push && npx eas build --platform android --profile production-minor",
     "build:prod:major": "npm run version:major && git add app.json && git commit -m 'chore: bump version [skip ci]' && git push && npx eas build --platform android --profile production-major",
     "submit:prod": "npx eas submit --platform android --profile production",
+    "submit:ios": "npx eas submit --platform ios --latest --profile production",
     "release": "npm run build:prod && npm run submit:prod"
   },
   "dependencies": {

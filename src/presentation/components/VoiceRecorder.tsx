@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   StyleSheet,
   Alert,
   Animated,
@@ -10,6 +11,9 @@ import {
   Dimensions,
   TextInput,
   Platform,
+  Keyboard,
+  KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
@@ -457,45 +461,61 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
           
           {/* Transcript Input Modal */}
           {showTranscriptInput ? (
-            <View style={styles.transcriptContainer}>
-              <Text style={styles.transcriptTitle}>AI Transcribed Your Workout</Text>
-              <Text style={styles.transcriptSubtitle}>
-                Here's what the AI heard. You can edit it if needed before submitting.
-              </Text>
-              
-              <TextInput
-                style={styles.transcriptInput}
-                placeholder="Your workout description will appear here..."
-                value={transcript}
-                onChangeText={setTranscript}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-                autoFocus
-              />
-              
-              <View style={styles.transcriptButtons}>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={handleCancelTranscript}
-                >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={styles.submitButton}
-                  onPress={handleSubmitTranscript}
-                  disabled={!transcript.trim()}
-                >
-                  <Text style={[
-                    styles.submitButtonText,
-                    !transcript.trim() && styles.submitButtonTextDisabled
-                  ]}>
-                    Process with AI
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <KeyboardAvoidingView
+              style={styles.transcriptContainer}
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+            >
+              <ScrollView
+                style={styles.transcriptScroll}
+                contentContainerStyle={styles.transcriptScrollContent}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                showsVerticalScrollIndicator={false}
+              >
+                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                  <View>
+                    <Text style={styles.transcriptTitle}>AI Transcribed Your Workout</Text>
+                    <Text style={styles.transcriptSubtitle}>
+                      Here's what the AI heard. You can edit it if needed before submitting.
+                    </Text>
+                    
+                    <TextInput
+                      style={styles.transcriptInput}
+                      placeholder="Your workout description will appear here..."
+                      value={transcript}
+                      onChangeText={setTranscript}
+                      multiline
+                      numberOfLines={4}
+                      textAlignVertical="top"
+                      autoFocus
+                    />
+                    
+                    <View style={styles.transcriptButtons}>
+                      <TouchableOpacity
+                        style={styles.cancelButton}
+                        onPress={handleCancelTranscript}
+                      >
+                        <Text style={styles.cancelButtonText}>Cancel</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity
+                        style={styles.submitButton}
+                        onPress={handleSubmitTranscript}
+                        disabled={!transcript.trim()}
+                      >
+                        <Text style={[
+                          styles.submitButtonText,
+                          !transcript.trim() && styles.submitButtonTextDisabled
+                        ]}>
+                          Process with AI
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </TouchableWithoutFeedback>
+              </ScrollView>
+            </KeyboardAvoidingView>
           ) : (
             <>
               {/* Recording Visual */}
@@ -764,7 +784,14 @@ const styles = StyleSheet.create({
   transcriptContainer: {
     flex: 1,
     width: '100%',
+  },
+  transcriptScroll: {
+    flex: 1,
+  },
+  transcriptScrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 24,
+    paddingBottom: 40,
     justifyContent: 'center',
   },
   transcriptTitle: {

@@ -30,7 +30,10 @@ export class AuthRepositoryImpl implements IAuthRepository {
   // Authentication methods
   async login(credentials: AuthCredentials): Promise<{ user: User; tokens: AuthTokens }> {
     try {
-      const response = await apiClient.post<LoginResponse>('/auth/login', credentials);
+      const response = await apiClient.post<LoginResponse>('/auth/login', credentials, {
+        skipAuth: true,
+        retryAttempts: 0,
+      });
       
       // Log the actual response structure
       console.log('Login response data:', JSON.stringify(response.data, null, 2));
@@ -94,7 +97,10 @@ export class AuthRepositoryImpl implements IAuthRepository {
       console.log('[AuthRepository] API Base URL:', process.env.EXPO_PUBLIC_API_BASE_URL);
       console.log('[AuthRepository] Full endpoint URL:', `${process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080/api'}/auth/google`);
       
-      const response = await apiClient.post<LoginResponse>('/auth/google', requestBody);
+      const response = await apiClient.post<LoginResponse>('/auth/google', requestBody, {
+        skipAuth: true,
+        retryAttempts: 0,
+      });
 
       // Validate response structure
       if (!response.data || !response.data.token || !response.data.userId) {
@@ -157,7 +163,10 @@ export class AuthRepositoryImpl implements IAuthRepository {
       if (payload.email != null && payload.email !== '') requestBody.email = payload.email;
       if (payload.firstName != null && payload.firstName !== '') requestBody.firstName = payload.firstName;
       if (payload.lastName != null && payload.lastName !== '') requestBody.lastName = payload.lastName;
-      const response = await apiClient.post<LoginResponse>('/auth/apple', requestBody);
+      const response = await apiClient.post<LoginResponse>('/auth/apple', requestBody, {
+        skipAuth: true,
+        retryAttempts: 0,
+      });
       if (!response.data || !response.data.token || !response.data.userId) {
         throw new Error('Invalid Apple login response structure');
       }
@@ -190,7 +199,7 @@ export class AuthRepositoryImpl implements IAuthRepository {
         expiresIn: 3600,
       };
       return { user, tokens };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Apple login failed:', error);
       throw error;
     }
