@@ -112,12 +112,6 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
             `Quick add: ${food.name} (${food.category})`
           );
           
-          // Show success message with meal type
-          Alert.alert(
-            'Success!',
-            `${food.name} added to ${mealType}`,
-            [{ text: 'OK' }]
-          );
         } catch (error) {
           console.error('Failed to add food:', error);
           Alert.alert(
@@ -350,7 +344,7 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
                                 </Badge>
                               </View>
                               <Text style={styles.foodCardMeta}>
-                                {Number(log.quantity) % 1 === 0 ? Math.round(log.quantity) : Number(log.quantity).toFixed(1)} {log.unit} • {Math.round(log.food?.caloriesPerUnit || (log.calories / log.quantity))} cal per unit
+                                {Number(log.quantity) % 1 === 0 ? Math.round(log.quantity) : Number(log.quantity).toFixed(1)} {log.unit}
                               </Text>
                               <View style={styles.nutritionBadges}>
                                 <View style={styles.nutritionBadge}>

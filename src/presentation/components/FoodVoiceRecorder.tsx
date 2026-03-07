@@ -405,26 +405,10 @@ export const FoodVoiceRecorder: React.FC<FoodVoiceRecorderProps> = ({
       console.log('Food voice log processed successfully:', result);
       
       setIsProcessing(false);
-      
-      // Format the food logs for display
-      const logsText = result.logs.map(log => 
-        `• ${log.food} (${log.quantity} serving${log.quantity > 1 ? 's' : ''}) - ${log.calories} cal`
-      ).join('\n');
-      
-      Alert.alert(
-        'Food Logged Successfully! 🍎',
-        `Original: "${transcript}"\n\nFood items added:\n${logsText}`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Call the success callback with the food logs data
-              onVoiceLogSuccess?.(result.logs);
-              onClose?.();
-            },
-          },
-        ]
-      );
+
+      // Call the success callback with parsed food logs and close recorder.
+      onVoiceLogSuccess?.(result.logs);
+      onClose?.();
     } catch (error) {
       console.error('Failed to process food voice log:', error);
       setIsProcessing(false);

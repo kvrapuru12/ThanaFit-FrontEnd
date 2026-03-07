@@ -222,8 +222,6 @@ export function Profile({ navigation }: ProfileProps) {
       setEditModalVisible(false);
       setEditingGoal(null);
       setEditValue('');
-      
-      Alert.alert('Success', `${editingGoal.title} updated successfully!`);
     } catch (error: any) {
       console.error('Update goal error:', error);
       Alert.alert('Update failed', getProfileUpdateErrorMessage(error));
@@ -323,8 +321,6 @@ export function Profile({ navigation }: ProfileProps) {
       setBasicInfoEditModalVisible(false);
       setEditingBasicInfo(null);
       setBasicInfoEditValue('');
-      
-      Alert.alert('Success', `${editingBasicInfo.label} updated successfully!`);
     } catch (error: any) {
       console.error('Update basic info error:', error);
       Alert.alert('Update failed', getProfileUpdateErrorMessage(error));
@@ -366,7 +362,6 @@ export function Profile({ navigation }: ProfileProps) {
       }
 
       await refreshUserData();
-      Alert.alert('Success', 'Date updated successfully!');
     } catch (error: any) {
       console.error('Date update error:', error);
       Alert.alert('Update failed', getProfileUpdateErrorMessage(error));
@@ -609,15 +604,13 @@ export function Profile({ navigation }: ProfileProps) {
         setEditingField(null);
         setEditingValue('');
         setFieldUpdateError(null);
-        
-        Alert.alert('Success', 'Field updated successfully!');
       } catch (refreshError) {
         console.error('Failed to refresh user data:', refreshError);
         // Still show success since the update worked
         setEditingField(null);
         setEditingValue('');
         setFieldUpdateError(null);
-        Alert.alert('Success', 'Field updated, but refresh failed. Please reload the page.');
+        Alert.alert('Refresh failed', 'Field updated, but refresh failed. Please reload the page.');
       }
     } catch (error: any) {
       console.error('Field update error:', error);

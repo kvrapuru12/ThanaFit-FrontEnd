@@ -8,6 +8,8 @@ import { HttpMethod } from '../api/ApiClient';
 // API Response interfaces
 interface LoginResponse {
   token: string;
+  refreshToken?: string;
+  expiresIn?: number;
   userId: number;
   username: string;
   role: string;
@@ -22,6 +24,7 @@ interface LoginResponse {
 interface RefreshTokenResponse {
   token: string;
   refreshToken?: string;
+  expiresIn?: number;
 } 
 
 // Concrete implementation of Auth Repository
@@ -46,7 +49,7 @@ export class AuthRepositoryImpl implements IAuthRepository {
         throw new Error('Invalid login response structure');
       }
       
-      const { token, userId, username, role, gender, profileComplete } = response.data;
+      const { token, refreshToken, expiresIn, userId, username, role, gender, profileComplete } = response.data;
       
       // Store userId for later use
       await AsyncStorage.setItem('userId', userId.toString());
@@ -76,8 +79,8 @@ export class AuthRepositoryImpl implements IAuthRepository {
     
       const tokens: AuthTokens = {
         accessToken: token,
-        refreshToken: undefined, // Backend doesn't return refreshToken
-        expiresIn: 3600, // Default 1 hour
+        refreshToken: refreshToken || undefined,
+        expiresIn: typeof expiresIn === 'number' && expiresIn > 0 ? expiresIn : 3600,
       };
       
       return { user, tokens };
@@ -107,7 +110,7 @@ export class AuthRepositoryImpl implements IAuthRepository {
         throw new Error('Invalid Google login response structure');
       }
 
-      const { token, userId, username, role, gender, firstName, lastName, email, profileComplete } = response.data;
+      const { token, refreshToken, expiresIn, userId, username, role, gender, firstName, lastName, email, profileComplete } = response.data;
 
       // Log the role received from backend for debugging
       console.log('[AuthRepository] Google login response - role:', role, 'userId:', userId, 'profileComplete:', profileComplete);
@@ -143,8 +146,8 @@ export class AuthRepositoryImpl implements IAuthRepository {
 
       const tokens: AuthTokens = {
         accessToken: token,
-        refreshToken: undefined,
-        expiresIn: 3600,
+        refreshToken: refreshToken || undefined,
+        expiresIn: typeof expiresIn === 'number' && expiresIn > 0 ? expiresIn : 3600,
       };
 
       return { user, tokens };
@@ -170,7 +173,7 @@ export class AuthRepositoryImpl implements IAuthRepository {
       if (!response.data || !response.data.token || !response.data.userId) {
         throw new Error('Invalid Apple login response structure');
       }
-      const { token, userId, username, role, gender, firstName, lastName, email, profileComplete } = response.data;
+      const { token, refreshToken, expiresIn, userId, username, role, gender, firstName, lastName, email, profileComplete } = response.data;
       await AsyncStorage.setItem('userId', userId.toString());
       const mappedRole = this.mapRole(role);
       const user: User = {
@@ -195,8 +198,8 @@ export class AuthRepositoryImpl implements IAuthRepository {
       };
       const tokens: AuthTokens = {
         accessToken: token,
-        refreshToken: undefined,
-        expiresIn: 3600,
+        refreshToken: refreshToken || undefined,
+        expiresIn: typeof expiresIn === 'number' && expiresIn > 0 ? expiresIn : 3600,
       };
       return { user, tokens };
     } catch (error: any) {
@@ -250,12 +253,12 @@ export class AuthRepositoryImpl implements IAuthRepository {
   async refreshToken(refreshToken: string): Promise<AuthTokens> {
     const response = await apiClient.post<RefreshTokenResponse>('/auth/refresh', { refreshToken });
     
-    const { token, refreshToken: newRefreshToken } = response.data;
+    const { token, refreshToken: newRefreshToken, expiresIn } = response.data;
     
     return {
       accessToken: token,
       refreshToken: newRefreshToken,
-      expiresIn: 3600,
+      expiresIn: typeof expiresIn === 'number' && expiresIn > 0 ? expiresIn : 3600,
     };
   }
 

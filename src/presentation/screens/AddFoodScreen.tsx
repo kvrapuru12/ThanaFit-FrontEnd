@@ -56,6 +56,19 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
     snack: 'Snack'
   };
 
+  const formatQuantity = (value: number): string => (
+    Number(value) % 1 === 0 ? Math.round(value).toString() : Number(value).toFixed(1)
+  );
+
+  const getQuantityLabel = (unit?: string): string => {
+    if (!unit) return 'Quantity';
+    return `Quantity (${unit})`;
+  };
+
+  const getCaloriesPerUnitLabel = (food: FoodItem): string => (
+    `${Math.round(food.caloriesPerUnit)} cal per ${formatQuantity(food.quantityPerUnit)} ${food.defaultUnit}`
+  );
+
   useEffect(() => {
     loadPopularFoods();
   }, []);
@@ -99,8 +112,7 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
   // Handle selecting a food item
   const handleSelectFood = (food: FoodItem) => {
     setSelectedFood(food);
-    const isGrams = food.defaultUnit?.toLowerCase().includes('gram') || food.defaultUnit?.toLowerCase() === 'g';
-    setQuantity(isGrams ? '1' : food.quantityPerUnit.toString());
+    setQuantity(food.quantityPerUnit.toString());
   };
 
   // Handle creating new food
@@ -158,8 +170,7 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
       // Add the new food to the search results and select it
       setSearchResults(prev => [tempFood, ...prev]);
       setSelectedFood(tempFood);
-      const isGrams = tempFood.defaultUnit?.toLowerCase().includes('gram') || tempFood.defaultUnit?.toLowerCase() === 'g';
-      setQuantity(isGrams ? '1' : tempFood.quantityPerUnit.toString());
+      setQuantity(tempFood.quantityPerUnit.toString());
       
       // Close modal and reset form
       setShowCreateModal(false);
@@ -174,12 +185,6 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
       setNewFoodFatPerUnit('');
       setNewFoodFiberPerUnit('');
       setNewFoodVisibility('public');
-      
-      Alert.alert(
-        'Success! 🎉',
-        `"${foodData.name}" has been created and selected!`,
-        [{ text: 'OK' }]
-      );
       
     } catch (error) {
       console.error('Failed to create food:', error);
@@ -213,23 +218,12 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
         note: note.trim() || undefined
       });
 
-      Alert.alert(
-        'Success!',
-        `${selectedFood.name} added to ${mealTypeLabels[mealType]}`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              if (route?.params?.onFoodAdded) {
-                route.params.onFoodAdded();
-              }
-              if (navigation) {
-                navigation.goBack();
-              }
-            }
-          }
-        ]
-      );
+      if (route?.params?.onFoodAdded) {
+        await route.params.onFoodAdded();
+      }
+      if (navigation) {
+        navigation.goBack();
+      }
     } catch (err) {
       console.error('Failed to add food:', err);
       Alert.alert('Error', 'Failed to add food item. Please try again.');
@@ -312,7 +306,7 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
                       <View style={styles.foodItemInfo}>
                         <Text style={styles.foodItemName}>{food.name}</Text>
                         <Text style={styles.foodItemMeta}>
-                          {Number(food.quantityPerUnit) % 1 === 0 ? Math.round(food.quantityPerUnit) : Number(food.quantityPerUnit).toFixed(1)} {food.defaultUnit} • {Math.round(food.caloriesPerUnit)} cal
+                          {getCaloriesPerUnitLabel(food)}
                         </Text>
                       </View>
                       <View style={styles.foodItemBadges}>
@@ -354,16 +348,12 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
               <View style={styles.selectedFoodInfo}>
                 <Text style={styles.selectedFoodName}>{selectedFood.name}</Text>
                 <Text style={styles.selectedFoodMeta}>
-                  {Number(selectedFood.quantityPerUnit) % 1 === 0 ? Math.round(selectedFood.quantityPerUnit) : Number(selectedFood.quantityPerUnit).toFixed(1)} {selectedFood.defaultUnit} • {Math.round(selectedFood.caloriesPerUnit)} cal
+                  {getCaloriesPerUnitLabel(selectedFood)}
                 </Text>
                 
                 <View style={styles.inputRow}>
                   <View style={styles.quantityInputContainer}>
-                    <Text style={styles.inputLabel}>
-                      {selectedFood.defaultUnit?.toLowerCase().includes('gram') || selectedFood.defaultUnit?.toLowerCase() === 'g'
-                        ? 'Serving'
-                        : 'Quantity'}
-                    </Text>
+                    <Text style={styles.inputLabel}>{getQuantityLabel(selectedFood.defaultUnit)}</Text>
                     <TextInput
                       style={styles.quantityInput}
                       value={quantity}
@@ -372,6 +362,9 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
                       placeholder="Enter quantity"
                       placeholderTextColor="#9ca3af"
                     />
+                    <Text style={styles.calorieHint}>
+                      Estimated: {Math.round(((Number(quantity) || 0) / (selectedFood.quantityPerUnit || 1)) * selectedFood.caloriesPerUnit)} cal
+                    </Text>
                   </View>
                 </View>
 
@@ -860,6 +853,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#d1d5db',
     color: '#1f2937',
+  },
+  calorieHint: {
+    marginTop: 8,
+    fontSize: 13,
+    color: '#6b7280',
   },
   noteInput: {
     backgroundColor: '#f9fafb',

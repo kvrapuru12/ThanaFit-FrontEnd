@@ -49,6 +49,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
     initializeAuth();
   }, []);
 
+  const isAuthFailureError = (error: any): boolean => {
+    const status = error?.status;
+    if (status === 401 || status === 403) {
+      return true;
+    }
+
+    const message = String(error?.message || '').toLowerCase();
+    return (
+      message.includes('unauthorized') ||
+      message.includes('forbidden') ||
+      message.includes('invalid token') ||
+      message.includes('token expired') ||
+      message.includes('authentication failed')
+    );
+  };
+
   const initializeAuth = async () => {
     try {
       setIsLoading(true);
@@ -76,8 +92,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
             }
           } catch (error) {
             console.error('Failed to fetch current user:', error);
-            // Clear invalid authentication
-            await authRepository.clearTokens();
+            // Only clear session for confirmed auth failures.
+            if (isAuthFailureError(error)) {
+              await authRepository.clearTokens();
+              setUser(null);
+              await clearUserData();
+            } else {
+              console.warn('Transient user fetch error during init; preserving session state');
+            }
           }
         }
       }
@@ -350,9 +372,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
       }
     } catch (error) {
       console.error('Failed to refresh user data:', error);
-      // If refresh fails, user might be logged out
-      setUser(null);
-      await clearUserData();
+      // Keep session on transient errors; logout only on confirmed auth failure.
+      if (isAuthFailureError(error)) {
+        await authRepository.clearTokens();
+        setUser(null);
+        await clearUserData();
+      } else {
+        console.warn('Transient refresh failure; keeping existing session');
+      }
     }
   };
 

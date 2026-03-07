@@ -1,4 +1,5 @@
-import { getStoredAuthToken } from '../../core/utils/tokenStorage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getStoredAuthToken, tokenStorage } from '../../core/utils/tokenStorage';
 
 // API Configuration
 const API_CONFIG = {
@@ -46,6 +47,8 @@ export interface RequestConfig {
   timeout?: number;
   retryAttempts?: number;
   skipAuth?: boolean;
+  // Internal guard to ensure we only retry once after refresh.
+  hasRetriedAfterRefresh?: boolean;
 }
 
 // API Client Class
@@ -54,6 +57,7 @@ export class ApiClient {
   private timeout: number;
   private retryAttempts: number;
   private retryDelay: number;
+  private refreshInFlight: Promise<string | null> | null = null;
 
   constructor(config: Partial<typeof API_CONFIG> = {}) {
     this.baseURL = config.BASE_URL || API_CONFIG.BASE_URL;
@@ -72,6 +76,21 @@ export class ApiClient {
         return await this.makeRequest<T>(config);
       } catch (error: any) {
         lastError = this.handleError(error);
+
+        const errorStatus = typeof error?.status === 'number' ? error.status : lastError.status;
+        if (
+          errorStatus === 401 &&
+          !config.skipAuth &&
+          !config.hasRetriedAfterRefresh
+        ) {
+          const refreshedToken = await this.refreshAccessToken();
+          if (refreshedToken) {
+            return this.makeRequest<T>({
+              ...config,
+              hasRetriedAfterRefresh: true,
+            });
+          }
+        }
         
         // Don't retry on client errors (4xx)
         if (lastError.status >= 400 && lastError.status < 500) {
@@ -221,6 +240,15 @@ export class ApiClient {
 
   // Error handling
   private handleError(error: any): ApiError {
+    if (typeof error?.status === 'number') {
+      return {
+        message: error.message || `HTTP ${error.status}`,
+        status: error.status,
+        code: error.code,
+        details: error.details || error.responseData,
+      };
+    }
+
     if (error.name === 'ApiError') {
       return error;
     }
@@ -254,6 +282,60 @@ export class ApiClient {
   // Token management (uses tokenStorage: SecureStore on native, AsyncStorage on web)
   private async getStoredToken(): Promise<string | null> {
     return getStoredAuthToken();
+  }
+
+  private async refreshAccessToken(): Promise<string | null> {
+    if (this.refreshInFlight) {
+      return this.refreshInFlight;
+    }
+
+    this.refreshInFlight = this.performTokenRefresh();
+    try {
+      return await this.refreshInFlight;
+    } finally {
+      this.refreshInFlight = null;
+    }
+  }
+
+  private async performTokenRefresh(): Promise<string | null> {
+    try {
+      const refreshToken = await tokenStorage.getItemAsync('refreshToken');
+      if (!refreshToken) {
+        return null;
+      }
+
+      const response = await fetch(`${this.baseURL}/auth/refresh`, {
+        method: HttpMethod.POST,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const responseData = await response.json();
+      const accessToken = responseData?.token;
+      if (!accessToken || typeof accessToken !== 'string') {
+        return null;
+      }
+
+      await tokenStorage.setItemAsync('authToken', accessToken);
+      if (typeof responseData?.refreshToken === 'string' && responseData.refreshToken.length > 0) {
+        await tokenStorage.setItemAsync('refreshToken', responseData.refreshToken);
+      }
+
+      if (typeof responseData?.expiresIn === 'number' && responseData.expiresIn > 0) {
+        await AsyncStorage.setItem('tokenExpiry', String(Date.now() + responseData.expiresIn * 1000));
+      }
+
+      return accessToken;
+    } catch (error) {
+      console.warn('Token refresh failed:', error);
+      return null;
+    }
   }
 
   // Utility methods

@@ -128,12 +128,6 @@ export const AddExerciseScreen: React.FC<AddExerciseScreenProps> = ({ navigation
       setNewActivityCalories('');
       setNewActivityVisibility('PUBLIC');
       
-      Alert.alert(
-        'Success! 🎉',
-        `"${activityData.name}" has been created and selected!`,
-        [{ text: 'OK' }]
-      );
-      
     } catch (error) {
       console.error('Failed to create activity:', error);
       Alert.alert(
@@ -179,30 +173,19 @@ export const AddExerciseScreen: React.FC<AddExerciseScreenProps> = ({ navigation
 
       await dashboardApiService.createActivityLog(logData);
       
-      Alert.alert(
-        'Success! 🎉',
-        'Your workout has been logged successfully!',
-        [
-          {
-            text: 'OK',
-            onPress: async () => {
-              console.log('=== REFRESH DEBUG ===');
-              console.log('Route params:', route?.params);
-              console.log('onWorkoutAdded callback:', route?.params?.onWorkoutAdded);
-              
-              // Refresh the workout data if callback is provided
-              if (route?.params?.onWorkoutAdded) {
-                console.log('Calling refresh callback...');
-                await route.params.onWorkoutAdded();
-                console.log('Refresh callback completed');
-              } else {
-                console.log('No refresh callback provided');
-              }
-              navigation.goBack();
-            }
-          }
-        ]
-      );
+      console.log('=== REFRESH DEBUG ===');
+      console.log('Route params:', route?.params);
+      console.log('onWorkoutAdded callback:', route?.params?.onWorkoutAdded);
+
+      // Refresh the workout data if callback is provided
+      if (route?.params?.onWorkoutAdded) {
+        console.log('Calling refresh callback...');
+        await route.params.onWorkoutAdded();
+        console.log('Refresh callback completed');
+      } else {
+        console.log('No refresh callback provided');
+      }
+      navigation.goBack();
     } catch (error) {
       console.error('Failed to create activity log:', error);
       Alert.alert('Error', 'Failed to log your workout. Please try again.');

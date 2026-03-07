@@ -130,17 +130,6 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
       // Refresh the workouts data
       await refreshWorkouts();
 
-      Alert.alert(
-        'Success!', 
-        `${activity.name} has been added to your workouts!`,
-        [
-          {
-            text: 'OK',
-            onPress: () => console.log('Quick add completed')
-          }
-        ]
-      );
-
     } catch (error) {
       console.error('Failed to quick add activity:', error);
       Alert.alert('Error', 'Failed to add activity. Please try again.');

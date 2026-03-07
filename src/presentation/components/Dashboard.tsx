@@ -164,7 +164,6 @@ export const Dashboard: React.FC = () => {
       setWaterModalVisible(false);
       setWaterAmount('');
       await refresh();
-      Alert.alert('Success', 'Water intake added successfully!');
     } catch (error: any) {
       Alert.alert('Error', error?.message || 'Failed to add water intake');
     } finally {
@@ -190,7 +189,6 @@ export const Dashboard: React.FC = () => {
       setSleepModalVisible(false);
       setSleepHours('');
       await refresh();
-      Alert.alert('Success', 'Sleep entry added successfully!');
     } catch (error: any) {
       Alert.alert('Error', error?.message || 'Failed to add sleep entry');
     } finally {
@@ -216,7 +214,6 @@ export const Dashboard: React.FC = () => {
       setStepModalVisible(false);
       setStepCount('');
       await refresh();
-      Alert.alert('Success', 'Steps added successfully!');
     } catch (error: any) {
       Alert.alert('Error', error?.message || 'Failed to add steps');
     } finally {
@@ -242,7 +239,6 @@ export const Dashboard: React.FC = () => {
       setWeightModalVisible(false);
       setWeightValue('');
       await refresh();
-      Alert.alert('Success', 'Weight entry added successfully!');
     } catch (error: any) {
       Alert.alert('Error', error?.message || 'Failed to add weight entry');
     } finally {

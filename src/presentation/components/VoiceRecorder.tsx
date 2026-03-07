@@ -405,21 +405,10 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       console.log('Voice log processed successfully:', result);
       
       setIsProcessing(false);
-      
-      Alert.alert(
-        'Activity Logged Successfully! 🎉',
-        `Original: "${transcript}"\n\nInterpreted as: ${result.activityLog.activity}\nDuration: ${result.activityLog.durationMinutes} minutes\nCalories burned: ${result.activityLog.caloriesBurned}\nNote: ${result.activityLog.note}`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Call the success callback with the activity log data
-              onVoiceLogSuccess?.(result.activityLog);
-              onClose?.();
-            },
-          },
-        ]
-      );
+
+      // Call the success callback with the activity log data and close recorder.
+      onVoiceLogSuccess?.(result.activityLog);
+      onClose?.();
     } catch (error) {
       console.error('Failed to process voice log:', error);
       setIsProcessing(false);

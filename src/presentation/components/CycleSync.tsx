@@ -505,8 +505,6 @@ export function CycleSync({ navigation }: CycleSyncProps) {
         console.warn('Could not sync lastPeriodDate to profile:', profileErr);
       }
 
-      Alert.alert('Success', 'Period logged successfully!');
-
       // Refresh cycle data - fetch fresh data from API
       console.log('Refreshing cycle data after save...');
       const recentCycle = await cycleApiService.getMostRecentCycle(user.id);
