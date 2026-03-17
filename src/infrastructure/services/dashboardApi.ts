@@ -459,7 +459,14 @@ export class DashboardApiService {
   /**
    * Get comprehensive dashboard data
    */
-  async getDashboardData(userId?: number, userGoals?: { calorieIntakeTarget?: number; calorieBurnTarget?: number }): Promise<{
+  async getDashboardData(userId?: number, userGoals?: {
+    calorieIntakeTarget?: number;
+    calorieBurnTarget?: number;
+    targetCarbs?: number;
+    targetProtein?: number;
+    targetFat?: number;
+    targetWaterLitres?: number;
+  }): Promise<{
     stats: DashboardStats;
     recentMeals: Meal[];
     activityLogs: ActivityLog[];
@@ -536,11 +543,11 @@ export class DashboardApiService {
       const stats: DashboardStats = {
         calories: { consumed: totalCalories, goal: userGoals?.calorieIntakeTarget || 2000 },
         macros: {
-          carbs: { consumed: totalCarbs, goal: 250 },
-          protein: { consumed: totalProtein, goal: 120 },
-          fat: { consumed: totalFat, goal: 65 }
+          carbs: { consumed: totalCarbs, goal: userGoals?.targetCarbs || 250 },
+          protein: { consumed: totalProtein, goal: userGoals?.targetProtein || 120 },
+          fat: { consumed: totalFat, goal: userGoals?.targetFat || 65 }
         },
-        water: { consumed: totalWaterMl, goal: 2000 }, // Real water data in ml (2L goal)
+        water: { consumed: totalWaterMl, goal: (userGoals?.targetWaterLitres || 2.5) * 1000 }, // Real water data in ml
         exercise: { burned: totalCaloriesBurned, goal: userGoals?.calorieBurnTarget || 400 } // Real calories burned from activity logs
       };
 

@@ -58,7 +58,11 @@ export const useDashboardData = (): UseDashboardDataReturn => {
       console.log('=== FETCHING DASHBOARD DATA ===');
       const userGoals = {
         calorieIntakeTarget: user?.dailyCalorieIntakeTarget != null ? user.dailyCalorieIntakeTarget : undefined,
-        calorieBurnTarget: user?.dailyCalorieBurnTarget != null ? user.dailyCalorieBurnTarget : undefined
+        calorieBurnTarget: user?.dailyCalorieBurnTarget != null ? user.dailyCalorieBurnTarget : undefined,
+        targetCarbs: user?.targetCarbs != null ? user.targetCarbs : undefined,
+        targetProtein: user?.targetProtein != null ? user.targetProtein : undefined,
+        targetFat: user?.targetFat != null ? user.targetFat : undefined,
+        targetWaterLitres: user?.targetWaterLitres != null ? user.targetWaterLitres : undefined
       };
       const dashboardData = await dashboardApiService.getDashboardData(user?.id, userGoals);
       
@@ -72,11 +76,11 @@ export const useDashboardData = (): UseDashboardDataReturn => {
         stats: {
           calories: { consumed: 0, goal: user?.dailyCalorieIntakeTarget || 2000 },
           macros: {
-            carbs: { consumed: 0, goal: 250 },
-            protein: { consumed: 0, goal: 120 },
-            fat: { consumed: 0, goal: 65 }
+            carbs: { consumed: 0, goal: user?.targetCarbs || 250 },
+            protein: { consumed: 0, goal: user?.targetProtein || 120 },
+            fat: { consumed: 0, goal: user?.targetFat || 65 }
           },
-          water: { consumed: 0, goal: 2000 },
+          water: { consumed: 0, goal: (user?.targetWaterLitres || 2.5) * 1000 },
           exercise: { burned: 0, goal: user?.dailyCalorieBurnTarget || 400 }
         },
         recentMeals: [],
@@ -93,7 +97,15 @@ export const useDashboardData = (): UseDashboardDataReturn => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [
+    user?.id,
+    user?.dailyCalorieIntakeTarget,
+    user?.dailyCalorieBurnTarget,
+    user?.targetCarbs,
+    user?.targetProtein,
+    user?.targetFat,
+    user?.targetWaterLitres
+  ]);
 
   const refresh = useCallback(async () => {
     await fetchDashboardData();

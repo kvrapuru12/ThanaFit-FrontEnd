@@ -354,7 +354,7 @@ export const Dashboard: React.FC = () => {
           </CardHeader>
           <CardContent>
             {Object.entries(todayStats.macros).map(([macro, data]) => {
-              const progress = (data.consumed / data.goal) * 100;
+              const progress = Math.min((data.consumed / data.goal) * 100, 100);
               return (
                 <View key={macro} style={styles.macroRow}>
                   <View style={styles.macroHeader}>

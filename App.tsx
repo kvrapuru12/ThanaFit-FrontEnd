@@ -95,12 +95,12 @@ const AppNavigator = () => {
             <Stack.Screen
               name="Notifications"
               component={WorkInProgressScreen}
+              initialParams={{
+                title: 'Notifications',
+                message: "We're working on notification settings. Check back soon!",
+              }}
               options={{
                 title: 'Notifications',
-                initialParams: {
-                  title: 'Notifications',
-                  message: "We're working on notification settings. Check back soon!",
-                },
               }}
             />
           </>
