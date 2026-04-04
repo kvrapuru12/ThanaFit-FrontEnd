@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  ScrollView, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Dimensions,
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
   ActivityIndicator,
   Alert,
   Modal,
@@ -14,907 +13,764 @@ import {
   Platform,
   KeyboardAvoidingView,
   Image,
-  FlatList,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Card, CardContent, CardHeader } from './ui/card';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../providers/AuthProvider';
-import { Gender } from '../../core/domain/entities/User';
-import { cycleApiService, Cycle, FoodRecommendation, ActivityRecommendation } from '../../infrastructure/services/cycleApi';
+import { useMainTab } from '../providers/MainTabContext';
+import { cycleApiService, Cycle } from '../../infrastructure/services/cycleApi';
 import { apiClient } from '../../infrastructure/api/ApiClient';
 import { formatDateLocal, parseDateLocal } from '../../core/utils/dateUtils';
-
-const { width } = Dimensions.get('window');
+import {
+  calculateCurrentPhase,
+  getDayInCycle,
+  calculateDaysUntilNextPeriod,
+  type PhaseKey,
+} from '../../core/utils/cyclePhaseUtils';
+import { phaseData, PHASE_ORDER } from '../data/cycleSyncPhaseData';
 
 interface CycleSyncProps {
-  navigation?: any;
+  navigation?: { navigate: (name: string, params?: object) => void };
 }
 
-interface CycleData {
+interface CycleViewModel {
+  lastPeriodStart: string;
   cycleLength: number;
   periodLength: number;
-  lastPeriodStart: string;
-  nextPeriodStart: string;
-  ovulationDate: string;
-  fertileWindow: {
-    start: string;
-    end: string;
-  };
-  currentPhase: 'menstrual' | 'follicular' | 'ovulation' | 'luteal';
+  currentPhase: PhaseKey;
+  dayInCycle: number;
   daysUntilNextPeriod: number;
 }
 
+const DEFAULT_CYCLE = 28;
+const DEFAULT_PERIOD = 5;
+
+/** ThanaFit shared palette (FoodTracking, Profile, CycleSyncV0, BottomNavigation) */
+const APP = {
+  bgScreen: '#fef7ed',
+  surface: '#ffffff',
+  primary: '#4ecdc4',
+  primarySoft: 'rgba(78, 205, 196, 0.2)',
+  primaryStrong: '#2dd4bf',
+  primaryInk: '#0f766e',
+  navBlue: '#2563eb',
+  coral: '#ff6b6b',
+  orange: '#ffa726',
+  purple: '#8b5cf6',
+  purpleInk: '#6d28d9',
+  ink: '#1f2937',
+  muted: '#6b7280',
+  border: '#f1f5f9',
+  borderStrong: '#e5e7eb',
+  amber: '#f59e0b',
+  energyBolt: '#fbbf24',
+  energyDim: '#d1d5db',
+  /** Matches FoodTracking / ExerciseTracking secondary headings */
+  textSecondary: '#374151',
+} as const;
+
+const TIMELINE_COLORS: Record<PhaseKey, string> = {
+  menstrual: APP.coral,
+  follicular: APP.primary,
+  ovulation: APP.orange,
+  luteal: APP.purple,
+};
+
+const HERO_SCENE: Record<PhaseKey, { sky: string; hill: string; sun: string; accent: string }> = {
+  menstrual: { sky: '#ffe4e6', hill: '#fecdd3', sun: APP.coral, accent: APP.coral },
+  follicular: { sky: '#ccfbf1', hill: '#99f6e4', sun: '#fde68a', accent: APP.primary },
+  ovulation: { sky: '#fef3c7', hill: '#fde68a', sun: APP.orange, accent: APP.orange },
+  luteal: { sky: '#ede9fe', hill: '#ddd6fe', sun: '#c4b5fd', accent: APP.purple },
+};
+
+type EatColKey = 'carbs' | 'protein' | 'fats' | 'greens';
+
+const EAT_COLUMN_META: Record<
+  EatColKey,
+  { icon: React.ComponentProps<typeof MaterialIcons>['name']; tint: string }
+> = {
+  carbs: { icon: 'lunch-dining', tint: APP.amber },
+  protein: { icon: 'set-meal', tint: APP.coral },
+  fats: { icon: 'opacity', tint: APP.primaryInk },
+  greens: { icon: 'eco', tint: APP.primary },
+};
+
+const FEEL_ROW_ICONS: React.ComponentProps<typeof MaterialIcons>['name'][] = [
+  'bolt',
+  'psychology',
+  'favorite',
+];
+
+function eatMacroLabel(key: EatColKey): string {
+  return key.charAt(0).toUpperCase() + key.slice(1);
+}
+
+function avoidIcon(item: string): React.ComponentProps<typeof MaterialIcons>['name'] {
+  const l = item.toLowerCase();
+  if (l.includes('alcohol') || l.includes('wine') || l.includes('beer')) return 'local-bar';
+  if (l.includes('sugar') || l.includes('sweet')) return 'cake';
+  if (l.includes('processed') || l.includes('fried') || l.includes('fries')) return 'fastfood';
+  if (l.includes('caffeine')) return 'local-cafe';
+  if (l.includes('carbonated') || l.includes('fizz')) return 'local-drink';
+  return 'do-not-disturb-on';
+}
+
+function avoidShortLabel(item: string): string {
+  const l = item.toLowerCase();
+  if (l.includes('sugar')) return 'Sugar';
+  if (l.includes('processed') || l.includes('fried')) return 'Processed';
+  if (l.includes('alcohol')) return 'Alcohol';
+  if (l.includes('caffeine')) return 'Caffeine';
+  if (l.includes('salt') || l.includes('salty')) return 'Salt';
+  if (l.includes('carbonated')) return 'Fizz';
+  return item.length > 12 ? `${item.slice(0, 10)}…` : item;
+}
+
+/** Matches `scrollContent` horizontal padding — one slide = full content width. */
 export function CycleSync({ navigation }: CycleSyncProps) {
   const { user, refreshUserData } = useAuth();
-  const [cycleData, setCycleData] = useState<CycleData | null>(null);
+  const mainTab = useMainTab();
   const [loading, setLoading] = useState(true);
+  const [recentCycle, setRecentCycle] = useState<Cycle | null>(null);
+  const [cycleVm, setCycleVm] = useState<CycleViewModel | null>(null);
+
   const [showPeriodLog, setShowPeriodLog] = useState(false);
-  
-  // Period log modal state
-  const [periodStartDate, setPeriodStartDate] = useState<Date>(new Date());
-  const [originalPeriodDate, setOriginalPeriodDate] = useState<Date | null>(null); // Track original date for cancel
+  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
+  const [periodStartDate, setPeriodStartDate] = useState(new Date());
+  const [originalPeriodDate, setOriginalPeriodDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [cycleLength, setCycleLength] = useState<string>('28');
-  const [periodDuration, setPeriodDuration] = useState<string>('5');
-  const [isCycleRegular, setIsCycleRegular] = useState<boolean>(true);
+  const [cycleLengthInput, setCycleLengthInput] = useState('28');
+  const [periodDurationInput, setPeriodDurationInput] = useState('5');
+  const [isCycleRegular, setIsCycleRegular] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [existingCycle, setExistingCycle] = useState<Cycle | null>(null);
-  const [isEditingCycle, setIsEditingCycle] = useState(false);
+  const [editingCycle, setEditingCycle] = useState<Cycle | null>(null);
+  const [seedOptionalOpen, setSeedOptionalOpen] = useState(false);
 
-  // Recommendations state
-  const [foodRecommendations, setFoodRecommendations] = useState<FoodRecommendation | null>(null);
-  const [activityRecommendations, setActivityRecommendations] = useState<ActivityRecommendation | null>(null);
-  const [recommendationsLoading, setRecommendationsLoading] = useState(false);
-  const [recommendationsTab, setRecommendationsTab] = useState<'food' | 'activity'>('food');
+  const hasLoggedData =
+    !!user?.lastPeriodDate || recentCycle !== null;
 
-  // Only show for female users - handle both enum and string values
-  const isFemale = user?.gender === Gender.FEMALE || (user?.gender as string) === 'FEMALE';
-  
-  // TEMPORARY: Allow all users for testing - remove this condition later
-  // if (!user || !isFemale) {
-  //   return (
-  //     <View style={styles.container}>
-  //       <View style={styles.errorContainer}>
-  //         <MaterialIcons name="info" size={48} color="#d1d5db" />
-  //         <Text style={styles.errorText}>CycleSync is only available for female users</Text>
-  //       </View>
-  //     </View>
-  //   );
-  // }
-
-  // Initialize period start date from user profile if available (only once on mount)
-  const hasInitializedDateRef = React.useRef(false);
-  
-  // Helper functions to calculate cycle dates (defined before useEffect that uses them)
-  const calculateNextPeriod = (lastPeriodStart: string, cycleLength: number): string => {
-    const date = parseDateLocal(lastPeriodStart);
-    date.setDate(date.getDate() + cycleLength);
-    return formatDateLocal(date);
-  };
-
-  const calculateOvulation = (lastPeriodStart: string, cycleLength: number): string => {
-    const date = parseDateLocal(lastPeriodStart);
-    date.setDate(date.getDate() + Math.floor(cycleLength / 2));
-    return formatDateLocal(date);
-  };
-
-  const calculateFertileWindow = (lastPeriodStart: string, cycleLength: number): { start: string; end: string } => {
-    const ovulationDate = parseDateLocal(lastPeriodStart);
-    ovulationDate.setDate(ovulationDate.getDate() + Math.floor(cycleLength / 2));
-    
-    const start = new Date(ovulationDate);
-    start.setDate(start.getDate() - 2);
-    
-    const end = new Date(ovulationDate);
-    end.setDate(end.getDate() + 2);
-    
-    return {
-      start: formatDateLocal(start),
-      end: formatDateLocal(end)
-    };
-  };
-
-  const calculateCurrentPhase = (lastPeriodStart: string, cycleLength: number): 'menstrual' | 'follicular' | 'ovulation' | 'luteal' => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const startDate = parseDateLocal(lastPeriodStart);
-    startDate.setHours(0, 0, 0, 0);
-    const daysSinceStart = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    const dayInCycle = daysSinceStart % cycleLength;
-    
-    if (dayInCycle < 5) return 'menstrual';
-    if (dayInCycle < Math.floor(cycleLength / 2)) return 'follicular';
-    if (dayInCycle === Math.floor(cycleLength / 2)) return 'ovulation';
-    return 'luteal';
-  };
-
-  const calculateDaysUntilNextPeriod = (lastPeriodStart: string, cycleLength: number): number => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const startDate = parseDateLocal(lastPeriodStart);
-    startDate.setHours(0, 0, 0, 0);
-    const daysSinceStart = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    const dayInCycle = daysSinceStart % cycleLength;
-    return cycleLength - dayInCycle;
-  };
-
-  // Fetch recommendations based on cycle phase
-  const fetchRecommendations = async (phase: string) => {
+  const loadCycle = useCallback(async () => {
+    if (!user?.id) {
+      setLoading(false);
+      setRecentCycle(null);
+      setCycleVm(null);
+      return;
+    }
+    setLoading(true);
     try {
-      setRecommendationsLoading(true);
-      // Note: We only call this function when we have cycle data, so no need to check cycleData here
-      
-      const [foodRecs, activityRecs] = await Promise.all([
-        cycleApiService.getFoodRecommendations(),
-        cycleApiService.getActivityRecommendations()
-      ]);
-      setFoodRecommendations(foodRecs);
-      setActivityRecommendations(activityRecs);
-    } catch (error: any) {
-      // Silently handle errors - recommendations are optional and require cycle data
-      // Backend error occurs when no cycle records exist yet
-      if (error?.status === 400 || error?.status === 500) {
-        // Expected error when user hasn't logged any cycles yet
-        console.log('Recommendations unavailable - user needs to log cycle data first');
+      const recent = await cycleApiService.getMostRecentCycle(user.id);
+      setRecentCycle(recent);
+      if (recent) {
+        const currentPhase = calculateCurrentPhase(
+          recent.periodStartDate,
+          recent.cycleLength
+        );
+        setCycleVm({
+          lastPeriodStart: recent.periodStartDate,
+          cycleLength: recent.cycleLength,
+          periodLength: recent.periodDuration,
+          currentPhase,
+          dayInCycle: getDayInCycle(recent.periodStartDate, recent.cycleLength),
+          daysUntilNextPeriod: calculateDaysUntilNextPeriod(
+            recent.periodStartDate,
+            recent.cycleLength
+          ),
+        });
+      } else if (user.lastPeriodDate) {
+        const currentPhase = calculateCurrentPhase(
+          user.lastPeriodDate,
+          DEFAULT_CYCLE
+        );
+        setCycleVm({
+          lastPeriodStart: user.lastPeriodDate,
+          cycleLength: DEFAULT_CYCLE,
+          periodLength: DEFAULT_PERIOD,
+          currentPhase,
+          dayInCycle: getDayInCycle(user.lastPeriodDate, DEFAULT_CYCLE),
+          daysUntilNextPeriod: calculateDaysUntilNextPeriod(
+            user.lastPeriodDate,
+            DEFAULT_CYCLE
+          ),
+        });
       } else {
-        console.error('Failed to fetch recommendations:', error);
+        setCycleVm(null);
       }
-      // Don't set recommendations state on error - section will remain hidden
+    } catch (e) {
+      console.error('CycleSync V1 loadCycle:', e);
+      setCycleVm(null);
     } finally {
-      setRecommendationsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    // Only initialize once when component mounts and user data is available
-    if (user?.lastPeriodDate && !hasInitializedDateRef.current) {
-      const parsedDate = parseDateLocal(user.lastPeriodDate);
-      setPeriodStartDate(parsedDate);
-      hasInitializedDateRef.current = true;
-      console.log('Initializing periodStartDate from user profile:', parsedDate.toLocaleDateString());
-    }
-  }, [user?.lastPeriodDate]); // Only run when user data changes, but ref prevents multiple initializations
-
-  // Fetch existing cycles and set up cycle data
-  useEffect(() => {
-    const fetchCycleData = async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch most recent cycle if available
-        const recentCycle = await cycleApiService.getMostRecentCycle(user?.id);
-        if (recentCycle) {
-          setExistingCycle(recentCycle);
-          // DON'T set periodStartDate here - only set it when opening the modal
-          // Use existing cycle data to populate form if opening modal
-          setCycleLength(recentCycle.cycleLength.toString());
-          setPeriodDuration(recentCycle.periodDuration.toString());
-          setIsCycleRegular(recentCycle.isCycleRegular);
-          
-          // Calculate cycle data from existing cycle
-          const cycleDataFromApi: CycleData = {
-            cycleLength: recentCycle.cycleLength,
-            periodLength: recentCycle.periodDuration,
-            lastPeriodStart: recentCycle.periodStartDate,
-            nextPeriodStart: calculateNextPeriod(recentCycle.periodStartDate, recentCycle.cycleLength),
-            ovulationDate: calculateOvulation(recentCycle.periodStartDate, recentCycle.cycleLength),
-            fertileWindow: calculateFertileWindow(recentCycle.periodStartDate, recentCycle.cycleLength),
-            currentPhase: calculateCurrentPhase(recentCycle.periodStartDate, recentCycle.cycleLength),
-            daysUntilNextPeriod: calculateDaysUntilNextPeriod(recentCycle.periodStartDate, recentCycle.cycleLength)
-          };
-          setCycleData(cycleDataFromApi);
-          
-          // Fetch recommendations only when we have real cycle data from backend
-          fetchRecommendations(cycleDataFromApi.currentPhase);
-        } else {
-          // Use mock data if no cycle exists - don't fetch recommendations (backend requires real cycle data)
-          const mockCycleData: CycleData = {
-            cycleLength: 28,
-            periodLength: 5,
-            lastPeriodStart: user?.lastPeriodDate || '2025-09-20',
-            nextPeriodStart: calculateNextPeriod(user?.lastPeriodDate || '2025-09-20', 28),
-            ovulationDate: calculateOvulation(user?.lastPeriodDate || '2025-09-20', 28),
-            fertileWindow: calculateFertileWindow(user?.lastPeriodDate || '2025-09-20', 28),
-            currentPhase: calculateCurrentPhase(user?.lastPeriodDate || '2025-09-20', 28),
-            daysUntilNextPeriod: calculateDaysUntilNextPeriod(user?.lastPeriodDate || '2025-09-20', 28)
-          };
-          setCycleData(mockCycleData);
-          // Don't fetch recommendations - backend requires actual cycle records
-        }
-      } catch (error) {
-        console.error('Failed to fetch cycle data:', error);
-        // Use mock data on error - don't fetch recommendations
-        const mockCycleData: CycleData = {
-          cycleLength: 28,
-          periodLength: 5,
-          lastPeriodStart: user?.lastPeriodDate || '2025-09-20',
-          nextPeriodStart: calculateNextPeriod(user?.lastPeriodDate || '2025-09-20', 28),
-          ovulationDate: calculateOvulation(user?.lastPeriodDate || '2025-09-20', 28),
-          fertileWindow: calculateFertileWindow(user?.lastPeriodDate || '2025-09-20', 28),
-          currentPhase: calculateCurrentPhase(user?.lastPeriodDate || '2025-09-20', 28),
-          daysUntilNextPeriod: calculateDaysUntilNextPeriod(user?.lastPeriodDate || '2025-09-20', 28)
-        };
-        setCycleData(mockCycleData);
-        // Don't fetch recommendations on error
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    if (user?.id) {
-      fetchCycleData();
-    } else {
       setLoading(false);
     }
-  }, [user?.id, user?.lastPeriodDate]); // Refetch when lastPeriodDate changes (e.g. updated in Profile)
+  }, [user?.id, user?.lastPeriodDate]);
 
-  // Helper function to get food icon based on food name
-  const getFoodIcon = (foodName: string): string => {
-    const foodLower = foodName.toLowerCase();
-    if (foodLower.includes('carb') || foodLower.includes('bread') || foodLower.includes('grain') || foodLower.includes('rice') || foodLower.includes('pasta')) {
-      return 'bakery-dining';
-    }
-    if (foodLower.includes('fruit') || foodLower.includes('apple') || foodLower.includes('berry') || foodLower.includes('banana')) {
-      return 'local-florist';
-    }
-    if (foodLower.includes('vegetable') || foodLower.includes('green') || foodLower.includes('leafy') || foodLower.includes('salad')) {
-      return 'eco';
-    }
-    if (foodLower.includes('protein') || foodLower.includes('meat') || foodLower.includes('chicken') || foodLower.includes('fish') || foodLower.includes('egg')) {
-      return 'local-dining';
-    }
-    if (foodLower.includes('fat') || foodLower.includes('oil') || foodLower.includes('avocado') || foodLower.includes('nut')) {
-      return 'water-drop';
-    }
-    if (foodLower.includes('sugar') || foodLower.includes('sweet') || foodLower.includes('dessert') || foodLower.includes('candy')) {
-      return 'cake';
-    }
-    if (foodLower.includes('processed') || foodLower.includes('fast food') || foodLower.includes('junk')) {
-      return 'fast-food';
-    }
-    if (foodLower.includes('alcohol') || foodLower.includes('wine') || foodLower.includes('beer') || foodLower.includes('drink')) {
-      return 'local-bar';
-    }
-    return 'restaurant';
-  };
+  useEffect(() => {
+    loadCycle();
+  }, [loadCycle]);
 
-  // Helper function to get activity icon based on activity name
-  const getActivityIcon = (activityName: string): string => {
-    const activityLower = activityName.toLowerCase();
-    if (activityLower.includes('yoga') || activityLower.includes('stretch') || activityLower.includes('gentle')) {
-      return 'self-improvement';
-    }
-    if (activityLower.includes('walk')) {
-      return 'directions-walk';
-    }
-    if (activityLower.includes('swim')) {
-      return 'pool';
-    }
-    if (activityLower.includes('cardio') || activityLower.includes('low-impact')) {
-      return 'favorite';
-    }
-    if (activityLower.includes('intensity') || activityLower.includes('heavy') || activityLower.includes('strength')) {
-      return 'fitness-center';
-    }
-    if (activityLower.includes('run') || activityLower.includes('running')) {
-      return 'directions-run';
-    }
-    return 'sports';
-  };
+  const phase = cycleVm?.currentPhase ?? 'menstrual';
+  const content = phaseData[phase];
 
-  const getPhaseColor = (phase: string) => {
-    switch (phase) {
-      case 'menstrual': return '#ff6b6b';
-      case 'follicular': return '#4ecdc4';
-      case 'ovulation': return '#ffa726';
-      case 'luteal': return '#8b5cf6';
-      default: return '#6b7280';
-    }
-  };
+  useEffect(() => {
+    setSeedOptionalOpen(false);
+  }, [phase]);
 
-  const getPhaseIcon = (phase: string) => {
-    switch (phase) {
-      case 'menstrual': return 'favorite';
-      case 'follicular': return 'trending-up';
-      case 'ovulation': return 'star';
-      case 'luteal': return 'trending-down';
-      default: return 'help';
-    }
-  };
-
-  const handleLogPeriod = async () => {
-    // Pre-populate form with last cycle's info, but always create new entry
-    console.log('Opening log period modal - fetching last cycle for pre-population...');
-    
-    // Fetch the most recent cycle to pre-populate form
-    const recentCycle = await cycleApiService.getMostRecentCycle(user?.id);
-    
-    setIsEditingCycle(false); // Always false - we're creating new, not editing
-    setExistingCycle(null);
-    
-    if (recentCycle) {
-      // Pre-populate form with last cycle's data for convenience
-      const cycleDate = parseDateLocal(recentCycle.periodStartDate);
-      setPeriodStartDate(cycleDate);
-      setCycleLength(recentCycle.cycleLength.toString());
-      setPeriodDuration(recentCycle.periodDuration.toString());
-      setIsCycleRegular(recentCycle.isCycleRegular);
-      console.log('Pre-populating form with last cycle data:', {
-        date: cycleDate.toLocaleDateString(),
-        cycleLength: recentCycle.cycleLength,
-        periodDuration: recentCycle.periodDuration,
-        isCycleRegular: recentCycle.isCycleRegular
-      });
+  const openModalCreate = async () => {
+    const recent = await cycleApiService.getMostRecentCycle(user?.id);
+    setModalMode('create');
+    setEditingCycle(null);
+    if (recent) {
+      setPeriodStartDate(parseDateLocal(recent.periodStartDate));
+      setCycleLengthInput(String(recent.cycleLength));
+      setPeriodDurationInput(String(recent.periodDuration));
+      setIsCycleRegular(recent.isCycleRegular);
+    } else if (user?.lastPeriodDate) {
+      setPeriodStartDate(parseDateLocal(user.lastPeriodDate));
+      setCycleLengthInput(String(DEFAULT_CYCLE));
+      setPeriodDurationInput(String(DEFAULT_PERIOD));
+      setIsCycleRegular(true);
     } else {
-      // No previous cycle - use defaults or user's lastPeriodDate
-      if (user?.lastPeriodDate) {
-        const parsedDate = parseDateLocal(user.lastPeriodDate);
-        setPeriodStartDate(parsedDate);
-        console.log('Using lastPeriodDate from profile:', parsedDate.toLocaleDateString());
-      } else {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        setPeriodStartDate(today);
-        console.log('No lastPeriodDate, using today:', today.toLocaleDateString());
-      }
-      // Reset form fields to defaults
-      setCycleLength('28');
-      setPeriodDuration('5');
+      const t = new Date();
+      t.setHours(0, 0, 0, 0);
+      setPeriodStartDate(t);
+      setCycleLengthInput(String(DEFAULT_CYCLE));
+      setPeriodDurationInput(String(DEFAULT_PERIOD));
       setIsCycleRegular(true);
     }
-    
-    setShowDatePicker(false); // Make sure date picker is closed when opening modal
+    setShowDatePicker(false);
     setShowPeriodLog(true);
   };
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    console.log('handleDateChange called:', { 
-      eventType: event?.type, 
-      selectedDate, 
-      platform: Platform.OS,
-      hasSelectedDate: !!selectedDate 
-    });
-    
+  const openModalEdit = async () => {
+    const recent = await cycleApiService.getMostRecentCycle(user?.id);
+    if (!recent) {
+      await openModalCreate();
+      return;
+    }
+    setModalMode('edit');
+    setEditingCycle(recent);
+    setPeriodStartDate(parseDateLocal(recent.periodStartDate));
+    setCycleLengthInput(String(recent.cycleLength));
+    setPeriodDurationInput(String(recent.periodDuration));
+    setIsCycleRegular(recent.isCycleRegular);
+    setShowDatePicker(false);
+    setShowPeriodLog(true);
+  };
+
+  const handleCancelPeriod = () => {
+    setShowPeriodLog(false);
+    setShowDatePicker(false);
+    setEditingCycle(null);
+    setOriginalPeriodDate(null);
+  };
+
+  const handleDateChange = (event: { type?: string }, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
-      // On Android, the native dialog handles the selection
       if (event.type === 'set' && selectedDate) {
-        // Create a new Date object to ensure it's properly set
-        // Reset time to midnight to avoid timezone issues
-        const newDate = new Date(selectedDate);
-        newDate.setHours(0, 0, 0, 0);
-        setPeriodStartDate(newDate);
+        const d = new Date(selectedDate);
+        d.setHours(0, 0, 0, 0);
+        setPeriodStartDate(d);
         setShowDatePicker(false);
-        console.log('Date selected on Android - New date:', newDate);
-        console.log('Date selected on Android - ISO:', newDate.toISOString());
-        console.log('Date selected on Android - Local:', newDate.toLocaleDateString());
       } else if (event.type === 'dismissed') {
-        // User cancelled - revert to original date
-        if (originalPeriodDate) {
-          setPeriodStartDate(new Date(originalPeriodDate));
-          console.log('Date picker dismissed - reverted to original:', originalPeriodDate);
-        }
+        if (originalPeriodDate) setPeriodStartDate(new Date(originalPeriodDate));
         setShowDatePicker(false);
-        console.log('Date picker dismissed on Android');
       }
-    } else {
-      // On iOS, just update the date - user will confirm with button
-      if (selectedDate) {
-        // Create a new Date object to ensure it's properly set
-        // Reset time to midnight to avoid timezone issues
-        const newDate = new Date(selectedDate);
-        newDate.setHours(0, 0, 0, 0);
-        setPeriodStartDate(newDate);
-        console.log('Date updated on iOS - New date:', newDate);
-        console.log('Date updated on iOS - ISO:', newDate.toISOString());
-        console.log('Date updated on iOS - Local:', newDate.toLocaleDateString());
-      }
+    } else if (selectedDate) {
+      const d = new Date(selectedDate);
+      d.setHours(0, 0, 0, 0);
+      setPeriodStartDate(d);
     }
   };
 
   const handleConfirmDate = () => {
-    console.log('Date confirmed on iOS - Final date:', periodStartDate);
-    console.log('Date confirmed on iOS - ISO:', periodStartDate.toISOString());
-    console.log('Date confirmed on iOS - Local:', periodStartDate.toLocaleDateString());
     setShowDatePicker(false);
-    setOriginalPeriodDate(null); // Clear original date after confirmation
+    setOriginalPeriodDate(null);
   };
 
   const handleCancelDate = () => {
-    // Revert to original date if user cancels
-    if (originalPeriodDate) {
-      setPeriodStartDate(new Date(originalPeriodDate));
-      console.log('Date picker cancelled - reverted to original:', originalPeriodDate);
-    } else if (isEditingCycle && existingCycle) {
-      setPeriodStartDate(new Date(existingCycle.periodStartDate));
-      console.log('Date picker cancelled - reverted to cycle date:', existingCycle.periodStartDate);
-    } else if (user?.lastPeriodDate) {
-      const dateStr = user.lastPeriodDate;
-      const parsedDate = new Date(dateStr);
-      if (!isNaN(parsedDate.getTime())) {
-        setPeriodStartDate(parsedDate);
-        console.log('Date picker cancelled - reverted to profile date:', parsedDate);
-      }
-    }
+    if (originalPeriodDate) setPeriodStartDate(new Date(originalPeriodDate));
+    else if (editingCycle)
+      setPeriodStartDate(parseDateLocal(editingCycle.periodStartDate));
     setShowDatePicker(false);
     setOriginalPeriodDate(null);
-    console.log('Date picker cancelled');
   };
 
   const handleSavePeriod = async () => {
     if (!user?.id) {
-      Alert.alert('Error', 'User not found. Please try again.');
+      Alert.alert('Error', 'User not found.');
       return;
     }
-
-    // Validate inputs
-    const cycleLengthNum = parseInt(cycleLength, 10);
-    const periodDurationNum = parseInt(periodDuration, 10);
-
-    if (isNaN(cycleLengthNum) || cycleLengthNum < 21 || cycleLengthNum > 40) {
-      Alert.alert('Invalid Input', 'Cycle length must be between 21 and 40 days.');
+    const cycleLen = parseInt(cycleLengthInput, 10);
+    const periodLen = parseInt(periodDurationInput, 10);
+    if (isNaN(cycleLen) || cycleLen < 21 || cycleLen > 40) {
+      Alert.alert('Invalid', 'Cycle length must be 21–40 days.');
       return;
     }
-
-    if (isNaN(periodDurationNum) || periodDurationNum < 1 || periodDurationNum > 10) {
-      Alert.alert('Invalid Input', 'Period duration must be between 1 and 10 days.');
+    if (isNaN(periodLen) || periodLen < 1 || periodLen > 10) {
+      Alert.alert('Invalid', 'Period duration must be 1–10 days.');
       return;
     }
-
-    // Validate date - must be today or in the past
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const selectedDate = new Date(periodStartDate);
-    selectedDate.setHours(0, 0, 0, 0);
-    
-    if (selectedDate > today) {
-      Alert.alert('Invalid Date', 'Period start date must be today or in the past.');
+    const sel = new Date(periodStartDate);
+    sel.setHours(0, 0, 0, 0);
+    if (sel > today) {
+      Alert.alert('Invalid', 'Period start must be today or earlier.');
       return;
     }
 
+    const dateStr = formatDateLocal(sel);
     setIsSubmitting(true);
-
     try {
-      // Ensure we have a valid date - format in local timezone to avoid offset issues
-      const dateToUse = periodStartDate || new Date();
-      dateToUse.setHours(0, 0, 0, 0); // Ensure time is midnight
-      const periodStartDateStr = formatDateLocal(dateToUse); // Format as YYYY-MM-DD in local timezone
-      console.log('Creating new period entry with date:', periodStartDateStr);
-      console.log('Date object:', dateToUse);
-      console.log('Date local string:', dateToUse.toLocaleDateString());
-
-      // Always create a new cycle entry (POST) to track all periods
-      console.log('Creating new cycle entry...');
-      const response = await cycleApiService.createCycle({
-        userId: user.id,
-        periodStartDate: periodStartDateStr,
-        cycleLength: cycleLengthNum,
-        periodDuration: periodDurationNum,
-        isCycleRegular: isCycleRegular
-      });
-      
-      console.log('Period logged successfully:', response);
-
-      // Sync to Profile: update user's lastPeriodDate so Profile shows the same date
+      if (modalMode === 'edit' && editingCycle) {
+        await cycleApiService.updateCycle(editingCycle.id, {
+          periodStartDate: dateStr,
+          cycleLength: cycleLen,
+          periodDuration: periodLen,
+          isCycleRegular,
+        });
+      } else {
+        await cycleApiService.createCycle({
+          userId: user.id,
+          periodStartDate: dateStr,
+          cycleLength: cycleLen,
+          periodDuration: periodLen,
+          isCycleRegular,
+        });
+      }
       try {
-        await apiClient.patch(`/users/${user.id}`, { lastPeriodDate: periodStartDateStr });
+        await apiClient.patch(`/users/${user.id}`, { lastPeriodDate: dateStr });
         await refreshUserData();
-      } catch (profileErr) {
-        console.warn('Could not sync lastPeriodDate to profile:', profileErr);
+      } catch (e) {
+        console.warn('Profile lastPeriodDate sync:', e);
       }
-
-      // Refresh cycle data - fetch fresh data from API
-      console.log('Refreshing cycle data after save...');
-      const recentCycle = await cycleApiService.getMostRecentCycle(user.id);
-      if (recentCycle) {
-        console.log('Refreshed cycle data:', recentCycle);
-        setExistingCycle(recentCycle);
-        const cycleDataFromApi: CycleData = {
-          cycleLength: recentCycle.cycleLength,
-          periodLength: recentCycle.periodDuration,
-          lastPeriodStart: recentCycle.periodStartDate,
-          nextPeriodStart: calculateNextPeriod(recentCycle.periodStartDate, recentCycle.cycleLength),
-          ovulationDate: calculateOvulation(recentCycle.periodStartDate, recentCycle.cycleLength),
-          fertileWindow: calculateFertileWindow(recentCycle.periodStartDate, recentCycle.cycleLength),
-          currentPhase: calculateCurrentPhase(recentCycle.periodStartDate, recentCycle.cycleLength),
-          daysUntilNextPeriod: calculateDaysUntilNextPeriod(recentCycle.periodStartDate, recentCycle.cycleLength)
-        };
-        setCycleData(cycleDataFromApi);
-        // Update the period start date in the form to match the saved data
-        const savedDate = parseDateLocal(recentCycle.periodStartDate);
-        setPeriodStartDate(savedDate);
-        console.log('Updated periodStartDate in form to:', savedDate.toLocaleDateString());
-        
-        // Refresh recommendations after saving - now we have cycle data
-        fetchRecommendations(cycleDataFromApi.currentPhase);
-      }
-
+      await loadCycle();
       setShowPeriodLog(false);
-    } catch (error: any) {
-      console.error('Failed to save period:', error);
-      const errorMessage = error?.responseData?.message || error?.message || 'Failed to save period. Please try again.';
-      Alert.alert('Error', errorMessage);
+      setEditingCycle(null);
+    } catch (err: any) {
+      const msg =
+        err?.responseData?.message || err?.message || 'Could not save. Try again.';
+      Alert.alert('Error', msg);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleCancelPeriod = () => {
-    setShowPeriodLog(false);
-    setShowDatePicker(false); // Close date picker if open
-    setExistingCycle(null);
-    setIsEditingCycle(false);
-    setOriginalPeriodDate(null); // Clear original date
-    console.log('Period log modal cancelled');
+  const goFoodTab = () => {
+    if (mainTab?.setMainTab) mainTab.setMainTab('food');
+    else navigation?.navigate('AddFood');
   };
-
-  const handleLogSymptoms = () => {
-    Alert.alert(
-      'Log Symptoms',
-      'Track your cycle symptoms and mood',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Log Symptoms', 
-          onPress: () => {
-            // In real app, this would open symptoms logging screen
-            Alert.alert('Coming Soon', 'Symptom tracking will be available soon!');
-          }
-        }
-      ]
-    );
+  const goExerciseTab = () => {
+    if (mainTab?.setMainTab) mainTab.setMainTab('exercise');
+    else navigation?.navigate('AddExercise');
   };
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#ff6b6b" />
-          <Text style={styles.loadingText}>Loading your cycle data...</Text>
-        </View>
-      </View>
-    );
-  }
-
-  if (!cycleData) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.errorContainer}>
-          <MaterialIcons name="error" size={48} color="#d1d5db" />
-          <Text style={styles.errorText}>Unable to load cycle data</Text>
-        </View>
+      <View style={styles.loadingWrap}>
+        <ActivityIndicator size="large" color={APP.primary} />
+        <Text style={styles.loadingText}>Loading cycle…</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.title}>CycleSync</Text>
-            <Text style={styles.subtitle}>Track your menstrual cycle</Text>
+    <View style={styles.screen}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header — match hi-fi: logo, tagline, bell + badge, avatar */}
+        <View style={styles.topHeader}>
+          <View style={styles.brandBlock}>
+            <View style={styles.brandTitleRow}>
+              <MaterialIcons name="eco" size={24} color={APP.primary} />
+              <Text style={styles.brandTitle}>CycleSync</Text>
+            </View>
+            <Text style={styles.brandTagline}>Understand your cycle. Feel your best.</Text>
           </View>
-          <View style={styles.thanafitLogo}>
-            <Image
-              source={require('../../../assets/logo-icon.png')}
-              style={styles.thanafitLogoImage}
-              resizeMode="contain"
-            />
+          <View style={styles.topHeaderRight}>
+            <TouchableOpacity style={styles.bellWrap}>
+              <MaterialIcons name="notifications-none" size={26} color={APP.ink} />
+              <View style={styles.bellBadge} />
+            </TouchableOpacity>
+            <View style={styles.avatarRing}>
+              <View style={styles.avatar}>
+                <MaterialIcons name="person" size={22} color={APP.muted} />
+              </View>
+            </View>
           </View>
         </View>
 
-        {/* Current Phase Card */}
-        <Card style={styles.phaseCard}>
-          <CardHeader style={styles.cardHeader}>
-            <View style={styles.cardTitle}>
-              <View style={[styles.titleIndicator, { backgroundColor: getPhaseColor(cycleData.currentPhase) }]} />
-              <Text style={styles.cardTitleText}>Current Phase</Text>
-            </View>
-          </CardHeader>
-        <CardContent style={styles.cardContent}>
-          <View style={styles.phaseContainer}>
-            <View style={[styles.phaseIcon, { backgroundColor: getPhaseColor(cycleData.currentPhase) }]}>
-              <MaterialIcons 
-                name={getPhaseIcon(cycleData.currentPhase)} 
-                size={24} 
-                color="white" 
-              />
-            </View>
-            <View style={styles.phaseInfo}>
-              <Text style={styles.phaseName}>{cycleData.currentPhase.charAt(0).toUpperCase() + cycleData.currentPhase.slice(1)}</Text>
-              <Text style={styles.phaseDescription}>
-                {cycleData.currentPhase === 'menstrual' && 'Your period is active'}
-                {cycleData.currentPhase === 'follicular' && 'Preparing for ovulation'}
-                {cycleData.currentPhase === 'ovulation' && 'Most fertile time'}
-                {cycleData.currentPhase === 'luteal' && 'Post-ovulation phase'}
-              </Text>
-            </View>
+        {!hasLoggedData || !cycleVm ? (
+          <View style={styles.emptyCard}>
+            <MaterialIcons name="favorite" size={48} color={APP.coral} />
+            <Text style={styles.emptyTitle}>Log your period</Text>
+            <Text style={styles.emptySub}>
+              Add your last period start to see your phase, daily tips, and cycle snapshot.
+            </Text>
+            <TouchableOpacity style={styles.primaryBtn} onPress={openModalCreate}>
+              <MaterialIcons name="add" size={20} color="#fff" />
+              <Text style={styles.primaryBtnText}>Log period</Text>
+            </TouchableOpacity>
           </View>
-          </CardContent>
-        </Card>
-
-        {/* Cycle Overview & Important Dates - Combined */}
-        <Card style={styles.combinedCard}>
-          <CardHeader style={styles.cardHeader}>
-            <View style={styles.cardTitle}>
-              <View style={[styles.titleIndicator, styles.paradiseIndicator]} />
-              <Text style={styles.cardTitleText}>Cycle Overview</Text>
-            </View>
-          </CardHeader>
-          <CardContent style={styles.cardContent}>
-            {/* Overview Stats */}
-            <View style={styles.overviewGrid}>
-              <View style={styles.overviewItem}>
-                <Text style={styles.overviewValue}>{cycleData.cycleLength}</Text>
-                <Text style={styles.overviewLabel}>Cycle Length</Text>
-                <Text style={styles.overviewUnit}>days</Text>
-              </View>
-              <View style={styles.overviewItem}>
-                <Text style={styles.overviewValue}>{cycleData.periodLength}</Text>
-                <Text style={styles.overviewLabel}>Period Length</Text>
-                <Text style={styles.overviewUnit}>days</Text>
-              </View>
-              <View style={styles.overviewItem}>
-                <Text style={styles.overviewValue}>{cycleData.daysUntilNextPeriod}</Text>
-                <Text style={styles.overviewLabel}>Days Until</Text>
-                <Text style={styles.overviewUnit}>Next Period</Text>
-              </View>
-            </View>
-
-            {/* Log Period Button */}
-            <View style={styles.logPeriodButtonContainer}>
-              <TouchableOpacity 
-                style={styles.logPeriodButton}
-                onPress={handleLogPeriod}
-              >
-                <View style={styles.logPeriodButtonIcon}>
-                  <MaterialIcons name="favorite" size={18} color="#ffffff" />
+        ) : (
+          <>
+            {/* Hero banner — gradient scene + pill + phase copy + yellow energy bolts */}
+            <View style={styles.heroOuter}>
+              <View style={[styles.heroScene, { backgroundColor: HERO_SCENE[phase].sky }]}>
+                <View style={[styles.heroSun, { backgroundColor: HERO_SCENE[phase].sun }]} />
+                <View style={[styles.heroHill, { backgroundColor: HERO_SCENE[phase].hill }]} />
+                <View style={styles.heroPlant}>
+                  <View style={[styles.heroPlantStem, { backgroundColor: HERO_SCENE[phase].accent }]} />
+                  <View style={[styles.heroPlantLeaf, { backgroundColor: HERO_SCENE[phase].accent }]} />
                 </View>
-                <Text style={styles.logPeriodButtonText}>Log Period</Text>
+                <View style={styles.heroSceneContent}>
+                  <View style={styles.todayPill}>
+                    <Text style={styles.todayPillText}>
+                      TODAY • DAY {cycleVm.dayInCycle}
+                    </Text>
+                  </View>
+                  <View style={styles.heroTitleRow}>
+                    <MaterialIcons
+                      name={
+                        phase === 'follicular'
+                          ? 'trending-up'
+                          : phase === 'luteal'
+                            ? 'trending-down'
+                            : phase === 'ovulation'
+                              ? 'star'
+                              : 'favorite'
+                      }
+                      size={28}
+                      color={APP.primaryInk}
+                    />
+                    <Text style={styles.heroPhaseName}>{content.phaseName}</Text>
+                  </View>
+                  <Text style={styles.heroSubtitle}>{content.subtitle}</Text>
+                  <View style={styles.energyBlock}>
+                    <Text style={styles.energyLabel}>Energy</Text>
+                    <View style={styles.energyRow}>
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <MaterialIcons
+                          key={i}
+                          name="bolt"
+                          size={24}
+                          color={i <= content.energyLevel ? APP.energyBolt : APP.energyDim}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* Timeline — connector line + colored dots, diamond on current, YOU ARE HERE under active */}
+            <View style={styles.timelineWrap}>
+              <View style={styles.timelineTrackOuter}>
+                <View style={styles.timelineConnector} />
+                <View style={styles.timelineTrack}>
+                {PHASE_ORDER.map((p) => {
+                  const here = p === cycleVm.currentPhase;
+                  const c = TIMELINE_COLORS[p];
+                  const label = p === 'menstrual' ? 'Period' : p.charAt(0).toUpperCase() + p.slice(1);
+                  return (
+                    <View key={p} style={styles.timelineCol}>
+                      <View style={styles.timelineMarkWrap}>
+                        {here ? (
+                          <View style={[styles.timelineDiamond, { borderColor: c, backgroundColor: APP.surface }]} />
+                        ) : (
+                          <View style={[styles.timelineDotLg, { backgroundColor: c }]} />
+                        )}
+                      </View>
+                      <Text style={[styles.timelineLabelHifi, here && { fontWeight: '800', color: c }]}>
+                        {label}
+                      </Text>
+                      {here ? (
+                        <Text style={[styles.youAreHereHifi, { color: c }]}>YOU ARE HERE</Text>
+                      ) : (
+                        <View style={styles.youAreHereSpacer} />
+                      )}
+                    </View>
+                  );
+                })}
+                </View>
+              </View>
+            </View>
+
+            {/* Eat + Move — all visible at once (no horizontal scroll) */}
+            <View style={styles.dailyStack}>
+              <View style={styles.dailySection}>
+                <View style={styles.dailySectionHeader}>
+                  <MaterialIcons name="restaurant" size={20} color={APP.primaryInk} />
+                  <Text style={styles.dailySectionTitle}>Eat today</Text>
+                </View>
+                <View style={styles.eatGrid}>
+                  <View style={styles.eatGridRow}>
+                    {(['carbs', 'protein'] as const).map((key) => {
+                      const meta = EAT_COLUMN_META[key];
+                      const foods = content.eatToday.categories[key].slice(0, 3).join(', ');
+                      return (
+                        <View key={key} style={styles.eatGridCell}>
+                          <View style={styles.eatCellInner}>
+                            <View
+                              style={[
+                                styles.eatCellIcon,
+                                { backgroundColor: meta.tint + '26' },
+                              ]}
+                            >
+                              <MaterialIcons name={meta.icon} size={18} color={meta.tint} />
+                            </View>
+                            <View style={styles.eatCellCopy}>
+                              <Text style={[styles.eatCellLabel, { color: meta.tint }]}>
+                                {eatMacroLabel(key)}
+                              </Text>
+                              <Text style={styles.eatCellFoods}>{foods}</Text>
+                            </View>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                  <View style={styles.eatGridRow}>
+                    {(['fats', 'greens'] as const).map((key) => {
+                      const meta = EAT_COLUMN_META[key];
+                      const foods = content.eatToday.categories[key].slice(0, 3).join(', ');
+                      return (
+                        <View key={key} style={styles.eatGridCell}>
+                          <View style={styles.eatCellInner}>
+                            <View
+                              style={[
+                                styles.eatCellIcon,
+                                { backgroundColor: meta.tint + '26' },
+                              ]}
+                            >
+                              <MaterialIcons name={meta.icon} size={18} color={meta.tint} />
+                            </View>
+                            <View style={styles.eatCellCopy}>
+                              <Text style={[styles.eatCellLabel, { color: meta.tint }]}>
+                                {eatMacroLabel(key)}
+                              </Text>
+                              <Text style={styles.eatCellFoods}>{foods}</Text>
+                            </View>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+                <View style={styles.eatSeedsFull}>
+                  <View style={styles.eatCellIconSeeds}>
+                    <MaterialIcons name="grass" size={18} color={APP.purpleInk} />
+                  </View>
+                  <View style={styles.eatSeedsCopy}>
+                    <Text style={styles.seedFullTitle}>Seeds</Text>
+                    <Text style={styles.seedFullLine}>
+                      Day {cycleVm.dayInCycle} of {cycleVm.cycleLength} ·{' '}
+                      {content.eatToday.seedCycling.main.join(' + ')}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.seedOptionalToggle}
+                      onPress={() => setSeedOptionalOpen((o) => !o)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: seedOptionalOpen }}
+                      accessibilityLabel={
+                        seedOptionalOpen
+                          ? 'Hide optional seed add-ons'
+                          : 'Show optional seed add-ons'
+                      }
+                    >
+                      <Text style={styles.seedOptionalToggleText}>More</Text>
+                      <MaterialIcons
+                        name={seedOptionalOpen ? 'expand-less' : 'expand-more'}
+                        size={16}
+                        color={APP.purpleInk}
+                      />
+                    </TouchableOpacity>
+                    {seedOptionalOpen ? (
+                      <Text style={styles.seedRowOptional}>
+                        {content.eatToday.seedCycling.optionalAddons.join(' · ')}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              </View>
+
+              <View style={[styles.dailySection, styles.dailySectionMove]}>
+                <View style={styles.dailySectionHeader}>
+                  <MaterialIcons name="fitness-center" size={20} color={APP.primaryInk} />
+                  <Text style={styles.dailySectionTitle}>Move today</Text>
+                </View>
+                <View style={styles.moveVertical}>
+                  <View style={styles.moveOverviewCard}>
+                    <View style={styles.moveOverviewAccent} />
+                    <Text style={styles.moveOverviewTitle}>{content.move.title}</Text>
+                    <Text style={styles.moveOverviewHint}>{content.move.sessionHint}</Text>
+                  </View>
+                  <View style={styles.moveStepCard}>
+                    <View style={styles.moveStepRow}>
+                      <View style={styles.moveStepBadge}>
+                        <Text style={styles.moveStepBadgeText}>1</Text>
+                      </View>
+                      <View style={styles.moveStepBody}>
+                        <Text style={styles.moveStepName}>{content.move.main}</Text>
+                        <Text style={styles.moveStepDetail}>{content.move.mainDetail}</Text>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={styles.moveStepCard}>
+                    <View style={styles.moveStepRow}>
+                      <View style={styles.moveStepBadge}>
+                        <Text style={styles.moveStepBadgeText}>2</Text>
+                      </View>
+                      <View style={styles.moveStepBody}>
+                        <Text style={styles.moveStepName}>{content.move.extra}</Text>
+                        <Text style={styles.moveStepDetail}>{content.move.extraDetail}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.moveStepNote}>{content.move.note}</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.actionRowHifi}>
+              <TouchableOpacity style={styles.btnLogActivity} onPress={goExerciseTab}>
+                <MaterialIcons name="directions-run" size={22} color="#fff" />
+                <Text style={styles.btnLogActivityText}>Log Activity</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.btnLogFood} onPress={goFoodTab}>
+                <MaterialIcons name="ramen-dining" size={22} color={APP.primaryInk} />
+                <Text style={styles.btnLogFoodText}>Log Food</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Divider */}
-            <View style={styles.sectionDivider} />
-
-            {/* Important Dates */}
-            <View style={styles.datesSection}>
-              <Text style={styles.datesSectionTitle}>Important Dates</Text>
-              <View style={styles.dateItem}>
-                <MaterialIcons name="event" size={20} color="#ff6b6b" />
-                <View style={styles.dateInfo}>
-                  <Text style={styles.dateLabel}>Next Period</Text>
-                  <Text style={styles.dateValue}>{cycleData.nextPeriodStart}</Text>
-                </View>
+            <View style={styles.pageSectionCard}>
+              <View style={styles.pageSectionHeader}>
+                <MaterialIcons name="psychology" size={22} color={APP.primaryInk} />
+                <Text style={styles.pageSectionTitle}>How you may feel</Text>
               </View>
-              <View style={styles.dateItem}>
-                <MaterialIcons name="star" size={20} color="#ffa726" />
-                <View style={styles.dateInfo}>
-                  <Text style={styles.dateLabel}>Ovulation</Text>
-                  <Text style={styles.dateValue}>{cycleData.ovulationDate}</Text>
-                </View>
-              </View>
-              <View style={[styles.dateItem, styles.dateItemLast]}>
-                <MaterialIcons name="favorite" size={20} color="#4ecdc4" />
-                <View style={styles.dateInfo}>
-                  <Text style={styles.dateLabel}>Fertile Window</Text>
-                  <Text style={styles.dateValue}>{cycleData.fertileWindow.start} - {cycleData.fertileWindow.end}</Text>
-                </View>
+              <View style={styles.feelRow}>
+                {content.feel.slice(0, 3).map((label, idx) => (
+                  <View key={label} style={styles.feelItem}>
+                    <View style={[styles.feelCircle, { borderColor: APP.primary + '55' }]}>
+                      <MaterialIcons
+                        name={FEEL_ROW_ICONS[idx] ?? 'favorite'}
+                        size={22}
+                        color={APP.primary}
+                      />
+                    </View>
+                    <Text style={styles.feelItemLabel}>{label}</Text>
+                  </View>
+                ))}
               </View>
             </View>
-          </CardContent>
-        </Card>
 
-        {/* Recommendations Section - always visible */}
-        <Card style={styles.recommendationsCard}>
-          <CardHeader style={styles.cardHeader}>
-            <View style={styles.cardTitle}>
-              <View style={[styles.titleIndicator, styles.recommendationsIndicator]} />
-              <Text style={styles.cardTitleText}>Recommendations</Text>
-            </View>
-          </CardHeader>
-          <CardContent style={styles.cardContent}>
-            {recommendationsLoading ? (
-              <View style={styles.recommendationsLoading}>
-                <ActivityIndicator size="small" color="#4ecdc4" />
-                <Text style={styles.recommendationsLoadingText}>Loading recommendations...</Text>
+            <View style={styles.pageSectionCard}>
+              <View style={styles.pageSectionHeader}>
+                <MaterialIcons name="warning-amber" size={22} color={APP.amber} />
+                <Text style={styles.pageSectionTitle}>Avoid today</Text>
               </View>
-            ) : (foodRecommendations || activityRecommendations) ? (
-              <>
-              {/* Tab Switcher */}
-              <View style={styles.tabContainer}>
+              <View style={styles.avoidRowHifi}>
+                {content.avoidDetailed.slice(0, 3).map((a) => (
+                  <View key={a.item} style={styles.avoidBox}>
+                    <MaterialIcons name={avoidIcon(a.item)} size={26} color={APP.coral} />
+                    <Text style={styles.avoidBoxLabel}>{avoidShortLabel(a.item)}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.pageSectionCard}>
+              <View style={styles.pageSectionHeader}>
+                <MaterialIcons name="lightbulb" size={22} color={APP.amber} />
+                <Text style={styles.pageSectionTitle}>Smart tip</Text>
+              </View>
+              <View style={styles.smartTipBody}>
+                <Text style={styles.smartTipText}>{content.tip}</Text>
+                <Text style={styles.smartTipSub}>{content.digestionNote}</Text>
+              </View>
+            </View>
+
+            <View style={styles.pageSectionCard}>
+              <View style={styles.snapshotHeader}>
+                <Text style={styles.snapshotTitle}>Cycle snapshot</Text>
+                <View style={styles.snapshotHeaderActions}>
+                  {recentCycle ? (
+                    <TouchableOpacity
+                      style={styles.snapshotBtnOutline}
+                      onPress={openModalEdit}
+                      activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityLabel="Edit current cycle"
+                    >
+                      <MaterialIcons name="edit" size={17} color={APP.primaryInk} />
+                      <Text style={styles.snapshotBtnOutlineText}>Edit</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.snapshotBtnFilled}
+                      onPress={openModalCreate}
+                      activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityLabel="Add period"
+                    >
+                      <MaterialIcons name="add-circle-outline" size={18} color="#fff" />
+                      <Text style={styles.snapshotBtnFilledText}>Add period</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+              <View style={styles.snapshotListHifi}>
+                <View style={styles.snapshotRowHifi}>
+                  <MaterialIcons name="calendar-today" size={22} color={APP.primary} />
+                  <View>
+                    <Text style={styles.snapshotValueHifi}>{cycleVm.cycleLength}</Text>
+                    <Text style={styles.snapshotCaptionHifi}>Cycle length days</Text>
+                  </View>
+                </View>
+                <View style={styles.snapshotRowHifi}>
+                  <MaterialIcons name="water-drop" size={22} color={APP.primary} />
+                  <View>
+                    <Text style={styles.snapshotValueHifi}>{cycleVm.periodLength}</Text>
+                    <Text style={styles.snapshotCaptionHifi}>Period length days</Text>
+                  </View>
+                </View>
+                <View style={styles.snapshotRowHifi}>
+                  <MaterialIcons name="schedule" size={22} color={APP.primary} />
+                  <View>
+                    <Text style={styles.snapshotValueHifi}>{cycleVm.daysUntilNextPeriod}</Text>
+                    <Text style={styles.snapshotCaptionHifi}>Days until next period</Text>
+                  </View>
+                </View>
+              </View>
+              {recentCycle ? (
                 <TouchableOpacity
-                  style={[styles.tab, recommendationsTab === 'food' && styles.tabActive]}
-                  onPress={() => setRecommendationsTab('food')}
+                  style={styles.snapshotNewPeriodRow}
+                  onPress={openModalCreate}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Start a new period"
                 >
-                  <MaterialIcons 
-                    name="restaurant" 
-                    size={18} 
-                    color={recommendationsTab === 'food' ? '#ffffff' : '#6b7280'} 
-                  />
-                  <Text style={[styles.tabText, recommendationsTab === 'food' && styles.tabTextActive]}>
-                    Food
-                  </Text>
+                  <MaterialIcons name="add-circle-outline" size={20} color={APP.primary} />
+                  <Text style={styles.snapshotNewPeriodText}>New period</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.tab, recommendationsTab === 'activity' && styles.tabActive]}
-                  onPress={() => setRecommendationsTab('activity')}
-                >
-                  <MaterialIcons 
-                    name="fitness-center" 
-                    size={18} 
-                    color={recommendationsTab === 'activity' ? '#ffffff' : '#6b7280'} 
-                  />
-                  <Text style={[styles.tabText, recommendationsTab === 'activity' && styles.tabTextActive]}>
-                    Activity
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Food Recommendations */}
-              {recommendationsTab === 'food' && foodRecommendations && (
-                <View style={styles.recommendationsContent}>
-                  <View style={styles.recommendationSection}>
-                    <View style={styles.recommendationHeader}>
-                      <MaterialIcons name="check-circle" size={20} color="#10b981" />
-                      <Text style={styles.recommendationSectionTitle}>Recommended Foods</Text>
-                    </View>
-                    <View style={styles.recommendationList}>
-                      {foodRecommendations.recommendedFoods.map((food, index) => (
-                        <View key={index} style={styles.recommendationBadge}>
-                          <View style={styles.recommendationBadgeIcon}>
-                            <MaterialIcons name={getFoodIcon(food) as any} size={16} color="#10b981" />
-                          </View>
-                          <Text style={styles.recommendationBadgeText}>{food}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-
-                  <View style={styles.recommendationSection}>
-                    <View style={styles.recommendationHeader}>
-                      <MaterialIcons name="cancel" size={20} color="#ef4444" />
-                      <Text style={styles.recommendationSectionTitle}>Avoid</Text>
-                    </View>
-                    <View style={styles.recommendationList}>
-                      {foodRecommendations.avoid.map((item, index) => (
-                        <View key={index} style={[styles.recommendationBadge, styles.recommendationBadgeAvoid]}>
-                          <View style={[styles.recommendationBadgeIcon, styles.recommendationBadgeIconAvoid]}>
-                            <MaterialIcons name={getFoodIcon(item) as any} size={16} color="#ef4444" />
-                          </View>
-                          <Text style={[styles.recommendationBadgeText, styles.recommendationBadgeTextAvoid]}>{item}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-
-                  {foodRecommendations.reasoning && (
-                    <View style={styles.reasoningBox}>
-                      <MaterialIcons name="lightbulb" size={18} color="#ffa726" />
-                      <Text style={styles.reasoningText}>{foodRecommendations.reasoning}</Text>
-                    </View>
-                  )}
-                </View>
-              )}
-
-              {/* Activity Recommendations */}
-              {recommendationsTab === 'activity' && activityRecommendations && (
-                <View style={styles.recommendationsContent}>
-                  <View style={styles.recommendationSection}>
-                    <View style={styles.recommendationHeader}>
-                      <MaterialIcons name="check-circle" size={20} color="#10b981" />
-                      <Text style={styles.recommendationSectionTitle}>Recommended Activities</Text>
-                    </View>
-                    <View style={styles.recommendationList}>
-                      {activityRecommendations.recommendedWorkouts.map((workout, index) => (
-                        <View key={index} style={styles.recommendationBadge}>
-                          <View style={styles.recommendationBadgeIcon}>
-                            <MaterialIcons name={getActivityIcon(workout) as any} size={16} color="#10b981" />
-                          </View>
-                          <Text style={styles.recommendationBadgeText}>{workout}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-
-                  <View style={styles.recommendationSection}>
-                    <View style={styles.recommendationHeader}>
-                      <MaterialIcons name="cancel" size={20} color="#ef4444" />
-                      <Text style={styles.recommendationSectionTitle}>Avoid</Text>
-                    </View>
-                    <View style={styles.recommendationList}>
-                      {activityRecommendations.avoid.map((item, index) => (
-                        <View key={index} style={[styles.recommendationBadge, styles.recommendationBadgeAvoid]}>
-                          <View style={[styles.recommendationBadgeIcon, styles.recommendationBadgeIconAvoid]}>
-                            <MaterialIcons name={getActivityIcon(item) as any} size={16} color="#ef4444" />
-                          </View>
-                          <Text style={[styles.recommendationBadgeText, styles.recommendationBadgeTextAvoid]}>{item}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-
-                  {activityRecommendations.note && (
-                    <View style={styles.reasoningBox}>
-                      <MaterialIcons name="info" size={18} color="#4ecdc4" />
-                      <Text style={styles.reasoningText}>{activityRecommendations.note}</Text>
-                    </View>
-                  )}
-                </View>
-              )}
-
-              </>
-            ) : (
-              <View style={styles.recommendationsEmptyCarousel}>
-                <FlatList
-                  data={[
-                    { id: '1', icon: 'restaurant' as const, title: 'Food & exercise tips', subtitle: 'Get personalized food and workout recommendations based on your cycle phase.' },
-                    { id: '2', icon: 'fitness-center' as const, title: 'What to eat & do', subtitle: 'Know which foods and activities are best for your current phase.' },
-                    { id: '3', icon: 'lightbulb' as const, title: 'Log your period', subtitle: 'Log your period start above to unlock food and activity recommendations.' },
-                  ]}
-                  horizontal
-                  pagingEnabled
-                  showsHorizontalScrollIndicator={false}
-                  keyExtractor={(item) => item.id}
-                  renderItem={({ item }) => (
-                    <View style={[styles.recommendationsEmptyCarouselSlide, { width: width - 88 }]}>
-                      <View style={styles.recommendationsEmptyCarouselIcon}>
-                        <MaterialIcons name={item.icon} size={32} color="#f59e0b" />
-                      </View>
-                      <Text style={styles.recommendationsEmptyCarouselTitle}>{item.title}</Text>
-                      <Text style={styles.recommendationsEmptyCarouselSubtitle}>{item.subtitle}</Text>
-                    </View>
-                  )}
-                />
-                <TouchableOpacity style={styles.recommendationsEmptyCarouselButton} onPress={handleLogPeriod}>
-                  <MaterialIcons name="favorite" size={18} color="#ffffff" />
-                  <Text style={styles.recommendationsEmptyCarouselButtonText}>Log Period</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Cycle Phases Info */}
-        <Card style={styles.phasesInfoCard}>
-          <CardHeader style={styles.cardHeader}>
-            <View style={styles.cardTitle}>
-              <View style={[styles.titleIndicator, styles.forestIndicator]} />
-              <Text style={styles.cardTitleText}>Cycle Phases</Text>
+              ) : null}
             </View>
-          </CardHeader>
-          <CardContent style={styles.cardContent}>
-            {['menstrual', 'follicular', 'ovulation', 'luteal'].map((phase) => (
-              <View key={phase} style={styles.phaseInfoItem}>
-                <View style={[styles.phaseDot, { backgroundColor: getPhaseColor(phase) }]} />
-                <View style={styles.phaseInfoText}>
-                  <Text style={styles.phaseInfoName}>
-                    {phase.charAt(0).toUpperCase() + phase.slice(1)}
-                  </Text>
-                  <Text style={styles.phaseInfoDescription}>
-                    {phase === 'menstrual' && 'Days 1-5: Menstrual bleeding'}
-                    {phase === 'follicular' && 'Days 6-13: Follicle development'}
-                    {phase === 'ovulation' && 'Day 14: Egg release'}
-                    {phase === 'luteal' && 'Days 15-28: Corpus luteum phase'}
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </CardContent>
-        </Card>
+          </>
+        )}
+
+        <View style={styles.logoFooter}>
+          <Image
+            source={require('../../../assets/logo-icon.png')}
+            style={styles.logoSmall}
+            resizeMode="contain"
+          />
+        </View>
       </ScrollView>
 
-      {/* Period Log Modal */}
-      <Modal
-        visible={showPeriodLog}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={handleCancelPeriod}
-      >
+      <Modal visible={showPeriodLog} animationType="slide" transparent onRequestClose={handleCancelPeriod}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
@@ -922,34 +778,25 @@ export function CycleSync({ navigation }: CycleSyncProps) {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                Log Period Start
+                {modalMode === 'edit' ? 'Edit cycle' : 'Log period'}
               </Text>
               <TouchableOpacity onPress={handleCancelPeriod}>
-                <MaterialIcons name="close" size={24} color="#6b7280" />
+                <MaterialIcons name="close" size={24} color={APP.muted} />
               </TouchableOpacity>
             </View>
-
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              {/* Period Start Date */}
+            <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
               <View style={styles.formField}>
-                <Text style={styles.formLabel}>Period Start Date *</Text>
+                <Text style={styles.formLabel}>Period start date</Text>
                 {!showDatePicker ? (
                   <TouchableOpacity
                     style={styles.dateButton}
                     onPress={() => {
-                      console.log('Date button pressed, showing date picker');
-                      console.log('Current periodStartDate:', periodStartDate, 'ISO:', periodStartDate.toISOString());
-                      // Store the original date when opening picker
                       setOriginalPeriodDate(new Date(periodStartDate));
                       setShowDatePicker(true);
                     }}
-                    activeOpacity={0.7}
                   >
-                    <MaterialIcons name="calendar-today" size={20} color="#4ecdc4" />
-                    <Text style={styles.dateButtonText}>
-                      {periodStartDate.toLocaleDateString()}
-                    </Text>
-                    <MaterialIcons name="chevron-right" size={20} color="#9ca3af" style={{ marginLeft: 'auto' }} />
+                    <MaterialIcons name="calendar-today" size={20} color={APP.primary} />
+                    <Text style={styles.dateButtonText}>{periodStartDate.toLocaleDateString()}</Text>
                   </TouchableOpacity>
                 ) : (
                   <View style={styles.datePickerContainer}>
@@ -957,596 +804,663 @@ export function CycleSync({ navigation }: CycleSyncProps) {
                       <TouchableOpacity onPress={handleCancelDate}>
                         <Text style={styles.datePickerButton}>Cancel</Text>
                       </TouchableOpacity>
-                      <Text style={styles.datePickerTitle}>Select Date</Text>
+                      <Text style={styles.datePickerTitle}>Select date</Text>
                       <TouchableOpacity onPress={handleConfirmDate}>
-                        <Text style={[styles.datePickerButton, styles.datePickerConfirm]}>Confirm</Text>
+                        <Text style={[styles.datePickerButton, styles.datePickerConfirm]}>Done</Text>
                       </TouchableOpacity>
                     </View>
-                    <View style={styles.datePickerBody}>
-                      <DateTimePicker
-                        key={`date-picker-${periodStartDate.getTime()}`}
-                        value={periodStartDate}
-                        mode="date"
-                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                        onChange={handleDateChange}
-                        maximumDate={new Date()}
-                        textColor="#1f2937"
-                        style={styles.datePickerComponent}
-                      />
-                      {Platform.OS === 'android' && (
-                        <View style={styles.datePickerSelectedDate}>
-                          <Text style={styles.datePickerSelectedDateText}>
-                            Selected: {periodStartDate.toLocaleDateString()}
-                          </Text>
-                        </View>
-                      )}
-                      {Platform.OS === 'ios' && (
-                        <View style={styles.datePickerSelectedDate}>
-                          <Text style={styles.datePickerSelectedDateText}>
-                            Selected: {periodStartDate.toLocaleDateString('en-US', {
-                              weekday: 'long',
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric'
-                            })}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
+                    <DateTimePicker
+                      value={periodStartDate}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      onChange={handleDateChange}
+                      maximumDate={new Date()}
+                    />
                   </View>
                 )}
               </View>
-
-              {/* Cycle Length */}
               <View style={styles.formField}>
-                <Text style={styles.formLabel}>Cycle Length (days)</Text>
-                <Text style={styles.formHint}>Between 21-40 days (default: 28)</Text>
+                <Text style={styles.formLabel}>Cycle length (days)</Text>
                 <TextInput
                   style={styles.textInput}
-                  value={cycleLength}
-                  onChangeText={setCycleLength}
-                  placeholder="28"
+                  value={cycleLengthInput}
+                  onChangeText={setCycleLengthInput}
                   keyboardType="numeric"
                 />
               </View>
-
-              {/* Period Duration */}
               <View style={styles.formField}>
-                <Text style={styles.formLabel}>Period Duration (days)</Text>
-                <Text style={styles.formHint}>Between 1-10 days (default: 5)</Text>
+                <Text style={styles.formLabel}>Period duration (days)</Text>
                 <TextInput
                   style={styles.textInput}
-                  value={periodDuration}
-                  onChangeText={setPeriodDuration}
-                  placeholder="5"
+                  value={periodDurationInput}
+                  onChangeText={setPeriodDurationInput}
                   keyboardType="numeric"
                 />
               </View>
-
-              {/* Is Cycle Regular */}
-              <View style={styles.formField}>
-                <View style={styles.switchContainer}>
-                  <View style={styles.switchLabelContainer}>
-                    <Text style={styles.formLabel}>Regular Cycle</Text>
-                    <Text style={styles.formHint}>Is your cycle regular?</Text>
-                  </View>
-                  <Switch
-                    value={isCycleRegular}
-                    onValueChange={setIsCycleRegular}
-                    trackColor={{ false: '#d1d5db', true: '#4ecdc4' }}
-                    thumbColor={isCycleRegular ? '#ffffff' : '#f4f3f4'}
-                  />
-                </View>
+              <View style={styles.switchRow}>
+                <Text style={styles.formLabel}>Regular cycle</Text>
+                <Switch value={isCycleRegular} onValueChange={setIsCycleRegular} />
               </View>
             </ScrollView>
-
-            {/* Modal Actions */}
             <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={handleCancelPeriod}
-                disabled={isSubmitting}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+              <TouchableOpacity style={styles.cancelBtn} onPress={handleCancelPeriod}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton, isSubmitting && styles.saveButtonDisabled]}
+                style={[styles.saveBtn, isSubmitting && { opacity: 0.6 }]}
                 onPress={handleSavePeriod}
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
+                  <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.saveButtonText}>
-                    Save
-                  </Text>
+                  <Text style={styles.saveBtnText}>Save</Text>
                 )}
               </TouchableOpacity>
             </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
-
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fef7ed',
-  },
-  content: {
-    padding: 24,
-    paddingTop: 60, // More space from top
-    paddingBottom: 100, // Space for bottom navigation
-  },
-  header: {
+  screen: { flex: 1, backgroundColor: APP.bgScreen },
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: 18, paddingTop: 48, paddingBottom: 120 },
+  loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: APP.bgScreen },
+  loadingText: { marginTop: 12, fontSize: 16, color: APP.muted, fontWeight: '400' },
+  topHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
+    alignItems: 'flex-start',
+    marginBottom: 18,
   },
-  headerLeft: {
-    flex: 1,
-  },
-  title: {
+  brandBlock: { flex: 1, paddingRight: 8 },
+  brandTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  brandTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#4ecdc4',
-    marginBottom: 4,
+    color: APP.primary,
+    lineHeight: 26,
+    includeFontPadding: false,
   },
-  subtitle: {
+  brandTagline: {
     fontSize: 16,
-    color: '#6b7280',
+    color: APP.muted,
+    marginTop: 4,
+    lineHeight: 22,
+    fontWeight: '400',
   },
-  thanafitLogo: {
-    width: 80,
-    height: 80,
+  topHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  bellWrap: { position: 'relative', padding: 4 },
+  bellBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+    borderWidth: 1.5,
+    borderColor: '#fff',
   },
-  thanafitLogoImage: {
-    width: '100%',
-    height: '100%',
+  avatarRing: {
+    padding: 2,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: 'rgba(78, 205, 196, 0.45)',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  errorText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6b7280',
-    textAlign: 'center',
-  },
-  // Recommendations empty state carousel
-  recommendationsEmptyCarousel: {
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  recommendationsEmptyCarouselSlide: {
-    paddingHorizontal: 12,
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E5E7EB',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  recommendationsEmptyCarouselIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#fef3c7',
+  emptyCard: {
+    backgroundColor: APP.surface,
+    borderRadius: 20,
+    padding: 28,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: APP.border,
   },
-  recommendationsEmptyCarouselTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  recommendationsEmptyCarouselSubtitle: {
+  emptyTitle: { fontSize: 20, fontWeight: 'bold', marginTop: 16, color: APP.ink, lineHeight: 26 },
+  emptySub: {
     fontSize: 14,
-    color: '#6b7280',
+    color: APP.muted,
     textAlign: 'center',
+    marginTop: 8,
     lineHeight: 20,
+    fontWeight: '400',
   },
-  recommendationsEmptyCarouselButton: {
+  primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f59e0b',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
     gap: 8,
+    backgroundColor: APP.coral,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 14,
     marginTop: 24,
   },
-  recommendationsEmptyCarouselButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#ffffff',
+  primaryBtnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
+  heroOuter: { marginBottom: 18, borderRadius: 24, overflow: 'hidden', elevation: 3, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
+  heroScene: {
+    minHeight: 200,
+    borderRadius: 24,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  phaseCard: {
-    backgroundColor: '#f0fdfa',
-    borderRadius: 20,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-    borderWidth: 2,
-    borderColor: '#4ecdc4',
-  },
-  combinedCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-  },
-  actionsCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-  },
-  sectionDivider: {
-    height: 1,
-    backgroundColor: '#f3f4f6',
-    marginVertical: 20,
-    marginHorizontal: -4,
-  },
-  datesSection: {
-    marginTop: 4,
-  },
-  datesSectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6b7280',
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  phasesInfoCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-  },
-  cardHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 0,
-  },
-  cardTitle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  titleIndicator: {
-    width: 4,
-    height: 20,
-    borderRadius: 2,
-    marginRight: 12,
-  },
-  paradiseIndicator: {
-    backgroundColor: '#ff6b6b',
-  },
-  sunsetIndicator: {
-    backgroundColor: '#ffa726',
-  },
-  oceanIndicator: {
-    backgroundColor: '#4ecdc4',
-  },
-  forestIndicator: {
-    backgroundColor: '#8b5cf6',
-  },
-  cardTitleText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  cardContent: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 20,
-  },
-  phaseContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  phaseIcon: {
+  heroSun: {
+    position: 'absolute',
+    top: 18,
+    right: 28,
     width: 48,
     height: 48,
     borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
+    opacity: 0.95,
   },
-  phaseInfo: {
-    flex: 1,
+  heroHill: {
+    position: 'absolute',
+    bottom: -36,
+    left: '-10%',
+    width: '120%',
+    height: 100,
+    borderTopLeftRadius: 120,
+    borderTopRightRadius: 120,
+    opacity: 0.88,
   },
-  phaseName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 4,
-  },
-  phaseDescription: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  overviewGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  overviewItem: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  overviewValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 4,
-  },
-  overviewLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginBottom: 2,
-  },
-  overviewUnit: {
-    fontSize: 10,
-    color: '#9ca3af',
-    textAlign: 'center',
-  },
-  logPeriodButtonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 16,
-  },
-  logPeriodButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#ff6b6b',
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-  },
-  logPeriodButtonIcon: {
-    marginRight: 6,
-  },
-  logPeriodButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  dateItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  dateItemLast: {
-    borderBottomWidth: 0,
-  },
-  dateInfo: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  dateLabel: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 2,
-  },
-  dateValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  phaseInfoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  phaseDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 12,
-  },
-  phaseInfoText: {
-    flex: 1,
-  },
-  phaseInfoName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 2,
-  },
-  phaseInfoDescription: {
-    fontSize: 12,
-    color: '#6b7280',
-  },
-  // Recommendations section styles
-  recommendationsCard: {
-    backgroundColor: '#ffffff',
+  heroPlant: { position: 'absolute', bottom: 36, right: 36, alignItems: 'center' },
+  heroPlantStem: { width: 4, height: 22, borderRadius: 2 },
+  heroPlantLeaf: { width: 22, height: 22, borderRadius: 11, marginTop: -8, opacity: 0.85 },
+  heroSceneContent: { padding: 20, paddingTop: 22, zIndex: 2 },
+  todayPill: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 20,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-  },
-  recommendationsIndicator: {
-    backgroundColor: '#f59e0b',
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 20,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    gap: 6,
-  },
-  tabActive: {
-    backgroundColor: '#4ecdc4',
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6b7280',
-  },
-  tabTextActive: {
-    color: '#ffffff',
-    fontWeight: '600',
-  },
-  recommendationsContent: {
-    gap: 16,
-  },
-  recommendationSection: {
     marginBottom: 12,
   },
-  recommendationHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-    gap: 8,
-  },
-  recommendationSectionTitle: {
-    fontSize: 16,
+  todayPillText: {
+    fontSize: 12,
     fontWeight: '600',
-    color: '#1f2937',
+    color: APP.textSecondary,
+    includeFontPadding: false,
   },
-  recommendationList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+  heroTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
+  heroPhaseName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: APP.ink,
+    flex: 1,
+    lineHeight: 26,
+    includeFontPadding: false,
   },
-  recommendationBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ecfdf5',
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: '#d1fae5',
-    gap: 6,
-  },
-  recommendationBadgeAvoid: {
-    backgroundColor: '#fef2f2',
-    borderColor: '#fee2e2',
-  },
-  recommendationBadgeIcon: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#d1fae5',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  recommendationBadgeIconAvoid: {
-    backgroundColor: '#fee2e2',
-  },
-  recommendationBadgeText: {
-    fontSize: 13,
+  heroSubtitle: {
+    fontSize: 14,
+    color: APP.muted,
+    marginBottom: 14,
     fontWeight: '500',
-    color: '#065f46',
-    lineHeight: 16,
+    lineHeight: 20,
   },
-  recommendationBadgeTextAvoid: {
-    color: '#991b1b',
+  energyBlock: { marginTop: 4 },
+  energyLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: APP.textSecondary,
+    marginBottom: 6,
+    includeFontPadding: false,
   },
-  reasoningBox: {
+  energyRow: { flexDirection: 'row', gap: 8 },
+  timelineWrap: { marginBottom: 20, paddingHorizontal: 4 },
+  timelineTrackOuter: { position: 'relative' },
+  /** Horizontal segment through all four phase markers (centers at ⅛, ⅜, ⅝, ⅞ of row width). */
+  timelineConnector: {
+    position: 'absolute',
+    left: '12.5%',
+    width: '75%',
+    height: 3,
+    top: 12.5,
+    backgroundColor: APP.borderStrong,
+    borderRadius: 2,
+    zIndex: 0,
+  },
+  timelineTrack: { flexDirection: 'row', justifyContent: 'space-between', zIndex: 1 },
+  timelineCol: { flex: 1, alignItems: 'center' },
+  timelineMarkWrap: { height: 28, justifyContent: 'center', alignItems: 'center' },
+  timelineDotLg: { width: 12, height: 12, borderRadius: 6 },
+  timelineDiamond: { width: 16, height: 16, transform: [{ rotate: '45deg' }], borderWidth: 3 },
+  timelineLabelHifi: {
+    fontSize: 12,
+    color: APP.muted,
+    marginTop: 6,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  youAreHereHifi: {
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 4,
+    letterSpacing: 0.3,
+    textAlign: 'center',
+  },
+  youAreHereSpacer: { height: 18 },
+  dailyStack: { marginBottom: 20, gap: 0 },
+  dailySection: {
+    backgroundColor: APP.surface,
+    borderRadius: 24,
+    paddingTop: 12,
+    paddingBottom: 14,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: APP.border,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  dailySectionMove: { marginBottom: 0 },
+  pageSectionCard: {
+    backgroundColor: APP.surface,
+    borderRadius: 24,
+    paddingTop: 14,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: APP.border,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  pageSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 14,
+  },
+  pageSectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: APP.ink,
+    lineHeight: 24,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    flex: 1,
+    minWidth: 0,
+  },
+  dailySectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  dailySectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: APP.ink,
+    lineHeight: 24,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  eatGrid: { gap: 8 },
+  eatGridRow: { flexDirection: 'row', gap: 8 },
+  eatGridCell: { flex: 1, minWidth: 0 },
+  eatCellInner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#fef3c7',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 8,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: '#fde68a',
-  },
-  reasoningText: {
+    gap: 10,
+    backgroundColor: '#f9fafb',
+    borderRadius: 16,
+    padding: 12,
     flex: 1,
-    fontSize: 13,
-    color: '#92400e',
-    lineHeight: 18,
-    fontStyle: 'italic',
   },
-  recommendationsLoading: {
+  eatCellIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eatCellCopy: { flex: 1, minWidth: 0 },
+  eatCellLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: APP.textSecondary,
+    textTransform: 'capitalize',
+    marginBottom: 4,
+    includeFontPadding: false,
+  },
+  eatCellFoods: {
+    fontSize: 14,
+    color: APP.muted,
+    lineHeight: 20,
+    fontWeight: '400',
+  },
+  eatSeedsFull: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(139, 92, 246, 0.15)',
+    backgroundColor: 'rgba(139, 92, 246, 0.06)',
+    marginHorizontal: -16,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  eatCellIconSeeds: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(109, 40, 217, 0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eatSeedsCopy: { flex: 1, minWidth: 0 },
+  seedFullTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: APP.ink,
+    marginBottom: 4,
+    includeFontPadding: false,
+  },
+  seedFullLine: {
+    fontSize: 14,
+    color: APP.muted,
+    fontWeight: '400',
+    lineHeight: 20,
+  },
+  moveVertical: { gap: 10 },
+  moveOverviewCard: {
+    backgroundColor: 'rgba(78, 205, 196, 0.1)',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(45, 212, 191, 0.22)',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  moveOverviewAccent: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: APP.primary,
+  },
+  moveOverviewTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: APP.ink,
+    lineHeight: 22,
+    marginBottom: 6,
+    paddingTop: 2,
+    includeFontPadding: false,
+  },
+  moveOverviewHint: {
+    fontSize: 14,
+    color: APP.muted,
+    lineHeight: 20,
+    fontWeight: '400',
+  },
+  moveStepCard: {
+    backgroundColor: '#f9fafb',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: APP.border,
+  },
+  moveStepRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  moveStepBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: APP.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  moveStepBadgeText: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  moveStepBody: { flex: 1, minWidth: 0 },
+  moveStepName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: APP.ink,
+    marginBottom: 4,
+    includeFontPadding: false,
+  },
+  moveStepDetail: {
+    fontSize: 14,
+    color: APP.muted,
+    lineHeight: 20,
+    fontWeight: '400',
+  },
+  moveStepNote: {
+    fontSize: 14,
+    color: APP.muted,
+    lineHeight: 20,
+    fontWeight: '500',
+    marginTop: 10,
+  },
+  seedOptionalToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  seedOptionalToggleText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: APP.purpleInk,
+  },
+  seedRowOptional: {
+    fontSize: 14,
+    color: APP.muted,
+    lineHeight: 20,
+    fontWeight: '400',
+    marginTop: 8,
+  },
+  actionRowHifi: { flexDirection: 'row', gap: 10, marginTop: 4, marginBottom: 20 },
+  btnLogActivity: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 20,
-    gap: 12,
+    gap: 8,
+    backgroundColor: APP.navBlue,
+    paddingVertical: 14,
+    borderRadius: 16,
   },
-  recommendationsLoadingText: {
+  btnLogActivityText: { color: '#fff', fontWeight: '600', fontSize: 16 },
+  btnLogFood: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(78, 205, 196, 0.22)',
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: APP.primary,
+  },
+  btnLogFoodText: { color: APP.primaryInk, fontWeight: '600', fontSize: 16 },
+  feelRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 2 },
+  feelItem: { alignItems: 'center', width: '30%' },
+  feelCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: APP.surface,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  feelItemLabel: {
     fontSize: 14,
-    color: '#6b7280',
+    color: APP.muted,
+    textAlign: 'center',
+    fontWeight: '500',
+    lineHeight: 18,
   },
-  // Modal styles
+  avoidRowHifi: { flexDirection: 'row', gap: 8, justifyContent: 'space-between' },
+  avoidBox: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 107, 0.25)',
+  },
+  avoidBoxLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: APP.coral,
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  smartTipBody: {
+    backgroundColor: '#fffbeb',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.28)',
+  },
+  smartTipText: { fontSize: 14, color: '#92400e', lineHeight: 20, fontWeight: '500' },
+  smartTipSub: { fontSize: 14, color: '#b45309', marginTop: 8, lineHeight: 20, fontWeight: '400' },
+  snapshotHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    gap: 8,
+  },
+  snapshotHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  snapshotBtnOutline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: APP.primary,
+    backgroundColor: APP.surface,
+  },
+  snapshotBtnOutlineText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: APP.primaryInk,
+    includeFontPadding: false,
+  },
+  snapshotBtnFilled: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: APP.primary,
+    shadowColor: '#0f766e',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  snapshotBtnFilledText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+    includeFontPadding: false,
+  },
+  snapshotNewPeriodRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: 'rgba(78, 205, 196, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(45, 212, 191, 0.35)',
+  },
+  snapshotNewPeriodText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: APP.primaryInk,
+    includeFontPadding: false,
+  },
+  snapshotTitle: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 18,
+    fontWeight: '600',
+    color: APP.ink,
+    lineHeight: 24,
+    includeFontPadding: false,
+    marginRight: 8,
+  },
+  snapshotListHifi: { gap: 10 },
+  snapshotRowHifi: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: APP.surface,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: APP.borderStrong,
+  },
+  snapshotValueHifi: { fontSize: 20, fontWeight: 'bold', color: APP.ink, lineHeight: 26 },
+  snapshotCaptionHifi: { fontSize: 14, color: APP.muted, fontWeight: '500' },
+  logoFooter: { alignItems: 'center', marginTop: 8 },
+  logoSmall: { width: 48, height: 48, opacity: 0.6 },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#ffffff',
+    backgroundColor: APP.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '90%',
-    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+    maxHeight: '88%',
+    paddingBottom: Platform.OS === 'ios' ? 32 : 16,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1554,146 +1468,70 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: APP.border,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-  },
-  modalBody: {
-    padding: 20,
-    maxHeight: 500,
-  },
-  formField: {
-    marginBottom: 24,
-  },
-  formLabel: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 4,
+    color: APP.ink,
+    lineHeight: 24,
+    includeFontPadding: false,
   },
-  formHint: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginBottom: 8,
-  },
+  modalBody: { padding: 20, maxHeight: 400 },
+  formField: { marginBottom: 20 },
+  formLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8, color: APP.ink },
   dateButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    minHeight: 56,
-  },
-  dateButtonText: {
-    marginLeft: 12,
-    fontSize: 16,
-    color: '#1f2937',
-    flex: 1,
-  },
-  textInput: {
-    padding: 16,
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    fontSize: 16,
-    color: '#1f2937',
-  },
-  switchContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  switchLabelContainer: {
-    flex: 1,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
     gap: 12,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#f9fafb',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  saveButton: {
-    backgroundColor: '#4ecdc4',
-  },
-  saveButtonDisabled: {
-    opacity: 0.6,
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  // Date picker styles
-  datePickerContainer: {
-    backgroundColor: '#ffffff',
+    padding: 14,
+    backgroundColor: APP.bgScreen,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    marginTop: 8,
+    borderColor: APP.borderStrong,
   },
+  dateButtonText: { fontSize: 16, color: APP.ink },
+  datePickerContainer: { borderWidth: 1, borderColor: APP.borderStrong, borderRadius: 12, overflow: 'hidden' },
   datePickerHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: APP.border,
   },
-  datePickerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  datePickerButton: {
+  datePickerTitle: { fontWeight: '700', color: APP.ink },
+  datePickerButton: { color: APP.muted, padding: 8 },
+  datePickerConfirm: { color: APP.primary, fontWeight: '700' },
+  textInput: {
+    borderWidth: 1,
+    borderColor: APP.borderStrong,
+    borderRadius: 12,
+    padding: 14,
     fontSize: 16,
-    color: '#6b7280',
-    padding: 8,
+    backgroundColor: APP.bgScreen,
   },
-  datePickerConfirm: {
-    color: '#4ecdc4',
-    fontWeight: '600',
-  },
-  datePickerBody: {
-    padding: Platform.OS === 'ios' ? 16 : 0,
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 20,
   },
-  datePickerComponent: {
-    width: Platform.OS === 'ios' ? '100%' : 'auto',
-    height: Platform.OS === 'ios' ? 200 : 'auto',
-  },
-  datePickerSelectedDate: {
+  modalActions: { flexDirection: 'row', gap: 12, padding: 20, borderTopWidth: 1, borderTopColor: APP.border },
+  cancelBtn: {
+    flex: 1,
     padding: 16,
+    borderRadius: 12,
+    backgroundColor: APP.borderStrong,
     alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
   },
-  datePickerSelectedDateText: {
-    fontSize: 14,
-    color: '#6b7280',
-    fontWeight: '500',
+  cancelBtnText: { fontWeight: '700', color: APP.ink },
+  saveBtn: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: APP.primary,
+    alignItems: 'center',
   },
+  saveBtnText: { fontWeight: '700', color: '#fff' },
 });

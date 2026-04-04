@@ -33,6 +33,9 @@ yarn-error.*
 .DS_Store
 *.pem
 
+# Local tool caches under repo root (e.g. mistaken ~/Library copy, EAS CLI)
+/Library/
+
 # local env files
 .env*.local
 

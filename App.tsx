@@ -7,6 +7,7 @@ import { container } from './src/di/Container';
 import LoginScreen from './src/presentation/screens/LoginScreen';
 import SignupScreen from './src/presentation/screens/SignupScreen';
 import { BottomNavigation } from './src/presentation/components/BottomNavigation';
+import { MainTabProvider } from './src/presentation/providers/MainTabContext';
 import { Dashboard } from './src/presentation/components/Dashboard';
 import { FoodTracking } from './src/presentation/components/FoodTracking';
 import { ExerciseTracking } from './src/presentation/components/ExerciseTracking';
@@ -170,14 +171,16 @@ const MainApp = ({ navigation }: { navigation?: any }) => {
     >
       <Stack.Screen name="MainTabs">
         {({ navigation }) => (
-          <View style={styles.mainAppContainer}>
-            {renderActiveTab(navigation)}
-            <BottomNavigation 
-              activeTab={activeTab} 
-              onTabChange={setActiveTab} 
-              userGender={user?.gender || undefined}
-            />
-          </View>
+          <MainTabProvider setMainTab={setActiveTab}>
+            <View style={styles.mainAppContainer}>
+              {renderActiveTab(navigation)}
+              <BottomNavigation
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                userGender={user?.gender || undefined}
+              />
+            </View>
+          </MainTabProvider>
         )}
       </Stack.Screen>
     </Stack.Navigator>
