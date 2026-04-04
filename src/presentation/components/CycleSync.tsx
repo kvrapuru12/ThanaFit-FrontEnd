@@ -126,7 +126,6 @@ function avoidShortLabel(item: string): string {
   return item.length > 12 ? `${item.slice(0, 10)}…` : item;
 }
 
-/** Matches `scrollContent` horizontal padding — one slide = full content width. */
 export function CycleSync({ navigation }: CycleSyncProps) {
   const { user, refreshUserData } = useAuth();
   const mainTab = useMainTab();
@@ -380,25 +379,18 @@ export function CycleSync({ navigation }: CycleSyncProps) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header — match hi-fi: logo, tagline, bell + badge, avatar */}
-        <View style={styles.topHeader}>
-          <View style={styles.brandBlock}>
-            <View style={styles.brandTitleRow}>
-              <MaterialIcons name="eco" size={24} color={APP.primary} />
-              <Text style={styles.brandTitle}>CycleSync</Text>
-            </View>
-            <Text style={styles.brandTagline}>Understand your cycle. Feel your best.</Text>
+        {/* Header — align with Food / Exercise: title + subtitle left, ThanaFit logo right */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.headerTitle}>CycleSync</Text>
+            <Text style={styles.headerSubtitle}>Understand your cycle. Feel your best.</Text>
           </View>
-          <View style={styles.topHeaderRight}>
-            <TouchableOpacity style={styles.bellWrap}>
-              <MaterialIcons name="notifications-none" size={26} color={APP.ink} />
-              <View style={styles.bellBadge} />
-            </TouchableOpacity>
-            <View style={styles.avatarRing}>
-              <View style={styles.avatar}>
-                <MaterialIcons name="person" size={22} color={APP.muted} />
-              </View>
-            </View>
+          <View style={styles.thanafitLogo}>
+            <Image
+              source={require('../../../assets/logo-icon.png')}
+              style={styles.thanafitLogoImage}
+              resizeMode="contain"
+            />
           </View>
         </View>
 
@@ -868,58 +860,33 @@ export function CycleSync({ navigation }: CycleSyncProps) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: APP.bgScreen },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 18, paddingTop: 48, paddingBottom: 120 },
+  /** Match ExerciseTracking: top inset + horizontal padding so title sits like Food / Exercise */
+  scrollContent: { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 120 },
   loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: APP.bgScreen },
   loadingText: { marginTop: 12, fontSize: 16, color: APP.muted, fontWeight: '400' },
-  topHeader: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 18,
+    alignItems: 'center',
+    marginBottom: 24,
   },
-  brandBlock: { flex: 1, paddingRight: 8 },
-  brandTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  brandTitle: {
+  headerLeft: { flex: 1 },
+  headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: APP.primary,
+    color: '#ff6b6b',
+    marginBottom: 4,
     lineHeight: 26,
     includeFontPadding: false,
   },
-  brandTagline: {
+  headerSubtitle: {
     fontSize: 16,
-    color: APP.muted,
-    marginTop: 4,
+    color: '#6b7280',
     lineHeight: 22,
     fontWeight: '400',
   },
-  topHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  bellWrap: { position: 'relative', padding: 4 },
-  bellBadge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#EF4444',
-    borderWidth: 1.5,
-    borderColor: '#fff',
-  },
-  avatarRing: {
-    padding: 2,
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: 'rgba(78, 205, 196, 0.45)',
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#E5E7EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  thanafitLogo: { width: 80, height: 80 },
+  thanafitLogoImage: { width: '100%', height: '100%' },
   emptyCard: {
     backgroundColor: APP.surface,
     borderRadius: 20,
