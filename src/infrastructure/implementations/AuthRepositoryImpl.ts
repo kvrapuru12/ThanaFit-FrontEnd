@@ -366,18 +366,25 @@ export class AuthRepositoryImpl implements IAuthRepository {
   // Session management
   async isAuthenticated(): Promise<boolean> {
     try {
-      // Check if we have a valid token
+      const refreshToken = await tokenStorage.getItemAsync('refreshToken');
       const tokens = await this.getStoredTokens();
-      if (!tokens || !tokens.accessToken) {
-        return false;
+      const expiryRaw = await AsyncStorage.getItem('tokenExpiry');
+
+      if (!tokens?.accessToken) {
+        return !!refreshToken;
       }
-      
-      // Check if token is expired
-      if (tokens.expiresIn <= 0) {
-        return false;
+
+      // No local expiry record (legacy / partial save) — treat as session present; API + refresh handle reality
+      if (!expiryRaw) {
+        return true;
       }
-      
-      return true;
+
+      if (tokens.expiresIn > 0) {
+        return true;
+      }
+
+      // Access token past local expiry — session recoverable via refresh
+      return !!refreshToken;
     } catch (error) {
       console.error('Failed to check authentication status:', error);
       return false;
