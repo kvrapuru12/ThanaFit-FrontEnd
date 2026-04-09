@@ -649,6 +649,20 @@ export class DashboardApiService {
   }
 
   /**
+   * Delete activity log by id (DELETE /activity-logs/{id})
+   */
+  async deleteActivityLog(id: number): Promise<{ message: string }> {
+    try {
+      const response = await apiClient.delete<{ message: string }>(`/activity-logs/${id}`);
+      console.log('Activity log deleted:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to delete activity log:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Add water intake
    */
   async addWaterIntake(userId: number, amount: number, notes?: string): Promise<WaterIntake> {
@@ -1063,6 +1077,20 @@ export class DashboardApiService {
       return response.data;
     } catch (error) {
       console.error('Failed to add food log:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete food log by id (DELETE /food-logs/{id})
+   */
+  async deleteFoodLog(id: number): Promise<{ message: string }> {
+    try {
+      const response = await apiClient.delete<{ message: string }>(`/food-logs/${id}`);
+      console.log('Food log deleted:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to delete food log:', error);
       throw error;
     }
   }

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { 
   View, 
   Text, 
-  ScrollView, 
   TouchableOpacity, 
   StyleSheet, 
   TextInput,
@@ -11,6 +10,7 @@ import {
   Alert,
   Image
 } from 'react-native';
+import { ScrollView, Swipeable } from 'react-native-gesture-handler';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './Input';
 import { Button } from './ui/button';
@@ -20,7 +20,7 @@ import { ImageWithFallback } from './figma/ImageWithFallback';
 import { VoiceRecorder } from './VoiceRecorder';
 import { useAuth } from '../providers/AuthProvider';
 import { useActivities } from '../hooks/useActivities';
-import { useTodayWorkouts } from '../hooks/useTodayWorkouts';
+import { useTodayWorkouts, TodayWorkout } from '../hooks/useTodayWorkouts';
 import { dashboardApiService } from '../../infrastructure/services/dashboardApi';
 
 const { width } = Dimensions.get('window');
@@ -36,7 +36,36 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
   
   const { user } = useAuth();
   const { activities, quickWorkouts, isLoading: activitiesLoading, error: activitiesError } = useActivities();
-  const { todaysWorkouts, isLoading: workoutsLoading, error: workoutsError, refresh: refreshWorkouts } = useTodayWorkouts();
+  const {
+    todaysWorkouts,
+    isLoading: workoutsLoading,
+    error: workoutsError,
+    refresh: refreshWorkouts,
+    deleteWorkout,
+  } = useTodayWorkouts();
+
+  const confirmDeleteWorkout = (workout: TodayWorkout) => {
+    Alert.alert(
+      'Delete workout',
+      `Remove "${workout.name}" from today's log?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              try {
+                await deleteWorkout(workout.id);
+              } catch {
+                Alert.alert('Error', 'Could not delete this workout. Please try again.');
+              }
+            })();
+          },
+        },
+      ]
+    );
+  };
   
   // Voice recording state
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
@@ -215,22 +244,39 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
             ) : todaysWorkouts.length > 0 ? (
               <>
                 {todaysWorkouts.map((workout) => (
-                  <View key={workout.id} style={styles.workoutItem}>
-                    <View style={styles.workoutInfo}>
-                      <View style={styles.workoutIcon}>
-                        <MaterialIcons name="fitness-center" size={24} color="white" />
+                  <Swipeable
+                    key={workout.id}
+                    friction={2}
+                    overshootRight={false}
+                    renderRightActions={() => (
+                      <TouchableOpacity
+                        style={styles.workoutDeleteAction}
+                        onPress={() => confirmDeleteWorkout(workout)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Delete workout"
+                      >
+                        <MaterialIcons name="delete-outline" size={26} color="#ffffff" />
+                        <Text style={styles.workoutDeleteActionText}>Delete</Text>
+                      </TouchableOpacity>
+                    )}
+                  >
+                    <View style={styles.workoutItem}>
+                      <View style={styles.workoutInfo}>
+                        <View style={styles.workoutIcon}>
+                          <MaterialIcons name="fitness-center" size={24} color="white" />
+                        </View>
+                        <View style={styles.workoutDetails}>
+                          <Text style={styles.workoutName}>{workout.name}</Text>
+                          <Text style={styles.workoutMeta}>
+                            {workout.time} • {workout.duration} • {workout.calories} cal
+                          </Text>
+                        </View>
                       </View>
-                      <View style={styles.workoutDetails}>
-                        <Text style={styles.workoutName}>{workout.name}</Text>
-                        <Text style={styles.workoutMeta}>
-                          {workout.time} • {workout.duration} • {workout.calories} cal
-                        </Text>
-                      </View>
+                      <Badge variant="secondary" style={styles.workoutBadge}>
+                        {workout.type}
+                      </Badge>
                     </View>
-                    <Badge variant="secondary" style={styles.workoutBadge}>
-                      {workout.type}
-                    </Badge>
-                  </View>
+                  </Swipeable>
                 ))}
                 <View style={styles.buttonRow}>
                   <TouchableOpacity 
@@ -563,6 +609,20 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     gap: 16,
+  },
+  workoutDeleteAction: {
+    backgroundColor: '#ef4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 92,
+    borderRadius: 24,
+    marginLeft: 10,
+  },
+  workoutDeleteActionText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 4,
   },
   workoutItem: {
     flexDirection: 'row',

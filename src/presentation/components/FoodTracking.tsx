@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
-  ScrollView, 
   TouchableOpacity, 
   StyleSheet, 
   Dimensions,
@@ -10,6 +9,7 @@ import {
   Alert,
   Image
 } from 'react-native';
+import { ScrollView, Swipeable } from 'react-native-gesture-handler';
 import { Card, CardContent, CardHeader } from './ui/card';
 import { Input } from './Input';
 import { Button } from './ui/button';
@@ -19,7 +19,7 @@ import { ImageWithFallback } from './figma/ImageWithFallback';
 import { useAuth } from '../providers/AuthProvider';
 import { useFoods } from '../hooks/useFoods';
 import { useFoodLogs } from '../hooks/useFoodLogs';
-import { FoodItem } from '../../infrastructure/services/dashboardApi';
+import { FoodItem, FoodLog } from '../../infrastructure/services/dashboardApi';
 import { FoodVoiceRecorder } from './FoodVoiceRecorder';
 
 const { width } = Dimensions.get('window');
@@ -32,8 +32,40 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
   const { user } = useAuth();
   const [selectedMeal, setSelectedMeal] = useState('breakfast');
   const { foods, loading, error, searchFoods, loadPopularFoods } = useFoods();
-  const { todaysMeals, loading: mealsLoading, error: mealsError, addFoodToMeal, refreshTodaysMeals, handleVoiceLogSuccess } = useFoodLogs();
+  const {
+    todaysMeals,
+    loading: mealsLoading,
+    error: mealsError,
+    addFoodToMeal,
+    refreshTodaysMeals,
+    handleVoiceLogSuccess,
+    deleteFoodLog,
+  } = useFoodLogs();
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
+
+  const confirmDeleteFoodLog = (log: FoodLog) => {
+    const label = log.foodItemName || log.food?.name || 'this item';
+    Alert.alert(
+      'Delete food log',
+      `Remove "${label}" from your diary?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              try {
+                await deleteFoodLog(log.id);
+              } catch {
+                Alert.alert('Error', 'Could not delete this food log. Please try again.');
+              }
+            })();
+          },
+        },
+      ]
+    );
+  };
   
   // No modal state needed - using navigation instead
 
@@ -314,51 +346,68 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
                     </View>
                     <View style={styles.foodsList}>
                       {mealLogs.length > 0 ? (
-                        mealLogs.map((log, logIndex) => (
-                          <View key={logIndex} style={styles.foodCard}>
-                            <View style={styles.foodImageContainer}>
-                              <ImageWithFallback
-                                src={getFoodImageUrl(log.food || { category: 'default' } as FoodItem)}
-                                alt={log.food?.name || 'Unknown Food'}
-                                width={64}
-                                height={64}
-                                style={styles.foodImage}
-                              />
-                              <View style={styles.foodBadge}>
-                                <Text style={styles.foodBadgeText}>
-                                  {log.food?.category === 'protein' ? '🥩' : 
-                                   log.food?.category === 'grains' ? '🌾' :
-                                   log.food?.category === 'vegetables' ? '🥬' :
-                                   log.food?.category === 'dairy' ? '🥛' :
-                                   log.food?.category === 'fruits' ? '🍎' : '🥥'}
+                        mealLogs.map((log) => (
+                          <Swipeable
+                            key={log.id}
+                            friction={2}
+                            overshootRight={false}
+                            renderRightActions={() => (
+                              <TouchableOpacity
+                                style={styles.foodDeleteAction}
+                                onPress={() => confirmDeleteFoodLog(log)}
+                                accessibilityRole="button"
+                                accessibilityLabel="Delete food log"
+                              >
+                                <MaterialIcons name="delete-outline" size={26} color="#ffffff" />
+                                <Text style={styles.foodDeleteActionText}>Delete</Text>
+                              </TouchableOpacity>
+                            )}
+                          >
+                            <View style={styles.foodCard}>
+                              <View style={styles.foodImageContainer}>
+                                <ImageWithFallback
+                                  src={getFoodImageUrl(log.food || { category: 'default' } as FoodItem)}
+                                  alt={log.food?.name || 'Unknown Food'}
+                                  width={64}
+                                  height={64}
+                                  style={styles.foodImage}
+                                />
+                                <View style={styles.foodBadge}>
+                                  <Text style={styles.foodBadgeText}>
+                                    {log.food?.category === 'protein' ? '🥩' : 
+                                     log.food?.category === 'grains' ? '🌾' :
+                                     log.food?.category === 'vegetables' ? '🥬' :
+                                     log.food?.category === 'dairy' ? '🥛' :
+                                     log.food?.category === 'fruits' ? '🍎' : '🥥'}
+                                  </Text>
+                                </View>
+                              </View>
+                              <View style={styles.foodInfo}>
+                                <View style={styles.foodNameRow}>
+                                  <Text style={styles.foodCardName}>
+                                    {log.foodItemName}
+                                  </Text>
+                                  <Badge variant="secondary" style={styles.foodCalories}>
+                                    {Math.round(log.calories)} cal
+                                  </Badge>
+                                </View>
+                                <Text style={styles.foodCardMeta}>
+                                  {Number(log.quantity) % 1 === 0 ? Math.round(log.quantity) : Number(log.quantity).toFixed(1)} {log.unit}
                                 </Text>
+                                <View style={styles.nutritionBadges}>
+                                  <View style={styles.nutritionBadge}>
+                                    <Text style={styles.nutritionText}>P: {log.protein.toFixed(1)}g</Text>
+                                  </View>
+                                  <View style={[styles.nutritionBadge, styles.carbsBadge]}>
+                                    <Text style={styles.carbsText}>C: {log.carbs.toFixed(1)}g</Text>
+                                  </View>
+                                  <View style={[styles.nutritionBadge, styles.fatBadge]}>
+                                    <Text style={styles.fatText}>F: {log.fat.toFixed(1)}g</Text>
+                                  </View>
+                                </View>
                               </View>
                             </View>
-                            <View style={styles.foodInfo}>
-                              <View style={styles.foodNameRow}>
-                                <Text style={styles.foodCardName}>
-                                  {log.foodItemName}
-                                </Text>
-                                <Badge variant="secondary" style={styles.foodCalories}>
-                                  {Math.round(log.calories)} cal
-                                </Badge>
-                              </View>
-                              <Text style={styles.foodCardMeta}>
-                                {Number(log.quantity) % 1 === 0 ? Math.round(log.quantity) : Number(log.quantity).toFixed(1)} {log.unit}
-                              </Text>
-                              <View style={styles.nutritionBadges}>
-                                <View style={styles.nutritionBadge}>
-                                  <Text style={styles.nutritionText}>P: {log.protein.toFixed(1)}g</Text>
-                                </View>
-                                <View style={[styles.nutritionBadge, styles.carbsBadge]}>
-                                  <Text style={styles.carbsText}>C: {log.carbs.toFixed(1)}g</Text>
-                                </View>
-                                <View style={[styles.nutritionBadge, styles.fatBadge]}>
-                                  <Text style={styles.fatText}>F: {log.fat.toFixed(1)}g</Text>
-                                </View>
-                              </View>
-                            </View>
-                          </View>
+                          </Swipeable>
                         ))
                       ) : (
                         <View style={styles.emptyMealContainer}>
@@ -777,6 +826,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
+  },
+  foodDeleteAction: {
+    backgroundColor: '#ef4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 92,
+    borderRadius: 16,
+    marginLeft: 10,
+  },
+  foodDeleteActionText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 4,
   },
   foodCard: {
     flexDirection: 'row',

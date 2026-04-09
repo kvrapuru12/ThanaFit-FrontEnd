@@ -16,6 +16,7 @@ export interface UseTodayWorkoutsReturn {
   isLoading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  deleteWorkout: (id: number) => Promise<void>;
 }
 
 export const useTodayWorkouts = (): UseTodayWorkoutsReturn => {
@@ -24,9 +25,12 @@ export const useTodayWorkouts = (): UseTodayWorkoutsReturn => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchTodayWorkouts = useCallback(async () => {
+  const fetchTodayWorkouts = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
     try {
-      setIsLoading(true);
+      if (!silent) {
+        setIsLoading(true);
+      }
       setError(null);
       
       console.log('=== FETCHING TODAY WORKOUTS ===');
@@ -35,7 +39,9 @@ export const useTodayWorkouts = (): UseTodayWorkoutsReturn => {
       if (!user?.id) {
         console.warn('No user ID available, skipping fetch');
         setTodaysWorkouts([]);
-        setIsLoading(false);
+        if (!silent) {
+          setIsLoading(false);
+        }
         return;
       }
       
@@ -113,13 +119,26 @@ export const useTodayWorkouts = (): UseTodayWorkoutsReturn => {
       setError(`Failed to load today workouts: ${err.message}`);
       setTodaysWorkouts([]);
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
     }
   }, [user?.id]);
 
   const refresh = useCallback(async () => {
     await fetchTodayWorkouts();
   }, [fetchTodayWorkouts]);
+
+  const deleteWorkout = useCallback(
+    async (id: number) => {
+      if (!user?.id) {
+        throw new Error('Not signed in');
+      }
+      await dashboardApiService.deleteActivityLog(id);
+      await fetchTodayWorkouts({ silent: true });
+    },
+    [user?.id, fetchTodayWorkouts]
+  );
 
   // Fetch data on mount
   useEffect(() => {
@@ -131,5 +150,6 @@ export const useTodayWorkouts = (): UseTodayWorkoutsReturn => {
     isLoading,
     error,
     refresh,
+    deleteWorkout,
   };
 };

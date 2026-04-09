@@ -22,9 +22,10 @@ interface UseFoodLogsReturn {
   todaysMeals: Record<string, FoodLog[]>;
   loading: boolean;
   error: string | null;
-  refreshTodaysMeals: () => Promise<void>;
+  refreshTodaysMeals: (opts?: { silent?: boolean }) => Promise<void>;
   addFoodToMeal: (foodItemId: number, mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack', quantity: number, unit?: string, note?: string) => Promise<any>;
   handleVoiceLogSuccess: (foodLogs: any[]) => Promise<void>;
+  deleteFoodLog: (id: number) => Promise<void>;
 }
 
 export function useFoodLogs(): UseFoodLogsReturn {
@@ -38,11 +39,14 @@ export function useFoodLogs(): UseFoodLogsReturn {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const refreshTodaysMeals = useCallback(async () => {
+  const refreshTodaysMeals = useCallback(async (opts?: { silent?: boolean }) => {
     if (!user?.id) return;
 
+    const silent = opts?.silent === true;
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       setError(null);
       console.log('Loading today\'s food logs...');
       
@@ -87,7 +91,9 @@ export function useFoodLogs(): UseFoodLogsReturn {
       console.error('Failed to load today\'s food logs:', err);
       setError(err instanceof Error ? err.message : 'Failed to load meals');
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [user?.id]);
 
@@ -134,6 +140,17 @@ export function useFoodLogs(): UseFoodLogsReturn {
     console.log('Meals refreshed after voice log success');
   }, [refreshTodaysMeals]);
 
+  const deleteFoodLog = useCallback(
+    async (id: number) => {
+      if (!user?.id) {
+        throw new Error('Not signed in');
+      }
+      await dashboardApiService.deleteFoodLog(id);
+      await refreshTodaysMeals({ silent: true });
+    },
+    [user?.id, refreshTodaysMeals]
+  );
+
   // Load today's meals on mount and when user changes
   useEffect(() => {
     if (user?.id) {
@@ -148,5 +165,6 @@ export function useFoodLogs(): UseFoodLogsReturn {
     refreshTodaysMeals,
     addFoodToMeal,
     handleVoiceLogSuccess,
+    deleteFoodLog,
   };
 }

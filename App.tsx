@@ -1,4 +1,6 @@
+import 'react-native-gesture-handler';
 import React, { useState, useEffect, useRef } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View, StyleSheet, Text, TouchableOpacity } from 'react-native';
@@ -193,9 +195,11 @@ export default function App() {
   const authRepository = container.getAuthRepository();
 
   return (
-    <AuthProvider authRepository={authRepository}>
-      <AppNavigator />
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider authRepository={authRepository}>
+        <AppNavigator />
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
 
