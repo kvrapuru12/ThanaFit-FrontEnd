@@ -92,8 +92,8 @@ android {
         applicationId 'com.prod.thanafit'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 42
-        versionName "3.0.7"
+        versionCode 44
+        versionName "3.0.8"
     }
     signingConfigs {
         debug {
