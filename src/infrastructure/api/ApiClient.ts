@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getStoredAuthToken, tokenStorage } from '../../core/utils/tokenStorage';
+import { shouldAttemptAccessTokenRefresh } from './authRefreshPolicy';
 
 // API Configuration
 const API_CONFIG = {
@@ -77,9 +78,8 @@ export class ApiClient {
       } catch (error: any) {
         lastError = this.handleError(error);
 
-        const errorStatus = typeof error?.status === 'number' ? error.status : lastError.status;
         if (
-          errorStatus === 401 &&
+          shouldAttemptAccessTokenRefresh(error) &&
           !config.skipAuth &&
           !config.hasRetriedAfterRefresh
         ) {

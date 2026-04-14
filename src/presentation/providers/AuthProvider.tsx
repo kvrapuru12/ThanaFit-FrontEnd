@@ -4,6 +4,10 @@ import { User, AuthCredentials } from '../../core/domain/entities/User';
 import { IAuthRepository } from '../../core/domain/interfaces/IAuthRepository';
 import { LoginUseCase, SignupUseCase, LogoutUseCase } from '../../core/domain/usecases/auth/LoginUseCase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  shouldInvalidateLocalSessionOnAuthError,
+  isAuthFailureFromMessageOnly,
+} from '../../infrastructure/api/authRefreshPolicy';
 
 // Auth Context Types
 interface AuthContextType {
@@ -50,19 +54,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
   }, []);
 
   const isAuthFailureError = (error: any): boolean => {
-    const status = error?.status;
-    if (status === 401 || status === 403) {
+    if (shouldInvalidateLocalSessionOnAuthError(error)) {
       return true;
     }
-
-    const message = String(error?.message || '').toLowerCase();
-    return (
-      message.includes('unauthorized') ||
-      message.includes('forbidden') ||
-      message.includes('invalid token') ||
-      message.includes('token expired') ||
-      message.includes('authentication failed')
-    );
+    return isAuthFailureFromMessageOnly(error);
   };
 
   const initializeAuth = async () => {
