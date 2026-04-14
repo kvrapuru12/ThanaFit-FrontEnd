@@ -13,10 +13,16 @@ export interface DashboardData {
   stepEntries: StepEntry[];
 }
 
+export const startOfLocalDay = (d: Date) =>
+  new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
 export interface UseDashboardDataReturn {
   data: DashboardData | null;
   isLoading: boolean;
+  isRefreshing: boolean;
   error: string | null;
+  selectedDate: Date;
+  setSelectedDate: (d: Date) => void;
   refresh: () => Promise<void>;
   addActivityLog: (activityData: {
     activityName: string;
@@ -49,12 +55,29 @@ export const useDashboardData = (): UseDashboardDataReturn => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDateState] = useState(() => startOfLocalDay(new Date()));
+
+  const setSelectedDate = useCallback((d: Date) => {
+    const normalized = startOfLocalDay(d);
+    const today = startOfLocalDay(new Date());
+    if (normalized.getTime() > today.getTime()) {
+      setSelectedDateState(today);
+      return;
+    }
+    setSelectedDateState(normalized);
+  }, []);
 
   const fetchDashboardData = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      
+
+      if (!user?.id) {
+        setData(null);
+        setError('Sign in to view your dashboard.');
+        return;
+      }
+
       console.log('=== FETCHING DASHBOARD DATA ===');
       const userGoals = {
         calorieIntakeTarget: user?.dailyCalorieIntakeTarget != null ? user.dailyCalorieIntakeTarget : undefined,
@@ -64,36 +87,16 @@ export const useDashboardData = (): UseDashboardDataReturn => {
         targetFat: user?.targetFat != null ? user.targetFat : undefined,
         targetWaterLitres: user?.targetWaterLitres != null ? user.targetWaterLitres : undefined
       };
-      const dashboardData = await dashboardApiService.getDashboardData(user?.id, userGoals);
-      
+      const dashboardData = await dashboardApiService.getDashboardData(user.id, userGoals, {
+        summaryDate: selectedDate,
+      });
+
       console.log('Dashboard data fetched successfully:', JSON.stringify(dashboardData, null, 2));
       setData(dashboardData);
     } catch (err: any) {
       console.error('Failed to fetch dashboard data:', err);
-      
-      // Set fallback data structure to prevent crashes
-      setData({
-        stats: {
-          calories: { consumed: 0, goal: user?.dailyCalorieIntakeTarget || 2000 },
-          macros: {
-            carbs: { consumed: 0, goal: user?.targetCarbs || 250 },
-            protein: { consumed: 0, goal: user?.targetProtein || 120 },
-            fat: { consumed: 0, goal: user?.targetFat || 65 }
-          },
-          water: { consumed: 0, goal: (user?.targetWaterLitres || 2.5) * 1000 },
-          exercise: { burned: 0, goal: user?.dailyCalorieBurnTarget || 400 }
-        },
-        recentMeals: [],
-        activityLogs: [],
-        waterIntake: [],
-        foodLogs: [],
-        sleepEntries: [],
-        weightEntries: [],
-        stepEntries: []
-      });
-      
-      // Don't set error for dashboard since we have fallback data
-      console.log('Using fallback dashboard data');
+      setData(null);
+      setError(err?.message || 'Failed to load dashboard data.');
     } finally {
       setIsLoading(false);
     }
@@ -104,7 +107,8 @@ export const useDashboardData = (): UseDashboardDataReturn => {
     user?.targetCarbs,
     user?.targetProtein,
     user?.targetFat,
-    user?.targetWaterLitres
+    user?.targetWaterLitres,
+    selectedDate,
   ]);
 
   const refresh = useCallback(async () => {
@@ -286,10 +290,15 @@ export const useDashboardData = (): UseDashboardDataReturn => {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
+  const isRefreshing = isLoading && data !== null;
+
   return {
     data,
     isLoading,
+    isRefreshing,
     error,
+    selectedDate,
+    setSelectedDate,
     refresh,
     addActivityLog,
     addWaterIntake,

@@ -25,9 +25,7 @@ import { apiClient } from '../../infrastructure/api/ApiClient';
 import { HttpMethod } from '../../infrastructure/api/ApiClient';
 import { cycleApiService } from '../../infrastructure/services/cycleApi';
 import { formatDateLocal } from '../../core/utils/dateUtils';
-import Constants from 'expo-constants';
-// Import app.json directly to ensure version is always correct
-const appJson = require('../../../app.json');
+import { getAppVersionDisplay } from '../../core/utils/appVersionDisplay';
 
 const { width } = Dimensions.get('window');
 
@@ -152,6 +150,8 @@ export function Profile({ navigation }: ProfileProps) {
       dailyCalorieIntakeTarget: user?.dailyCalorieIntakeTarget,
     });
   }, [user]);
+
+  const { appVersionLabel, buildLabel } = getAppVersionDisplay();
 
   const handleLogout = async () => {
     Alert.alert(
@@ -1126,7 +1126,7 @@ export function Profile({ navigation }: ProfileProps) {
         {/* App Version */}
         <View style={styles.versionContainer}>
           <Text style={styles.versionText}>
-            Version {appJson.expo.version} ({appJson.expo.android.versionCode})
+            Version {appVersionLabel} ({buildLabel})
           </Text>
         </View>
       </View>

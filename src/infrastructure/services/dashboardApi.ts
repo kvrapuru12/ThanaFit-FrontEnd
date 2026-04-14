@@ -273,12 +273,11 @@ export class DashboardApiService {
   /**
    * Get today's activity logs with activity details
    */
-  async getTodayActivityLogs(userId?: number): Promise<ActivityLog[]> {
+  async getTodayActivityLogs(userId?: number, day?: Date): Promise<ActivityLog[]> {
     try {
-      // Get today's date range
-      const today = new Date();
-      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
-      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+      const ref = day ?? new Date();
+      const startOfDay = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 0, 0, 0);
+      const endOfDay = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 23, 59, 59);
       
       const from = startOfDay.toISOString();
       const to = endOfDay.toISOString();
@@ -322,12 +321,11 @@ export class DashboardApiService {
   /**
    * Get today's water intake
    */
-  async getTodayWaterIntake(userId?: number): Promise<WaterIntake[]> {
+  async getTodayWaterIntake(userId?: number, day?: Date): Promise<WaterIntake[]> {
     try {
-      // Get today's date range
-      const today = new Date();
-      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
-      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+      const ref = day ?? new Date();
+      const startOfDay = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 0, 0, 0);
+      const endOfDay = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 23, 59, 59);
       
       const from = startOfDay.toISOString();
       const to = endOfDay.toISOString();
@@ -344,12 +342,11 @@ export class DashboardApiService {
   /**
    * Get today's sleep entries
    */
-  async getTodaySleepEntries(userId?: number): Promise<SleepEntry[]> {
+  async getTodaySleepEntries(userId?: number, day?: Date): Promise<SleepEntry[]> {
     try {
-      // Get today's date range dynamically
-      const today = new Date();
-      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
-      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+      const ref = day ?? new Date();
+      const startOfDay = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 0, 0, 0);
+      const endOfDay = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 23, 59, 59);
       
       const from = startOfDay.toISOString();
       const to = endOfDay.toISOString();
@@ -367,12 +364,11 @@ export class DashboardApiService {
   /**
    * Get today's weight entries
    */
-  async getTodayWeightEntries(userId?: number): Promise<WeightEntry[]> {
+  async getTodayWeightEntries(userId?: number, day?: Date): Promise<WeightEntry[]> {
     try {
-      // Get today's date range dynamically
-      const today = new Date();
-      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
-      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+      const ref = day ?? new Date();
+      const startOfDay = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 0, 0, 0);
+      const endOfDay = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 23, 59, 59);
       
       const from = startOfDay.toISOString();
       const to = endOfDay.toISOString();
@@ -389,12 +385,11 @@ export class DashboardApiService {
   /**
    * Get today's step entries
    */
-  async getTodayStepEntries(userId?: number): Promise<StepEntry[]> {
+  async getTodayStepEntries(userId?: number, day?: Date): Promise<StepEntry[]> {
     try {
-      // Get today's date range dynamically
-      const today = new Date();
-      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
-      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+      const ref = day ?? new Date();
+      const startOfDay = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 0, 0, 0);
+      const endOfDay = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 23, 59, 59);
       
       const from = startOfDay.toISOString();
       const to = endOfDay.toISOString();
@@ -411,12 +406,11 @@ export class DashboardApiService {
   /**
    * Get today's food logs
    */
-  async getTodayFoodLogs(userId?: number): Promise<FoodLog[]> {
+  async getTodayFoodLogs(userId?: number, day?: Date): Promise<FoodLog[]> {
     try {
-      // Get today's date range
-      const today = new Date();
-      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
-      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+      const ref = day ?? new Date();
+      const startOfDay = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 0, 0, 0);
+      const endOfDay = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 23, 59, 59);
       
       const from = startOfDay.toISOString();
       const to = endOfDay.toISOString();
@@ -466,7 +460,7 @@ export class DashboardApiService {
     targetProtein?: number;
     targetFat?: number;
     targetWaterLitres?: number;
-  }): Promise<{
+  }, options?: { summaryDate?: Date }): Promise<{
     stats: DashboardStats;
     recentMeals: Meal[];
     activityLogs: ActivityLog[];
@@ -477,6 +471,7 @@ export class DashboardApiService {
     stepEntries: StepEntry[];
   }> {
     try {
+      const summaryDay = options?.summaryDate ?? new Date();
       // Fetch real data from backend APIs
       let activityLogs: ActivityLog[] = [];
       let foodLogs: FoodLog[] = [];
@@ -486,42 +481,42 @@ export class DashboardApiService {
       let stepEntries: StepEntry[] = [];
       
       try {
-        activityLogs = await this.getTodayActivityLogs(userId);
+        activityLogs = await this.getTodayActivityLogs(userId, summaryDay);
       } catch (activityError) {
         console.error('Activity logs failed, using empty array:', activityError);
         activityLogs = [];
       }
       
       try {
-        foodLogs = await this.getTodayFoodLogs(userId);
+        foodLogs = await this.getTodayFoodLogs(userId, summaryDay);
       } catch (foodError) {
         console.error('Food logs failed, using empty array:', foodError);
         foodLogs = [];
       }
       
       try {
-        waterIntake = await this.getTodayWaterIntake(userId);
+        waterIntake = await this.getTodayWaterIntake(userId, summaryDay);
       } catch (waterError) {
         console.error('Water intake failed, using empty array:', waterError);
         waterIntake = [];
       }
       
       try {
-        sleepEntries = await this.getTodaySleepEntries(userId);
+        sleepEntries = await this.getTodaySleepEntries(userId, summaryDay);
       } catch (sleepError) {
         console.error('Sleep entries failed, using empty array:', sleepError);
         sleepEntries = [];
       }
       
       try {
-        weightEntries = await this.getTodayWeightEntries(userId);
+        weightEntries = await this.getTodayWeightEntries(userId, summaryDay);
       } catch (weightError) {
         console.error('Weight entries failed, using empty array:', weightError);
         weightEntries = [];
       }
       
       try {
-        stepEntries = await this.getTodayStepEntries(userId);
+        stepEntries = await this.getTodayStepEntries(userId, summaryDay);
       } catch (stepError) {
         console.error('Step entries failed, using empty array:', stepError);
         stepEntries = [];

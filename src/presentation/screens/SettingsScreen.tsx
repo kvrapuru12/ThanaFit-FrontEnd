@@ -11,7 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import Constants from 'expo-constants';
-import * as Application from 'expo-application';
+import { getAppVersionDisplay } from '../../core/utils/appVersionDisplay';
 import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { MaterialIcons } from '@expo/vector-icons';
 import appJson from '../../../app.json';
@@ -66,14 +66,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
     });
   };
 
-  const appVersion = appJson.expo?.version || '1.0.0';
-  const buildNumber = (() => {
-    try {
-      return Application.nativeBuildVersion ?? '1';
-    } catch {
-      return '1';
-    }
-  })();
+  const { appVersionLabel: appVersion, buildLabel: buildNumber } = getAppVersionDisplay();
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>

@@ -1,17 +1,35 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, TextInput, Modal, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
 import { MaterialIcons } from '@expo/vector-icons';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { useAuth } from '../providers/AuthProvider';
-import { useDashboardData } from '../hooks/useDashboardData';
+import { useDashboardData, startOfLocalDay } from '../hooks/useDashboardData';
 import { dashboardApiService } from '../../infrastructure/services/dashboardApi';
+
+const addLocalCalendarDays = (d: Date, delta: number) =>
+  new Date(d.getFullYear(), d.getMonth(), d.getDate() + delta);
+
+const isSameLocalDay = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() &&
+  a.getMonth() === b.getMonth() &&
+  a.getDate() === b.getDate();
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const { data, isLoading, error, refresh, addWaterIntake } = useDashboardData();
+  const {
+    data,
+    isLoading,
+    isRefreshing,
+    error,
+    refresh,
+    addWaterIntake,
+    selectedDate,
+    setSelectedDate,
+  } = useDashboardData();
   
   // Modal states for adding entries
   const [waterModalVisible, setWaterModalVisible] = useState(false);
@@ -25,6 +43,32 @@ export const Dashboard: React.FC = () => {
   const [stepCount, setStepCount] = useState('');
   const [weightValue, setWeightValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const [draftPickerDate, setDraftPickerDate] = useState(() => startOfLocalDay(new Date()));
+
+  const todayStart = startOfLocalDay(new Date());
+  const isViewingToday = isSameLocalDay(selectedDate, todayStart);
+  const canGoNextDay = selectedDate.getTime() < todayStart.getTime();
+  const addActionsDisabled = !isViewingToday || isRefreshing;
+  const emptyDayLabel = isViewingToday ? 'today' : 'on this date';
+
+  const openDatePicker = () => {
+    setDraftPickerDate(selectedDate);
+    setDatePickerVisible(true);
+  };
+
+  const handlePickerChange = (_event: unknown, date?: Date) => {
+    if (date) {
+      const normalized = startOfLocalDay(date);
+      const max = startOfLocalDay(new Date());
+      setDraftPickerDate(normalized.getTime() > max.getTime() ? max : normalized);
+    }
+  };
+
+  const confirmPickerDate = () => {
+    setSelectedDate(draftPickerDate);
+    setDatePickerVisible(false);
+  };
 
   // Get appropriate activity icon based on activity name
   const getActivityIcon = (activityName: string): any => {
@@ -275,7 +319,7 @@ export const Dashboard: React.FC = () => {
       style={styles.container}
       refreshControl={
         <RefreshControl
-          refreshing={isLoading}
+          refreshing={isRefreshing}
           onRefresh={refresh}
           colors={['#10b981']}
           tintColor="#10b981"
@@ -289,15 +333,45 @@ export const Dashboard: React.FC = () => {
             <Text style={styles.title}>
               Welcome, {user?.firstName || 'User'}!
             </Text>
-            <View style={styles.dateContainer}>
-              <MaterialIcons name="event" size={16} color="#10b981" />
-              <Text style={styles.dateText}>
-                {new Date().toLocaleDateString('en-US', { 
-                  weekday: 'long',
-                  month: 'short', 
-                  day: 'numeric' 
-                })}
-              </Text>
+            <View style={styles.dateNavRow}>
+              <TouchableOpacity
+                accessibilityLabel="Previous day"
+                onPress={() => setSelectedDate(addLocalCalendarDays(selectedDate, -1))}
+                style={styles.dateArrowButton}
+                disabled={isRefreshing}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MaterialIcons name="chevron-left" size={20} color="#10b981" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.dateTextButton}
+                onPress={openDatePicker}
+                disabled={isRefreshing}
+                accessibilityRole="button"
+                accessibilityLabel="Open date picker"
+              >
+                <MaterialIcons name="event" size={16} color="#10b981" />
+                <Text style={styles.dateText} numberOfLines={1} ellipsizeMode="tail">
+                  {selectedDate.toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityLabel="Next day"
+                onPress={() => {
+                  if (canGoNextDay) {
+                    setSelectedDate(addLocalCalendarDays(selectedDate, 1));
+                  }
+                }}
+                style={styles.dateArrowButton}
+                disabled={!canGoNextDay || isRefreshing}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MaterialIcons name="chevron-right" size={20} color={canGoNextDay ? '#10b981' : '#d1d5db'} />
+              </TouchableOpacity>
             </View>
           </View>
           <View style={styles.thanafitLogo}>
@@ -392,8 +466,9 @@ export const Dashboard: React.FC = () => {
                 }]} />
               </View>
               <TouchableOpacity 
-                style={styles.addButton}
+                style={[styles.addButton, addActionsDisabled && styles.addButtonDisabled]}
                 onPress={() => setWaterModalVisible(true)}
+                disabled={addActionsDisabled}
               >
                 <MaterialIcons name="add" size={18} color="#06b6d4" />
                 <Text style={styles.addButtonText}>Add Water</Text>
@@ -428,8 +503,9 @@ export const Dashboard: React.FC = () => {
                 }]} />
               </View>
               <TouchableOpacity 
-                style={[styles.addButton, { borderColor: '#8b5cf6' }]}
+                style={[styles.addButton, { borderColor: '#8b5cf6' }, addActionsDisabled && styles.addButtonDisabled]}
                 onPress={() => setSleepModalVisible(true)}
+                disabled={addActionsDisabled}
               >
                 <MaterialIcons name="add" size={18} color="#8b5cf6" />
                 <Text style={[styles.addButtonText, { color: '#8b5cf6' }]}>Add Sleep</Text>
@@ -467,8 +543,9 @@ export const Dashboard: React.FC = () => {
                 }]} />
               </View>
               <TouchableOpacity 
-                style={[styles.addButton, { borderColor: '#06b6d4' }]}
+                style={[styles.addButton, { borderColor: '#06b6d4' }, addActionsDisabled && styles.addButtonDisabled]}
                 onPress={() => setStepModalVisible(true)}
+                disabled={addActionsDisabled}
               >
                 <MaterialIcons name="add" size={18} color="#06b6d4" />
                 <Text style={[styles.addButtonText, { color: '#06b6d4' }]}>Add Steps</Text>
@@ -503,8 +580,9 @@ export const Dashboard: React.FC = () => {
                 }]} />
               </View>
               <TouchableOpacity 
-                style={[styles.addButton, { borderColor: '#ef4444' }]}
+                style={[styles.addButton, { borderColor: '#ef4444' }, addActionsDisabled && styles.addButtonDisabled]}
                 onPress={() => setWeightModalVisible(true)}
+                disabled={addActionsDisabled}
               >
                 <MaterialIcons name="add" size={18} color="#ef4444" />
                 <Text style={[styles.addButtonText, { color: '#ef4444' }]}>Add Weight</Text>
@@ -564,7 +642,7 @@ export const Dashboard: React.FC = () => {
             ) : (
               <View style={styles.emptyState}>
                 <MaterialIcons name="restaurant" size={48} color="#d1d5db" />
-                <Text style={styles.emptyStateText}>No meals logged today</Text>
+                <Text style={styles.emptyStateText}>No meals logged {emptyDayLabel}</Text>
                 <Text style={styles.emptyStateSubtext}>Start tracking your meals to see them here</Text>
               </View>
             )}
@@ -605,7 +683,7 @@ export const Dashboard: React.FC = () => {
             ) : (
               <View style={styles.emptyState}>
                 <MaterialIcons name="fitness-center" size={48} color="#d1d5db" />
-                <Text style={styles.emptyStateText}>No activities logged today</Text>
+                <Text style={styles.emptyStateText}>No activities logged {emptyDayLabel}</Text>
                 <Text style={styles.emptyStateSubtext}>Start tracking your exercises to see them here</Text>
               </View>
             )}
@@ -796,6 +874,63 @@ export const Dashboard: React.FC = () => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <Modal
+        visible={datePickerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDatePickerVisible(false)}
+      >
+        <View style={styles.datePickerModalOverlay}>
+          <View style={styles.datePickerModalContent}>
+            <View style={styles.datePickerModalHeader}>
+              <Text style={styles.datePickerModalTitle}>Choose date</Text>
+              <TouchableOpacity
+                onPress={() => setDatePickerVisible(false)}
+                style={styles.datePickerCloseButton}
+              >
+                <MaterialIcons name="close" size={24} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.datePickerModalBody}>
+              <DateTimePicker
+                key={draftPickerDate.getTime()}
+                value={draftPickerDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={handlePickerChange}
+                maximumDate={todayStart}
+                textColor="#1f2937"
+                style={styles.datePickerComponent}
+              />
+              <View style={styles.datePickerSelectedDate}>
+                <Text style={styles.datePickerSelectedDateText}>
+                  {draftPickerDate.toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.datePickerModalFooter}>
+              <TouchableOpacity
+                style={styles.datePickerCancelButton}
+                onPress={() => setDatePickerVisible(false)}
+              >
+                <Text style={styles.datePickerCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.datePickerConfirmButton}
+                onPress={confirmPickerDate}
+              >
+                <Text style={styles.datePickerConfirmButtonText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
@@ -818,6 +953,8 @@ const styles = StyleSheet.create({
   },
   headerLeft: {
     flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
   },
   title: {
     fontSize: 20,
@@ -825,14 +962,114 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     marginBottom: 8,
   },
-  dateContainer: {
+  dateNavRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    alignSelf: 'flex-start',
+    gap: 2,
+    marginTop: 2,
+    flexWrap: 'nowrap',
+    maxWidth: '100%',
+  },
+  dateArrowButton: {
+    paddingVertical: 2,
+    paddingHorizontal: 2,
+  },
+  dateTextButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    flexShrink: 1,
+    minWidth: 0,
   },
   dateText: {
     fontSize: 14,
     color: '#6b7280',
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  addButtonDisabled: {
+    opacity: 0.45,
+  },
+  datePickerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  datePickerModalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    maxHeight: '80%',
+  },
+  datePickerModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  datePickerModalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  datePickerCloseButton: {
+    padding: 4,
+  },
+  datePickerModalBody: {
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  datePickerComponent: {
+    width: '100%',
+    height: Platform.OS === 'ios' ? 200 : 50,
+  },
+  datePickerSelectedDate: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    alignSelf: 'stretch',
+  },
+  datePickerSelectedDateText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#1f2937',
+    textAlign: 'center',
+  },
+  datePickerModalFooter: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  datePickerCancelButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+  },
+  datePickerCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+  datePickerConfirmButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#10b981',
+    alignItems: 'center',
+  },
+  datePickerConfirmButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
   },
   thanafitLogo: {
     width: 80,
