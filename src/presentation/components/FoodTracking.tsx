@@ -7,8 +7,11 @@ import {
   Dimensions,
   ActivityIndicator,
   Alert,
-  Image
+  Image,
+  Modal,
+  Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { ScrollView, Swipeable } from 'react-native-gesture-handler';
 import { Card, CardContent, CardHeader } from './ui/card';
 import { Input } from './Input';
@@ -21,6 +24,7 @@ import { useFoods } from '../hooks/useFoods';
 import { useFoodLogs } from '../hooks/useFoodLogs';
 import { FoodItem, FoodLog } from '../../infrastructure/services/dashboardApi';
 import { FoodVoiceRecorder } from './FoodVoiceRecorder';
+import { startOfLocalDay, addLocalCalendarDays, isSameLocalDay } from '../../core/utils/dateUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -40,8 +44,36 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
     refreshTodaysMeals,
     handleVoiceLogSuccess,
     deleteFoodLog,
+    selectedDate,
+    setSelectedDate,
   } = useFoodLogs();
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const [draftPickerDate, setDraftPickerDate] = useState(() => startOfLocalDay(new Date()));
+
+  const todayStart = startOfLocalDay(new Date());
+  const isViewingToday = isSameLocalDay(selectedDate, todayStart);
+  const canGoNextDay = selectedDate.getTime() < todayStart.getTime();
+  const addActionsDisabled = !isViewingToday || mealsLoading;
+  const emptyDayLabel = isViewingToday ? 'today' : 'on this date';
+
+  const openDatePicker = () => {
+    setDraftPickerDate(selectedDate);
+    setDatePickerVisible(true);
+  };
+
+  const handlePickerChange = (_event: unknown, date?: Date) => {
+    if (date) {
+      const normalized = startOfLocalDay(date);
+      const max = startOfLocalDay(new Date());
+      setDraftPickerDate(normalized.getTime() > max.getTime() ? max : normalized);
+    }
+  };
+
+  const confirmPickerDate = () => {
+    setSelectedDate(draftPickerDate);
+    setDatePickerVisible(false);
+  };
 
   const confirmDeleteFoodLog = (log: FoodLog) => {
     const label = log.foodItemName || log.food?.name || 'this item';
@@ -97,16 +129,19 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
 
   // Handle opening add food screen
   const handleOpenAddFoodScreen = (mealType: string) => {
-    if (navigation) {
-      navigation.navigate('AddFood', {
-        mealType: mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack',
-        onFoodAdded: refreshTodaysMeals
-      });
-    }
+    if (!navigation || addActionsDisabled) return;
+    navigation.navigate('AddFood', {
+      mealType: mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+      onFoodAdded: refreshTodaysMeals,
+      logDayStartMs: selectedDate.getTime(),
+    });
   };
 
       // Handle quick add food without modal
       const handleQuickAddFood = async (food: FoodItem) => {
+        if (addActionsDisabled) {
+          return;
+        }
         try {
           // Map category to meal type
           const getMealTypeFromCategory = (category: string): 'breakfast' | 'lunch' | 'dinner' | 'snack' => {
@@ -205,6 +240,50 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
         <View style={styles.headerLeft}>
           <Text style={styles.title}>Food Diary</Text>
           <Text style={styles.subtitle}>Track your meals and nutrition</Text>
+          <View style={styles.dateNavRow}>
+            <TouchableOpacity
+              accessibilityLabel="Previous day"
+              onPress={() => setSelectedDate(addLocalCalendarDays(selectedDate, -1))}
+              style={styles.dateArrowButton}
+              disabled={mealsLoading}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <MaterialIcons name="chevron-left" size={20} color="#ff6b6b" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.dateTextButton}
+              onPress={openDatePicker}
+              disabled={mealsLoading}
+              accessibilityRole="button"
+              accessibilityLabel="Open date picker"
+            >
+              <MaterialIcons name="event" size={16} color="#ff6b6b" />
+              <Text style={styles.dateText} numberOfLines={1} ellipsizeMode="tail">
+                {selectedDate.toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              accessibilityLabel="Next day"
+              onPress={() => {
+                if (canGoNextDay) {
+                  setSelectedDate(addLocalCalendarDays(selectedDate, 1));
+                }
+              }}
+              style={styles.dateArrowButton}
+              disabled={!canGoNextDay || mealsLoading}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <MaterialIcons
+                name="chevron-right"
+                size={20}
+                color={canGoNextDay ? '#ff6b6b' : '#d1d5db'}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={styles.thanafitLogo}>
           <Image
@@ -307,10 +386,14 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
           <CardHeader style={styles.cardHeader}>
             <View style={styles.cardTitle}>
               <View style={[styles.titleIndicator, styles.paradiseIndicator]} />
-              <Text style={styles.cardTitleText}>Today's Meals</Text>
+              <Text style={styles.cardTitleText}>
+                {isViewingToday ? "Today's meals" : 'Meals for this day'}
+              </Text>
               <TouchableOpacity 
-                style={styles.voiceButton}
+                style={[styles.voiceButton, addActionsDisabled && styles.actionDisabled]}
                 onPress={() => setShowVoiceRecorder(true)}
+                disabled={addActionsDisabled}
+                accessibilityState={{ disabled: addActionsDisabled }}
               >
                 <MaterialIcons name="mic" size={20} color="#ff6b6b" />
               </TouchableOpacity>
@@ -338,8 +421,9 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
                         </Badge>
                       </View>
                       <TouchableOpacity 
-                        style={styles.addMealButton}
+                        style={[styles.addMealButton, addActionsDisabled && styles.actionDisabled]}
                         onPress={() => handleOpenAddFoodScreen(meal.id)}
+                        disabled={addActionsDisabled}
                       >
                         <MaterialIcons name="add" size={16} color="#ff6b6b" />
                       </TouchableOpacity>
@@ -411,9 +495,11 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
                         ))
                       ) : (
                         <View style={styles.emptyMealContainer}>
-                          <Text style={styles.emptyMealText}>No foods logged yet</Text>
+                          <Text style={styles.emptyMealText}>No foods logged {emptyDayLabel}</Text>
                           <Text style={styles.emptyMealSubtext}>
-                            Tap the + button to add foods to this meal
+                            {isViewingToday
+                              ? 'Tap the + button to add foods to this meal'
+                              : 'Switch to today to add or edit foods for this meal.'}
                           </Text>
                         </View>
                       )}
@@ -466,8 +552,9 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
               <View style={styles.foodNameRow}>
                 <Text style={styles.foodCardName}>{food.name}</Text>
                 <TouchableOpacity 
-                  style={styles.addFoodButton}
+                  style={[styles.addFoodButton, addActionsDisabled && styles.actionDisabled]}
                   onPress={() => handleQuickAddFood(food)}
+                  disabled={addActionsDisabled}
                 >
                   <MaterialIcons name="add" size={16} color="white" />
                 </TouchableOpacity>
@@ -503,6 +590,63 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
         {/* No modal needed - using AddFoodScreen instead */}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={datePickerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDatePickerVisible(false)}
+      >
+        <View style={styles.datePickerModalOverlay}>
+          <View style={styles.datePickerModalContent}>
+            <View style={styles.datePickerModalHeader}>
+              <Text style={styles.datePickerModalTitle}>Choose date</Text>
+              <TouchableOpacity
+                onPress={() => setDatePickerVisible(false)}
+                style={styles.datePickerCloseButton}
+              >
+                <MaterialIcons name="close" size={24} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.datePickerModalBody}>
+              <DateTimePicker
+                key={draftPickerDate.getTime()}
+                value={draftPickerDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={handlePickerChange}
+                maximumDate={todayStart}
+                textColor="#1f2937"
+                style={styles.datePickerComponent}
+              />
+              <View style={styles.datePickerSelectedDate}>
+                <Text style={styles.datePickerSelectedDateText}>
+                  {draftPickerDate.toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.datePickerModalFooter}>
+              <TouchableOpacity
+                style={styles.datePickerCancelButton}
+                onPress={() => setDatePickerVisible(false)}
+              >
+                <Text style={styles.datePickerCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.datePickerConfirmButton}
+                onPress={confirmPickerDate}
+              >
+                <Text style={styles.datePickerConfirmButtonText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <FoodVoiceRecorder
           visible={showVoiceRecorder}
@@ -555,6 +699,115 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: '#6b7280',
+  },
+  dateNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 2,
+    marginTop: 8,
+    flexWrap: 'nowrap',
+    maxWidth: '100%',
+  },
+  dateArrowButton: {
+    paddingVertical: 2,
+    paddingHorizontal: 2,
+  },
+  dateTextButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  dateText: {
+    fontSize: 14,
+    color: '#6b7280',
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  actionDisabled: {
+    opacity: 0.45,
+  },
+  datePickerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  datePickerModalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    maxHeight: '80%',
+  },
+  datePickerModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  datePickerModalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  datePickerCloseButton: {
+    padding: 4,
+  },
+  datePickerModalBody: {
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  datePickerComponent: {
+    width: '100%',
+    height: Platform.OS === 'ios' ? 200 : 50,
+  },
+  datePickerSelectedDate: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    alignSelf: 'stretch',
+  },
+  datePickerSelectedDateText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#1f2937',
+    textAlign: 'center',
+  },
+  datePickerModalFooter: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  datePickerCancelButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+  },
+  datePickerCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+  datePickerConfirmButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#ff6b6b',
+    alignItems: 'center',
+  },
+  datePickerConfirmButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
   },
   thanafitLogo: {
     width: 80,

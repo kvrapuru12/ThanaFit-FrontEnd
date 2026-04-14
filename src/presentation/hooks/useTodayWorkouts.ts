@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { dashboardApiService, ActivityLog } from '../../infrastructure/services/dashboardApi';
 import { useAuth } from '../providers/AuthProvider';
+import { startOfLocalDay } from '../../core/utils/dateUtils';
 
 export interface TodayWorkout {
   id: number;
   name: string;
   duration: string;
   calories: number;
-  time: string;
   type: string;
 }
 
@@ -15,15 +15,28 @@ export interface UseTodayWorkoutsReturn {
   todaysWorkouts: TodayWorkout[];
   isLoading: boolean;
   error: string | null;
+  selectedDate: Date;
+  setSelectedDate: (d: Date) => void;
   refresh: () => Promise<void>;
   deleteWorkout: (id: number) => Promise<void>;
 }
 
 export const useTodayWorkouts = (): UseTodayWorkoutsReturn => {
   const { user } = useAuth();
+  const [selectedDate, setSelectedDateState] = useState(() => startOfLocalDay(new Date()));
   const [todaysWorkouts, setTodaysWorkouts] = useState<TodayWorkout[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const setSelectedDate = useCallback((d: Date) => {
+    const normalized = startOfLocalDay(d);
+    const today = startOfLocalDay(new Date());
+    if (normalized.getTime() > today.getTime()) {
+      setSelectedDateState(today);
+      return;
+    }
+    setSelectedDateState(normalized);
+  }, []);
 
   const fetchTodayWorkouts = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = opts?.silent === true;
@@ -47,7 +60,7 @@ export const useTodayWorkouts = (): UseTodayWorkoutsReturn => {
       
       // Try to fetch real data from backend
       console.log('Attempting to fetch real data from backend...');
-      const activityLogs = await dashboardApiService.getTodayActivityLogs(user.id);
+      const activityLogs = await dashboardApiService.getTodayActivityLogs(user.id, selectedDate);
       
       console.log('=== BACKEND RESPONSE FOR USER 2 ===');
       console.log('Raw activity logs from backend:', JSON.stringify(activityLogs, null, 2));
@@ -62,47 +75,10 @@ export const useTodayWorkouts = (): UseTodayWorkoutsReturn => {
       // Transform ActivityLog data to TodayWorkout format
       const transformedWorkouts: TodayWorkout[] = activityLogs.map((log) => ({
         id: log.id,
-        name: log.activity?.name || log.note || 'Workout', // Use activity name first, then fallback to note
+        name: log.activity?.name || log.note || 'Workout',
         duration: `${log.durationMinutes} min`,
         calories: Math.round(log.caloriesBurned),
-        time: (() => {
-          const rawTime = log.loggedAt;
-          console.log(`=== TIME DEBUG FOR ${log.id} ===`);
-          console.log(`Raw timestamp from backend: "${rawTime}"`);
-          
-          // Just extract the time part and show it as-is
-          const timeMatch = rawTime.match(/(\d{2}):(\d{2}):(\d{2})/);
-          
-          if (timeMatch) {
-            const [, hours, minutes, seconds] = timeMatch;
-            const hour = parseInt(hours, 10);
-            const minute = parseInt(minutes, 10);
-            
-            console.log(`Extracted: Hour=${hour}, Minute=${minute}`);
-            
-            // Simple conversion to 12-hour format
-            let displayHour = hour;
-            let ampm = 'AM';
-            
-            if (hour === 0) {
-              displayHour = 12;
-            } else if (hour === 12) {
-              ampm = 'PM';
-            } else if (hour > 12) {
-              displayHour = hour - 12;
-              ampm = 'PM';
-            }
-            
-            const result = `${displayHour}:${minute.toString().padStart(2, '0')} ${ampm}`;
-            console.log(`Final result: "${result}"`);
-            
-            return result;
-          } else {
-            console.log('No time match found, using raw string');
-            return rawTime;
-          }
-        })(),
-        type: log.activity?.category || 'Workout' // Use activity category if available
+        type: log.activity?.category || 'Workout',
       }));
       
       console.log('=== TRANSFORMED WORKOUTS ===');
@@ -123,7 +99,7 @@ export const useTodayWorkouts = (): UseTodayWorkoutsReturn => {
         setIsLoading(false);
       }
     }
-  }, [user?.id]);
+  }, [user?.id, selectedDate]);
 
   const refresh = useCallback(async () => {
     await fetchTodayWorkouts();
@@ -149,6 +125,8 @@ export const useTodayWorkouts = (): UseTodayWorkoutsReturn => {
     todaysWorkouts,
     isLoading,
     error,
+    selectedDate,
+    setSelectedDate,
     refresh,
     deleteWorkout,
   };

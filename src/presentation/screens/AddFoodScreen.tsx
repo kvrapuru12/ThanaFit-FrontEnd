@@ -19,6 +19,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../providers/AuthProvider';
 import { dashboardApiService, FoodItem } from '../../infrastructure/services/dashboardApi';
 import { useFoods } from '../hooks/useFoods';
+import { startOfLocalDay, loggedAtIsoForBackdatedLocalDay } from '../../core/utils/dateUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -49,6 +50,9 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
   const [showServingUnitPicker, setShowServingUnitPicker] = useState(false);
   
   const mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack' = (route?.params?.mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack') || 'breakfast';
+  const logDayStartMs = route?.params?.logDayStartMs as number | undefined;
+  const foodLogDay =
+    logDayStartMs != null ? startOfLocalDay(new Date(logDayStartMs)) : startOfLocalDay(new Date());
   const mealTypeLabels = {
     breakfast: 'Breakfast',
     lunch: 'Lunch', 
@@ -215,7 +219,8 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
         mealType,
         quantity: quantityNum,
         unit: selectedFood.defaultUnit,
-        note: note.trim() || undefined
+        note: note.trim() || undefined,
+        loggedAt: loggedAtIsoForBackdatedLocalDay(foodLogDay),
       });
 
       if (route?.params?.onFoodAdded) {

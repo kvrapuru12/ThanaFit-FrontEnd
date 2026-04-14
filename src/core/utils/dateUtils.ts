@@ -17,3 +17,43 @@ export function parseDateLocal(dateStr: string): Date {
   const [year, month, day] = dateStr.split('-').map(Number);
   return new Date(year, month - 1, day);
 }
+
+/** Start of the given calendar day in the device local timezone. */
+export function startOfLocalDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+export function addLocalCalendarDays(d: Date, delta: number): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + delta);
+}
+
+export function isSameLocalDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+/**
+ * For food/activity logs on a past local calendar day, returns a stable
+ * timestamp string (local noon as ISO). For today, returns undefined so callers
+ * use current time.
+ */
+export function loggedAtIsoForBackdatedLocalDay(day: Date): string | undefined {
+  const normalized = startOfLocalDay(day);
+  const today = startOfLocalDay(new Date());
+  if (normalized.getTime() === today.getTime()) {
+    return undefined;
+  }
+  const atNoon = new Date(
+    normalized.getFullYear(),
+    normalized.getMonth(),
+    normalized.getDate(),
+    12,
+    0,
+    0,
+    0
+  );
+  return atNoon.toISOString().slice(0, 19) + 'Z';
+}

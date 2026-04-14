@@ -984,19 +984,18 @@ export class DashboardApiService {
   }
 
   /**
-   * Get today's food logs grouped by meal type
+   * Get food logs for a calendar day (local device interpretation), grouped by meal type
    */
-  async getTodaysFoodLogs(userId: number): Promise<Record<string, FoodLog[]>> {
+  async getTodaysFoodLogs(userId: number, day?: Date): Promise<Record<string, FoodLog[]>> {
     try {
-      // Get today's date range
-      const today = new Date();
-      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
-      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+      const ref = day ?? new Date();
+      const startOfDay = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 0, 0, 0);
+      const endOfDay = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 23, 59, 59);
       
       const from = startOfDay.toISOString();
       const to = endOfDay.toISOString();
       
-      console.log(`Fetching food logs for today: ${from} to ${to}`);
+      console.log(`Fetching food logs for day: ${from} to ${to}`);
       
       // Use the endpoint with date filtering
       const response = await apiClient.get<FoodLogsResponse>(`/food-logs?userId=${userId}&from=${from}&to=${to}&page=1&limit=50`);

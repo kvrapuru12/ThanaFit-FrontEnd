@@ -7,16 +7,9 @@ import { Badge } from './ui/badge';
 import { MaterialIcons } from '@expo/vector-icons';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { useAuth } from '../providers/AuthProvider';
-import { useDashboardData, startOfLocalDay } from '../hooks/useDashboardData';
+import { useDashboardData } from '../hooks/useDashboardData';
 import { dashboardApiService } from '../../infrastructure/services/dashboardApi';
-
-const addLocalCalendarDays = (d: Date, delta: number) =>
-  new Date(d.getFullYear(), d.getMonth(), d.getDate() + delta);
-
-const isSameLocalDay = (a: Date, b: Date) =>
-  a.getFullYear() === b.getFullYear() &&
-  a.getMonth() === b.getMonth() &&
-  a.getDate() === b.getDate();
+import { startOfLocalDay, addLocalCalendarDays, isSameLocalDay } from '../../core/utils/dateUtils';
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();

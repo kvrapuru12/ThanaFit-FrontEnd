@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { dashboardApiService, DashboardStats, Meal, ActivityLog, WaterIntake, FoodLog, SleepEntry, WeightEntry, StepEntry } from '../../infrastructure/services/dashboardApi';
 import { useAuth } from '../providers/AuthProvider';
+import { startOfLocalDay } from '../../core/utils/dateUtils';
 
 export interface DashboardData {
   stats: DashboardStats;
@@ -12,9 +13,6 @@ export interface DashboardData {
   weightEntries: WeightEntry[];
   stepEntries: StepEntry[];
 }
-
-export const startOfLocalDay = (d: Date) =>
-  new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
 export interface UseDashboardDataReturn {
   data: DashboardData | null;

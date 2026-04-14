@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { dashboardApiService, FoodLog, FoodItem } from '../../infrastructure/services/dashboardApi';
 import { useAuth } from '../providers/AuthProvider';
+import { startOfLocalDay, loggedAtIsoForBackdatedLocalDay } from '../../core/utils/dateUtils';
 
 // Helper function to map meal type to food category
 const getCategoryFromMealType = (mealType: string): string => {
@@ -22,6 +23,8 @@ interface UseFoodLogsReturn {
   todaysMeals: Record<string, FoodLog[]>;
   loading: boolean;
   error: string | null;
+  selectedDate: Date;
+  setSelectedDate: (d: Date) => void;
   refreshTodaysMeals: (opts?: { silent?: boolean }) => Promise<void>;
   addFoodToMeal: (foodItemId: number, mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack', quantity: number, unit?: string, note?: string) => Promise<any>;
   handleVoiceLogSuccess: (foodLogs: any[]) => Promise<void>;
@@ -30,6 +33,7 @@ interface UseFoodLogsReturn {
 
 export function useFoodLogs(): UseFoodLogsReturn {
   const { user } = useAuth();
+  const [selectedDate, setSelectedDateState] = useState(() => startOfLocalDay(new Date()));
   const [todaysMeals, setTodaysMeals] = useState<Record<string, FoodLog[]>>({
     breakfast: [],
     lunch: [],
@@ -38,6 +42,16 @@ export function useFoodLogs(): UseFoodLogsReturn {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const setSelectedDate = useCallback((d: Date) => {
+    const normalized = startOfLocalDay(d);
+    const today = startOfLocalDay(new Date());
+    if (normalized.getTime() > today.getTime()) {
+      setSelectedDateState(today);
+      return;
+    }
+    setSelectedDateState(normalized);
+  }, []);
 
   const refreshTodaysMeals = useCallback(async (opts?: { silent?: boolean }) => {
     if (!user?.id) return;
@@ -50,7 +64,7 @@ export function useFoodLogs(): UseFoodLogsReturn {
       setError(null);
       console.log('Loading today\'s food logs...');
       
-      const groupedLogs = await dashboardApiService.getTodaysFoodLogs(user.id);
+      const groupedLogs = await dashboardApiService.getTodaysFoodLogs(user.id, selectedDate);
       
       // Map backend FoodLog data to enriched format for display
       const enrichedLogs: Record<string, FoodLog[]> = {
@@ -95,7 +109,7 @@ export function useFoodLogs(): UseFoodLogsReturn {
         setLoading(false);
       }
     }
-  }, [user?.id]);
+  }, [user?.id, selectedDate]);
 
   const addFoodToMeal = useCallback(async (
     foodItemId: number, 
@@ -115,7 +129,8 @@ export function useFoodLogs(): UseFoodLogsReturn {
         mealType,
         quantity,
         unit: unit || 'grams',
-        note: note || ''
+        note: note || '',
+        loggedAt: loggedAtIsoForBackdatedLocalDay(selectedDate),
       });
 
       // Refresh the meals data to get the updated list
@@ -128,7 +143,7 @@ export function useFoodLogs(): UseFoodLogsReturn {
       setError(err instanceof Error ? err.message : 'Failed to add food to meal');
       throw err;
     }
-  }, [user?.id, refreshTodaysMeals]);
+  }, [user?.id, refreshTodaysMeals, selectedDate]);
 
   // Handle voice log success - refresh meals data
   const handleVoiceLogSuccess = useCallback(async (foodLogs: any[]) => {
@@ -162,6 +177,8 @@ export function useFoodLogs(): UseFoodLogsReturn {
     todaysMeals,
     loading,
     error,
+    selectedDate,
+    setSelectedDate,
     refreshTodaysMeals,
     addFoodToMeal,
     handleVoiceLogSuccess,

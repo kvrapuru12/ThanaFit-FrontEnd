@@ -8,8 +8,11 @@ import {
   Dimensions,
   ActivityIndicator,
   Alert,
-  Image
+  Image,
+  Modal,
+  Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { ScrollView, Swipeable } from 'react-native-gesture-handler';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './Input';
@@ -22,6 +25,12 @@ import { useAuth } from '../providers/AuthProvider';
 import { useActivities } from '../hooks/useActivities';
 import { useTodayWorkouts, TodayWorkout } from '../hooks/useTodayWorkouts';
 import { dashboardApiService } from '../../infrastructure/services/dashboardApi';
+import {
+  startOfLocalDay,
+  addLocalCalendarDays,
+  isSameLocalDay,
+  loggedAtIsoForBackdatedLocalDay,
+} from '../../core/utils/dateUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -42,12 +51,49 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
     error: workoutsError,
     refresh: refreshWorkouts,
     deleteWorkout,
+    selectedDate,
+    setSelectedDate,
   } = useTodayWorkouts();
+
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const [draftPickerDate, setDraftPickerDate] = useState(() => startOfLocalDay(new Date()));
+
+  const todayStart = startOfLocalDay(new Date());
+  const isViewingToday = isSameLocalDay(selectedDate, todayStart);
+  const canGoNextDay = selectedDate.getTime() < todayStart.getTime();
+  const addActionsDisabled = !isViewingToday || workoutsLoading;
+  const emptyDayLabel = isViewingToday ? 'today' : 'on this date';
+
+  const openDatePicker = () => {
+    setDraftPickerDate(selectedDate);
+    setDatePickerVisible(true);
+  };
+
+  const handlePickerChange = (_event: unknown, date?: Date) => {
+    if (date) {
+      const normalized = startOfLocalDay(date);
+      const max = startOfLocalDay(new Date());
+      setDraftPickerDate(normalized.getTime() > max.getTime() ? max : normalized);
+    }
+  };
+
+  const confirmPickerDate = () => {
+    setSelectedDate(draftPickerDate);
+    setDatePickerVisible(false);
+  };
+
+  const goToAddExercise = () => {
+    if (!navigation || addActionsDisabled) return;
+    navigation.navigate('AddExercise', {
+      onWorkoutAdded: refreshWorkouts,
+      logDayStartMs: selectedDate.getTime(),
+    });
+  };
 
   const confirmDeleteWorkout = (workout: TodayWorkout) => {
     Alert.alert(
       'Delete workout',
-      `Remove "${workout.name}" from today's log?`,
+      `Remove "${workout.name}" from your log${isViewingToday ? ' for today' : ' for this day'}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -108,11 +154,11 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
   const handleVoiceLog = (transcript: string) => {
     console.log('=== VOICE LOG RECEIVED (MANUAL) ===');
     console.log('Transcript:', transcript);
-    
-    // Navigate to AddExercise screen with voice transcript pre-filled
-    navigation?.navigate?.('AddExercise', { 
+    if (!navigation || addActionsDisabled) return;
+    navigation.navigate('AddExercise', {
       onWorkoutAdded: refreshWorkouts,
-      voiceNote: transcript 
+      voiceNote: transcript,
+      logDayStartMs: selectedDate.getTime(),
     });
   };
 
@@ -130,6 +176,9 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
 
   // Handle quick add functionality
   const handleQuickAdd = async (activity: any) => {
+    if (addActionsDisabled) {
+      return;
+    }
     try {
       console.log('=== QUICK ADD DEBUG ===');
       console.log('Adding activity:', activity.name);
@@ -142,11 +191,15 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
         return;
       }
 
+      const backdatedLoggedAt = loggedAtIsoForBackdatedLocalDay(selectedDate);
+      const loggedAt =
+        backdatedLoggedAt ?? new Date().toISOString().split('.')[0] + 'Z';
+
       // Create activity log with default values
       const logData = {
         userId: user.id,
         activityId: activity.id,
-        loggedAt: new Date().toISOString().split('.')[0] + 'Z', // Remove milliseconds but keep 'Z'
+        loggedAt,
         durationMinutes: 30, // Default 30 minutes for quick add
         note: `Quick add: ${activity.name}`
       };
@@ -179,6 +232,7 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
   };
 
   return (
+    <View style={styles.screenWrapper}>
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.content}>
         {/* Header */}
@@ -186,6 +240,50 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
           <View style={styles.headerLeft}>
             <Text style={styles.title}>Exercise</Text>
             <Text style={styles.subtitle}>Track your workouts</Text>
+            <View style={styles.dateNavRow}>
+              <TouchableOpacity
+                accessibilityLabel="Previous day"
+                onPress={() => setSelectedDate(addLocalCalendarDays(selectedDate, -1))}
+                style={styles.dateArrowButton}
+                disabled={workoutsLoading}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MaterialIcons name="chevron-left" size={20} color="#ff6b6b" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.dateTextButton}
+                onPress={openDatePicker}
+                disabled={workoutsLoading}
+                accessibilityRole="button"
+                accessibilityLabel="Open date picker"
+              >
+                <MaterialIcons name="event" size={16} color="#ff6b6b" />
+                <Text style={styles.dateText} numberOfLines={1} ellipsizeMode="tail">
+                  {selectedDate.toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityLabel="Next day"
+                onPress={() => {
+                  if (canGoNextDay) {
+                    setSelectedDate(addLocalCalendarDays(selectedDate, 1));
+                  }
+                }}
+                style={styles.dateArrowButton}
+                disabled={!canGoNextDay || workoutsLoading}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MaterialIcons
+                  name="chevron-right"
+                  size={20}
+                  color={canGoNextDay ? '#ff6b6b' : '#d1d5db'}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
           <View style={styles.thanafitLogo}>
             <Image
@@ -227,14 +325,16 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
           <CardHeader style={styles.cardHeader}>
             <View style={styles.cardTitle}>
               <View style={styles.titleIndicator} />
-              <Text style={styles.cardTitleText}>Today's Workouts</Text>
+              <Text style={styles.cardTitleText}>
+                {isViewingToday ? "Today's workouts" : 'Workouts for this day'}
+              </Text>
             </View>
           </CardHeader>
           <CardContent style={styles.cardContent}>
             {workoutsLoading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#4ecdc4" />
-                <Text style={styles.loadingText}>Loading today's workouts...</Text>
+                <Text style={styles.loadingText}>Loading workouts...</Text>
               </View>
             ) : workoutsError ? (
               <View style={styles.errorContainer}>
@@ -261,40 +361,41 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
                     )}
                   >
                     <View style={styles.workoutItem}>
-                      <View style={styles.workoutInfo}>
-                        <View style={styles.workoutIcon}>
-                          <MaterialIcons name="fitness-center" size={24} color="white" />
-                        </View>
-                        <View style={styles.workoutDetails}>
-                          <Text style={styles.workoutName}>{workout.name}</Text>
-                          <Text style={styles.workoutMeta}>
-                            {workout.time} • {workout.duration} • {workout.calories} cal
-                          </Text>
-                        </View>
+                      <View style={styles.workoutIcon}>
+                        <MaterialIcons name="fitness-center" size={24} color="white" />
                       </View>
-                      <Badge variant="secondary" style={styles.workoutBadge}>
-                        {workout.type}
-                      </Badge>
+                      <View style={styles.workoutDetailsCol}>
+                        <View style={styles.workoutTitleRow}>
+                          <Text style={styles.workoutName} numberOfLines={1} ellipsizeMode="tail">
+                            {workout.name}
+                          </Text>
+                          <View style={styles.workoutBadgeWrap}>
+                            <Badge variant="destructive" style={styles.workoutBadge}>
+                              {workout.type}
+                            </Badge>
+                          </View>
+                        </View>
+                        <Text style={styles.workoutMeta}>
+                          {workout.duration} · {workout.calories} cal
+                        </Text>
+                      </View>
                     </View>
                   </Swipeable>
                 ))}
                 <View style={styles.buttonRow}>
                   <TouchableOpacity 
-                    style={styles.addWorkoutButton}
-                    onPress={() => {
-                      console.log('=== EXERCISE TRACKING DEBUG ===');
-                      console.log('refreshWorkouts function:', refreshWorkouts);
-                      console.log('Navigation object:', navigation);
-                      navigation?.navigate?.('AddExercise', { onWorkoutAdded: refreshWorkouts });
-                    }}
+                    style={[styles.addWorkoutButton, addActionsDisabled && styles.actionDisabled]}
+                    onPress={goToAddExercise}
+                    disabled={addActionsDisabled}
                   >
                     <MaterialIcons name="add" size={20} color="#ff6b6b" />
                     <Text style={styles.addWorkoutText}>Add Exercise</Text>
                   </TouchableOpacity>
                   
                   <TouchableOpacity 
-                    style={styles.voiceLogButton}
+                    style={[styles.voiceLogButton, addActionsDisabled && styles.actionDisabled]}
                     onPress={() => setShowVoiceRecorder(true)}
+                    disabled={addActionsDisabled}
                   >
                     <MaterialIcons name="mic" size={20} color="#4ecdc4" />
                     <Text style={styles.voiceLogText}>Voice Log</Text>
@@ -304,25 +405,26 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
             ) : (
               <View style={styles.emptyState}>
                 <MaterialIcons name="fitness-center" size={48} color="#d1d5db" />
-                <Text style={styles.emptyStateText}>No workouts logged today</Text>
-                <Text style={styles.emptyStateSubtext}>Start tracking your exercises to see them here</Text>
+                <Text style={styles.emptyStateText}>No workouts logged {emptyDayLabel}</Text>
+                <Text style={styles.emptyStateSubtext}>
+                  {isViewingToday
+                    ? 'Start tracking your exercises to see them here'
+                    : 'Switch to today to add workouts or use voice log.'}
+                </Text>
                 <View style={styles.buttonRow}>
                   <TouchableOpacity 
-                    style={styles.addWorkoutButton}
-                    onPress={() => {
-                      console.log('=== EXERCISE TRACKING DEBUG ===');
-                      console.log('refreshWorkouts function:', refreshWorkouts);
-                      console.log('Navigation object:', navigation);
-                      navigation?.navigate?.('AddExercise', { onWorkoutAdded: refreshWorkouts });
-                    }}
+                    style={[styles.addWorkoutButton, addActionsDisabled && styles.actionDisabled]}
+                    onPress={goToAddExercise}
+                    disabled={addActionsDisabled}
                   >
                     <MaterialIcons name="add" size={20} color="#ff6b6b" />
                     <Text style={styles.addWorkoutText}>Add Exercise</Text>
                   </TouchableOpacity>
                   
                   <TouchableOpacity 
-                    style={styles.voiceLogButton}
+                    style={[styles.voiceLogButton, addActionsDisabled && styles.actionDisabled]}
                     onPress={() => setShowVoiceRecorder(true)}
+                    disabled={addActionsDisabled}
                   >
                     <MaterialIcons name="mic" size={20} color="#4ecdc4" />
                     <Text style={styles.voiceLogText}>Voice Log</Text>
@@ -383,8 +485,9 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
                       </View>
                     </View>
                     <TouchableOpacity 
-                      style={styles.addExerciseButton}
+                      style={[styles.addExerciseButton, addActionsDisabled && styles.actionDisabled]}
                       onPress={() => handleQuickAdd(activity)}
+                      disabled={addActionsDisabled}
                     >
                       <MaterialIcons name="add" size={16} color="white" />
                     </TouchableOpacity>
@@ -448,8 +551,9 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
                     </View>
                   </View>
                   <TouchableOpacity 
-                    style={styles.addExerciseButton}
+                    style={[styles.addExerciseButton, addActionsDisabled && styles.actionDisabled]}
                     onPress={() => handleQuickAdd(activity)}
+                    disabled={addActionsDisabled}
                   >
                     <MaterialIcons name="add" size={16} color="white" />
                   </TouchableOpacity>
@@ -465,6 +569,64 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
           </CardContent>
         </Card>
       </View>
+    </ScrollView>
+
+      <Modal
+        visible={datePickerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDatePickerVisible(false)}
+      >
+        <View style={styles.datePickerModalOverlay}>
+          <View style={styles.datePickerModalContent}>
+            <View style={styles.datePickerModalHeader}>
+              <Text style={styles.datePickerModalTitle}>Choose date</Text>
+              <TouchableOpacity
+                onPress={() => setDatePickerVisible(false)}
+                style={styles.datePickerCloseButton}
+              >
+                <MaterialIcons name="close" size={24} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.datePickerModalBody}>
+              <DateTimePicker
+                key={draftPickerDate.getTime()}
+                value={draftPickerDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={handlePickerChange}
+                maximumDate={todayStart}
+                textColor="#1f2937"
+                style={styles.datePickerComponent}
+              />
+              <View style={styles.datePickerSelectedDate}>
+                <Text style={styles.datePickerSelectedDateText}>
+                  {draftPickerDate.toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.datePickerModalFooter}>
+              <TouchableOpacity
+                style={styles.datePickerCancelButton}
+                onPress={() => setDatePickerVisible(false)}
+              >
+                <Text style={styles.datePickerCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.datePickerConfirmButton}
+                onPress={confirmPickerDate}
+              >
+                <Text style={styles.datePickerConfirmButtonText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <VoiceRecorder
         visible={showVoiceRecorder}
@@ -473,11 +635,15 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
         userId={user?.id}
         onClose={() => setShowVoiceRecorder(false)}
       />
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screenWrapper: {
+    flex: 1,
+    backgroundColor: '#fef7ed',
+  },
   container: {
     flex: 1,
     backgroundColor: '#fef7ed',
@@ -495,6 +661,117 @@ const styles = StyleSheet.create({
   },
   headerLeft: {
     flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
+  },
+  dateNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 2,
+    marginTop: 8,
+    flexWrap: 'nowrap',
+    maxWidth: '100%',
+  },
+  dateArrowButton: {
+    paddingVertical: 2,
+    paddingHorizontal: 2,
+  },
+  dateTextButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  dateText: {
+    fontSize: 14,
+    color: '#6b7280',
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  actionDisabled: {
+    opacity: 0.45,
+  },
+  datePickerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  datePickerModalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    maxHeight: '80%',
+  },
+  datePickerModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  datePickerModalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  datePickerCloseButton: {
+    padding: 4,
+  },
+  datePickerModalBody: {
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  datePickerComponent: {
+    width: '100%',
+    height: Platform.OS === 'ios' ? 200 : 50,
+  },
+  datePickerSelectedDate: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    alignSelf: 'stretch',
+  },
+  datePickerSelectedDateText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#1f2937',
+    textAlign: 'center',
+  },
+  datePickerModalFooter: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  datePickerCancelButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+  },
+  datePickerCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+  datePickerConfirmButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#4ecdc4',
+    alignItems: 'center',
+  },
+  datePickerConfirmButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
   },
   title: {
     fontSize: 20,
@@ -626,40 +903,52 @@ const styles = StyleSheet.create({
   },
   workoutItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: '#f3f4f6',
     padding: 24,
     borderRadius: 24,
-  },
-  workoutInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 16,
+    overflow: 'visible',
   },
   workoutIcon: {
     backgroundColor: '#4ecdc4',
     padding: 12,
     borderRadius: 16,
+    flexShrink: 0,
   },
-  workoutDetails: {
+  workoutDetailsCol: {
     flex: 1,
+    minWidth: 0,
+    flexDirection: 'column',
+    gap: 6,
+  },
+  workoutTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minWidth: 0,
   },
   workoutName: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 16,
     fontWeight: '600',
     color: '#ff6b6b',
-    marginBottom: 4,
   },
   workoutMeta: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  workoutBadgeWrap: {
+    flexShrink: 0,
   },
   workoutBadge: {
     backgroundColor: '#ff6b6b',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
+    flexShrink: 0,
   },
   buttonRow: {
     flexDirection: 'row',

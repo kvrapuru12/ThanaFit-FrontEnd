@@ -17,6 +17,7 @@ import { Input } from '../components/Input';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../providers/AuthProvider';
 import { dashboardApiService, Activity } from '../../infrastructure/services/dashboardApi';
+import { startOfLocalDay, loggedAtIsoForBackdatedLocalDay } from '../../core/utils/dateUtils';
 
 interface AddExerciseScreenProps {
   navigation: any;
@@ -24,12 +25,16 @@ interface AddExerciseScreenProps {
     params?: {
       onWorkoutAdded?: () => Promise<void>;
       voiceNote?: string;
+      logDayStartMs?: number;
     };
   };
 }
 
 export const AddExerciseScreen: React.FC<AddExerciseScreenProps> = ({ navigation, route }) => {
   const { user } = useAuth();
+  const logDayStartMs = route?.params?.logDayStartMs;
+  const exerciseLogDay =
+    logDayStartMs != null ? startOfLocalDay(new Date(logDayStartMs)) : startOfLocalDay(new Date());
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [duration, setDuration] = useState('');
@@ -158,10 +163,14 @@ export const AddExerciseScreen: React.FC<AddExerciseScreenProps> = ({ navigation
     try {
       setIsLoading(true);
       
+      const backdatedLoggedAt = loggedAtIsoForBackdatedLocalDay(exerciseLogDay);
+      const loggedAt =
+        backdatedLoggedAt ?? new Date().toISOString().split('.')[0] + 'Z';
+
       const logData = {
         userId: user?.id || 2,
         activityId: selectedActivity.id,
-        loggedAt: new Date().toISOString().split('.')[0] + 'Z', // Remove milliseconds but keep 'Z'
+        loggedAt,
         durationMinutes: Number(duration),
         note: note.trim() || `${selectedActivity.name} workout`
       };
