@@ -2,7 +2,7 @@
   "expo": {
     "name": "ThanaFit",
     "slug": "thanafit-auth",
-    "version": "3.0.10",
+    "version": "3.0.11",
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash.png",
@@ -26,7 +26,7 @@
         "NSSpeechRecognitionUsageDescription": "ThanaFit uses speech recognition to turn your voice into text when you log food and exercise by voice.",
         "NSPhotoLibraryUsageDescription": "ThanaFit may access your photo library so you can attach photos to your entries, if you choose."
       },
-      "buildNumber": "27"
+      "buildNumber": "30"
     },
     "plugins": [
       [
@@ -52,7 +52,7 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.prod.thanafit",
-      "versionCode": 47
+      "versionCode": 48
     }
   }
 }
