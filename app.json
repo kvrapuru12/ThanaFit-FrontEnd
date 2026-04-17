@@ -28,7 +28,7 @@
         "NSHealthShareUsageDescription": "ThanaFit reads your step count from Apple Health when you tap Sync on the dashboard, so your steps stay up to date.",
         "NSHealthUpdateUsageDescription": "ThanaFit does not write to Apple Health."
       },
-      "buildNumber": "32"
+      "buildNumber": "33"
     },
     "plugins": [
       [
