@@ -4,6 +4,8 @@
   <dict>
     <key>CADisableMinimumFrameDurationOnPhone</key>
     <true/>
+    <key>CFBundleAllowMixedLocalizations</key>
+    <true/>
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>CFBundleDisplayName</key>
@@ -19,7 +21,7 @@
     <key>CFBundlePackageType</key>
     <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
     <key>CFBundleShortVersionString</key>
-    <string>3.0.10</string>
+    <string>3.0.11</string>
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleURLTypes</key>
@@ -28,21 +30,16 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>com.prod.thanafit</string>
+          <string>com.prod.thanafit</string>
         </array>
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>30</string>
+    <string>32</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>ThanaFit uses the microphone to log food and exercise by voice.</string>
-    <key>NSSpeechRecognitionUsageDescription</key>
-    <string>ThanaFit uses speech recognition to turn your voice into text when you log food and exercise by voice.</string>
-    <key>NSPhotoLibraryUsageDescription</key>
-    <string>ThanaFit may access your photo library so you can attach photos to your entries, if you choose.</string>
     <key>NSAppTransportSecurity</key>
     <dict>
       <key>NSAllowsLocalNetworking</key>
@@ -58,6 +55,16 @@
         </dict>
       </dict>
     </dict>
+    <key>NSHealthShareUsageDescription</key>
+    <string>ThanaFit reads your step count from Apple Health when you tap Sync on the dashboard, so your steps stay up to date.</string>
+    <key>NSHealthUpdateUsageDescription</key>
+    <string>ThanaFit does not write to Apple Health.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>ThanaFit uses the microphone to log food and exercise by voice.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>ThanaFit may access your photo library so you can attach photos to your entries, if you choose.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>ThanaFit uses speech recognition to turn your voice into text when you log food and exercise by voice.</string>
     <key>UILaunchStoryboardName</key>
     <string>SplashScreen</string>
     <key>UIRequiredDeviceCapabilities</key>

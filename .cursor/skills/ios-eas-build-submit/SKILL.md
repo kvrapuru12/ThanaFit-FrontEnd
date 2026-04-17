@@ -14,6 +14,7 @@ description: Builds and submits iOS production apps with Expo EAS using a non-in
 - Project is Expo/EAS based and has `eas.json`.
 - `submit.production.ios.ascAppId` is configured in `eas.json` for non-interactive submit.
 - iOS bundle identifier and Apple credentials are already valid in EAS.
+- Apple Developer App ID capabilities are aligned with app entitlements (for example HealthKit).
 
 ## Standard workflow (non-interactive)
 
@@ -22,10 +23,11 @@ Copy this checklist and track progress:
 ```md
 - [ ] 1) Ensure iOS build image is current
 - [ ] 2) Bump iOS build number
-- [ ] 3) Run production iOS build
-- [ ] 4) Verify Xcode/iOS SDK from logs
-- [ ] 5) Submit latest iOS build
-- [ ] 6) Confirm Apple processing started
+- [ ] 3) Sync iOS credentials/capabilities (when needed)
+- [ ] 4) Run production iOS build
+- [ ] 5) Verify Xcode/iOS SDK from logs
+- [ ] 6) Submit latest iOS build
+- [ ] 7) Confirm Apple processing started
 ```
 
 ### 1) Ensure iOS build image is current
@@ -48,7 +50,24 @@ Recommended profiles to keep aligned:
 - Ensure iOS build number increments for each App Store upload.
 - If using EAS auto-increment, build may bump automatically; still verify final value.
 
-### 3) Run production iOS build
+### 3) Sync iOS credentials/capabilities (when needed)
+
+Run this whenever entitlements/capabilities changed (for example adding HealthKit), or when build logs show provisioning mismatches:
+
+```bash
+npx eas credentials -p ios
+```
+
+In credentials flow, ensure:
+- App ID capability (e.g. HealthKit) is enabled in Apple Developer for the same bundle ID.
+- The App Store provisioning profile is regenerated/updated and includes the new capability.
+- EAS stores the updated profile.
+
+Typical failure this prevents:
+- `Provisioning profile ... doesn't include the HealthKit capability`
+- `... doesn't include the com.apple.developer.healthkit entitlement`
+
+### 4) Run production iOS build
 
 ```bash
 npx eas build --platform ios --profile production --non-interactive
@@ -56,7 +75,7 @@ npx eas build --platform ios --profile production --non-interactive
 
 Save the build ID from output.
 
-### 4) Verify Xcode/iOS SDK from logs
+### 5) Verify Xcode/iOS SDK from logs
 Use one of:
 
 ```bash
@@ -70,7 +89,7 @@ Open the build logs / Xcode logs and confirm evidence like:
 
 If logs show older SDK, do fallback flow below.
 
-### 5) Submit latest iOS build
+### 6) Submit latest iOS build
 
 ```bash
 npx eas submit --platform ios --latest --profile production --non-interactive
@@ -86,7 +105,7 @@ If error says ascAppId is missing, set:
 }
 ```
 
-### 6) Confirm Apple processing started
+### 7) Confirm Apple processing started
 Success criteria:
 - EAS submit command exits successfully.
 - Output includes “submitted/uploaded to App Store Connect”.

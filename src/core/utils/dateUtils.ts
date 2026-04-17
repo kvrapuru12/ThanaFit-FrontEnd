@@ -57,3 +57,8 @@ export function loggedAtIsoForBackdatedLocalDay(day: Date): string | undefined {
   );
   return atNoon.toISOString().slice(0, 19) + 'Z';
 }
+
+/** UTC ISO-8601 without fractional seconds (matches common API examples). */
+export function toIsoUtcSeconds(d: Date): string {
+  return d.toISOString().split('.')[0] + 'Z';
+}

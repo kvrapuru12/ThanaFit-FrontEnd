@@ -22,6 +22,9 @@ export const Dashboard: React.FC = () => {
     addWaterIntake,
     selectedDate,
     setSelectedDate,
+    displayedSteps,
+    appleHealthSyncState,
+    syncAppleHealthStepsForSelectedDay,
   } = useDashboardData();
   
   // Modal states for adding entries
@@ -230,6 +233,15 @@ export const Dashboard: React.FC = () => {
       Alert.alert('Error', error?.message || 'Failed to add sleep entry');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSyncAppleHealthSteps = async () => {
+    try {
+      await syncAppleHealthStepsForSelectedDay();
+    } catch (e: any) {
+      const msg = e?.message || 'Could not sync steps from Apple Health.';
+      Alert.alert('Apple Health', msg);
     }
   };
 
@@ -511,27 +523,41 @@ export const Dashboard: React.FC = () => {
         <View style={styles.horizontalCardsContainer}>
           {/* Steps Card */}
           <Card style={[styles.horizontalCard, styles.stepsCardEnhanced]}>
-            <CardContent style={styles.horizontalCardContent}>
-              <View style={styles.horizontalCardHeader}>
-                <View style={[styles.horizontalCardIconContainer, { backgroundColor: '#ecfeff' }]}>
-                  <MaterialIcons name="directions-walk" size={24} color="#06b6d4" />
+            <CardContent style={[styles.horizontalCardContent, styles.stepsCardContent]}>
+              {Platform.OS === 'ios' && (
+                <TouchableOpacity
+                  onPress={handleSyncAppleHealthSteps}
+                  disabled={!user?.id || isRefreshing || appleHealthSyncState === 'syncing'}
+                  accessibilityLabel="Sync steps from Apple Health"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.stepsSyncButtonFloating}
+                >
+                  {appleHealthSyncState === 'syncing' ? (
+                    <ActivityIndicator size="small" color="#06b6d4" />
+                  ) : (
+                    <MaterialIcons name="sync" size={22} color="#06b6d4" />
+                  )}
+                </TouchableOpacity>
+              )}
+              <View style={[styles.horizontalCardHeader, styles.stepsCardHeader]}>
+                <View style={[styles.stepsCardTitleGroup, Platform.OS === 'ios' && styles.stepsCardTitleGroupWithSync]}>
+                  <View style={[styles.horizontalCardIconContainer, { backgroundColor: '#ecfeff' }]}>
+                    <MaterialIcons name="directions-walk" size={24} color="#06b6d4" />
+                  </View>
+                  <Text style={styles.horizontalCardTitle} numberOfLines={1}>
+                    Steps
+                  </Text>
                 </View>
-                <Text style={styles.horizontalCardTitle}>Steps</Text>
               </View>
               <Text style={styles.horizontalCardValue}>
-                {data?.stepEntries && data.stepEntries.length > 0 
-                  ? data.stepEntries[0].stepCount.toLocaleString()
-                  : '0'
-                }
+                {displayedSteps.toLocaleString()}
               </Text>
               <Text style={styles.horizontalCardSubtext}>
                 of {(user?.targetSteps || 10000).toLocaleString()} target
               </Text>
               <View style={styles.horizontalProgressBar}>
                 <View style={[styles.horizontalProgressFill, { 
-                  width: data?.stepEntries && data.stepEntries.length > 0 
-                    ? `${Math.min((data.stepEntries[0].stepCount / (user?.targetSteps || 10000)) * 100, 100)}%` 
-                    : '0%',
+                  width: `${Math.min((displayedSteps / (user?.targetSteps || 10000)) * 100, 100)}%`,
                   backgroundColor: '#06b6d4'
                 }]} />
               </View>
@@ -1268,10 +1294,40 @@ const styles = StyleSheet.create({
   horizontalCardContent: {
     padding: 16,
   },
+  stepsCardContent: {
+    position: 'relative',
+  },
   horizontalCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  stepsCardHeader: {
+    width: '100%',
+    justifyContent: 'space-between',
+  },
+  stepsCardTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+    minWidth: 0,
+  },
+  stepsCardTitleGroupWithSync: {
+    paddingRight: 28,
+  },
+  stepsSyncButton: {
+    padding: 4,
+    marginLeft: 'auto',
+    borderRadius: 12,
+  },
+  stepsSyncButtonFloating: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    padding: 4,
+    borderRadius: 12,
+    zIndex: 2,
   },
   horizontalCardIconContainer: {
     width: 32,

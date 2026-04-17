@@ -1,7 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Platform } from 'react-native';
 import { dashboardApiService, DashboardStats, Meal, ActivityLog, WaterIntake, FoodLog, SleepEntry, WeightEntry, StepEntry } from '../../infrastructure/services/dashboardApi';
 import { useAuth } from '../providers/AuthProvider';
-import { startOfLocalDay } from '../../core/utils/dateUtils';
+import { addLocalCalendarDays, formatDateLocal, startOfLocalDay, toIsoUtcSeconds } from '../../core/utils/dateUtils';
+import type { DashboardDailyResponse } from '../../core/types/appleHealthContracts';
+import { getDashboardDaily, ingestAppleHealthSamples } from '../../infrastructure/services/appleHealthApi';
+import {
+  ensureAppleHealthStepReadAuthorization,
+  readAppleHealthStepTotalForLocalDay,
+} from '../../infrastructure/services/appleHealthStepsReader';
 
 export interface DashboardData {
   stats: DashboardStats;
@@ -12,6 +19,8 @@ export interface DashboardData {
   sleepEntries: SleepEntry[];
   weightEntries: WeightEntry[];
   stepEntries: StepEntry[];
+  /** Combined steps from GET /dashboard/daily when BE supports it; null if unavailable. */
+  dailyStepsSummary: DashboardDailyResponse | null;
 }
 
 export interface UseDashboardDataReturn {
@@ -46,6 +55,11 @@ export interface UseDashboardDataReturn {
     servingSize: string;
     image?: string;
   }) => Promise<void>;
+  /** Canonical steps for UI: BE daily merge when present, else first manual step entry. */
+  displayedSteps: number;
+  /** iOS Apple Health manual sync only; idle on other platforms. */
+  appleHealthSyncState: 'idle' | 'syncing' | 'denied' | 'error';
+  syncAppleHealthStepsForSelectedDay: () => Promise<void>;
 }
 
 export const useDashboardData = (): UseDashboardDataReturn => {
@@ -53,6 +67,9 @@ export const useDashboardData = (): UseDashboardDataReturn => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [appleHealthSyncState, setAppleHealthSyncState] = useState<
+    'idle' | 'syncing' | 'denied' | 'error'
+  >('idle');
   const [selectedDate, setSelectedDateState] = useState(() => startOfLocalDay(new Date()));
 
   const setSelectedDate = useCallback((d: Date) => {
@@ -89,8 +106,19 @@ export const useDashboardData = (): UseDashboardDataReturn => {
         summaryDate: selectedDate,
       });
 
+      let dailyStepsSummary: DashboardDailyResponse | null = null;
+      try {
+        const timeZone =
+          Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+        const localDate = formatDateLocal(selectedDate);
+        dailyStepsSummary = await getDashboardDaily(localDate, timeZone);
+      } catch (dailyErr) {
+        console.warn('GET /dashboard/daily unavailable or failed:', dailyErr);
+        dailyStepsSummary = null;
+      }
+
       console.log('Dashboard data fetched successfully:', JSON.stringify(dashboardData, null, 2));
-      setData(dashboardData);
+      setData({ ...dashboardData, dailyStepsSummary });
     } catch (err: any) {
       console.error('Failed to fetch dashboard data:', err);
       setData(null);
@@ -112,6 +140,82 @@ export const useDashboardData = (): UseDashboardDataReturn => {
   const refresh = useCallback(async () => {
     await fetchDashboardData();
   }, [fetchDashboardData]);
+
+  const displayedSteps = useMemo(() => {
+    if (!data) return 0;
+    const fromDaily = data.dailyStepsSummary?.steps?.displayedSteps;
+    if (typeof fromDaily === 'number' && !Number.isNaN(fromDaily)) {
+      return fromDaily;
+    }
+    if (data.stepEntries?.length) {
+      return data.stepEntries[0].stepCount;
+    }
+    return 0;
+  }, [data]);
+
+  const syncAppleHealthStepsForSelectedDay = useCallback(async () => {
+    if (Platform.OS !== 'ios') {
+      throw new Error('Apple Health sync is only available on iPhone.');
+    }
+    if (!user?.id) {
+      throw new Error('User not found');
+    }
+
+    setAppleHealthSyncState('syncing');
+    try {
+      const ok = await ensureAppleHealthStepReadAuthorization();
+      if (!ok) {
+        setAppleHealthSyncState('denied');
+        throw new Error('Apple Health access was not granted.');
+      }
+
+      const total = await readAppleHealthStepTotalForLocalDay(selectedDate);
+      if (total == null) {
+        setAppleHealthSyncState('error');
+        throw new Error('Could not read step count from Apple Health.');
+      }
+
+      const anchorTimeZone =
+        Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const localDate = formatDateLocal(selectedDate);
+      const dayStart = startOfLocalDay(selectedDate);
+      const dayEndExclusive = addLocalCalendarDays(dayStart, 1);
+      const externalSampleId = `HKQuantityTypeIdentifierStepCount:${localDate}:${anchorTimeZone}`;
+
+      const ingestRes = await ingestAppleHealthSamples({
+        clientIngestSchemaVersion: 1,
+        anchorTimeZone,
+        samples: [
+          {
+            metric: 'STEPS',
+            externalSampleId,
+            start: toIsoUtcSeconds(dayStart),
+            end: toIsoUtcSeconds(dayEndExclusive),
+            value: total,
+          },
+        ],
+      });
+
+      const rejected = ingestRes.rejected ?? 0;
+      const accepted = ingestRes.accepted ?? 0;
+      const unchanged = ingestRes.unchanged ?? 0;
+      if (rejected > 0 && accepted === 0 && unchanged === 0) {
+        const msg =
+          ingestRes.results?.find((r) => r.status === 'REJECTED')?.message ||
+          'Apple Health ingest was rejected.';
+        setAppleHealthSyncState('error');
+        throw new Error(msg);
+      }
+
+      await fetchDashboardData();
+      setAppleHealthSyncState('idle');
+    } catch (e) {
+      setAppleHealthSyncState((prev) =>
+        prev === 'syncing' ? 'error' : prev
+      );
+      throw e;
+    }
+  }, [user?.id, selectedDate, fetchDashboardData]);
 
   const addActivityLog = useCallback(async (activityData: {
     activityName: string;
@@ -301,5 +405,8 @@ export const useDashboardData = (): UseDashboardDataReturn => {
     addActivityLog,
     addWaterIntake,
     addFoodLog,
+    displayedSteps,
+    appleHealthSyncState,
+    syncAppleHealthStepsForSelectedDay,
   };
 };
