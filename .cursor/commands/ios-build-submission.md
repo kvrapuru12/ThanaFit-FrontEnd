@@ -13,8 +13,11 @@ Key requirements:
 - Ensure `build.production.ios.image` is `latest` in `eas.json`.
 - Ensure `submit.production.ios.ascAppId` is set in `eas.json`.
 - Keep iOS `buildNumber` incremented for each upload.
-- If entitlements/capabilities changed (e.g. HealthKit), run `npx eas credentials -p ios` to regenerate/sync the App Store provisioning profile before rebuilding.
-- If build fails with provisioning capability mismatch (e.g. HealthKit entitlement missing), treat as a required credentials-sync step and retry the build.
+- Mandatory pre-build credentials preflight (before any production iOS build):
+  - Run `npx eas credentials -p ios`.
+  - Verify bundle ID `com.prod.thanafit` has required capabilities enabled in Apple Developer (especially HealthKit).
+  - Regenerate/sync the App Store provisioning profile in EAS if capabilities/entitlements changed.
+- If build fails with provisioning capability mismatch (e.g. HealthKit entitlement missing), re-run the credentials preflight, then retry the build.
 
 Output:
 - Build ID and build URL

@@ -183,12 +183,13 @@ export const useDashboardData = (): UseDashboardDataReturn => {
       const externalSampleId = `HKQuantityTypeIdentifierStepCount:${localDate}:${anchorTimeZone}`;
 
       const ingestRes = await ingestAppleHealthSamples({
-        clientIngestSchemaVersion: 1,
+        clientIngestSchemaVersion: 2,
         anchorTimeZone,
         samples: [
           {
             metric: 'STEPS',
             externalSampleId,
+            localDate,
             start: toIsoUtcSeconds(dayStart),
             end: toIsoUtcSeconds(dayEndExclusive),
             value: total,

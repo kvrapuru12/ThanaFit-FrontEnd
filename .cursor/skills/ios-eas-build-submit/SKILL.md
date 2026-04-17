@@ -23,7 +23,7 @@ Copy this checklist and track progress:
 ```md
 - [ ] 1) Ensure iOS build image is current
 - [ ] 2) Bump iOS build number
-- [ ] 3) Sync iOS credentials/capabilities (when needed)
+- [ ] 3) Run mandatory iOS credentials preflight
 - [ ] 4) Run production iOS build
 - [ ] 5) Verify Xcode/iOS SDK from logs
 - [ ] 6) Submit latest iOS build
@@ -50,15 +50,16 @@ Recommended profiles to keep aligned:
 - Ensure iOS build number increments for each App Store upload.
 - If using EAS auto-increment, build may bump automatically; still verify final value.
 
-### 3) Sync iOS credentials/capabilities (when needed)
+### 3) Run mandatory iOS credentials preflight
 
-Run this whenever entitlements/capabilities changed (for example adding HealthKit), or when build logs show provisioning mismatches:
+Run this before every production iOS build, and always after entitlement/capability changes (for example adding HealthKit):
 
 ```bash
 npx eas credentials -p ios
 ```
 
 In credentials flow, ensure:
+- Bundle ID is `com.prod.thanafit`.
 - App ID capability (e.g. HealthKit) is enabled in Apple Developer for the same bundle ID.
 - The App Store provisioning profile is regenerated/updated and includes the new capability.
 - EAS stores the updated profile.
@@ -66,6 +67,8 @@ In credentials flow, ensure:
 Typical failure this prevents:
 - `Provisioning profile ... doesn't include the HealthKit capability`
 - `... doesn't include the com.apple.developer.healthkit entitlement`
+
+If a build still fails with a provisioning capability mismatch, repeat this preflight immediately, then retry the build.
 
 ### 4) Run production iOS build
 

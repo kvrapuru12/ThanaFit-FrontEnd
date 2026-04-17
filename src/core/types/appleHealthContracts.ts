@@ -5,6 +5,8 @@ export type AppleHealthMetric = 'STEPS';
 export interface AppleHealthIngestSample {
   metric: AppleHealthMetric;
   externalSampleId: string;
+  /** User-local day identifier in YYYY-MM-DD for aggregation. */
+  localDate: string;
   /** ISO-8601 in UTC, e.g. 2026-04-15T07:00:00Z */
   start: string;
   end: string;
