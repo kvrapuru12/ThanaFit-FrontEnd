@@ -10,6 +10,7 @@ import { useAuth } from '../providers/AuthProvider';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { dashboardApiService } from '../../infrastructure/services/dashboardApi';
 import { startOfLocalDay, addLocalCalendarDays, isSameLocalDay } from '../../core/utils/dateUtils';
+import type { DashboardDailyResolvedSource } from '../../core/types/appleHealthContracts';
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -183,6 +184,22 @@ export const Dashboard: React.FC = () => {
   };
 
   const recentMeals = data?.recentMeals || [];
+  const stepsSummary = data?.dailyStepsSummary?.steps;
+  const sleepSummary = data?.dailyStepsSummary?.sleep;
+
+  const resolveSourceBadgeLabel = (source?: DashboardDailyResolvedSource): string => {
+    switch (source) {
+      case 'BOTH':
+        return 'Apple + Manual';
+      case 'APPLE_HEALTH':
+        return 'Apple Health';
+      case 'MANUAL_APP':
+        return 'Manual';
+      case 'NONE':
+      default:
+        return 'No source';
+    }
+  };
 
   const calorieProgress = (todayStats.calories.consumed / todayStats.calories.goal) * 100;
   const waterProgress = (todayStats.water.consumed / todayStats.water.goal) * 100;
@@ -296,7 +313,7 @@ export const Dashboard: React.FC = () => {
 
     try {
       setIsSubmitting(true);
-      await dashboardApiService.addWeightEntry(user.id, weight);
+      await dashboardApiService.addOrReplaceTodayWeightEntry(user.id, weight);
       setWeightModalVisible(false);
       setWeightValue('');
       await refresh();
@@ -527,6 +544,20 @@ export const Dashboard: React.FC = () => {
               <Text style={styles.horizontalCardSubtext}>
                 of {user?.targetSleepHours || 8}h target
               </Text>
+              {sleepSummary ? (
+                <View style={styles.sourceMetaRow}>
+                  <Badge variant="secondary" style={styles.sourceBadge}>
+                    {resolveSourceBadgeLabel(sleepSummary.resolvedSource)}
+                  </Badge>
+                  {sleepSummary.conflictFlags?.manualVsAppleMismatch ? (
+                    <MaterialIcons
+                      name="warning-amber"
+                      size={16}
+                      color="#b45309"
+                    />
+                  ) : null}
+                </View>
+              ) : null}
               <View style={styles.horizontalProgressBar}>
                 <View style={[styles.horizontalProgressFill, { 
                   width: `${Math.min((displayedSleepHours / (user?.targetSleepHours || 8)) * 100, 100)}%`,
@@ -581,6 +612,20 @@ export const Dashboard: React.FC = () => {
               <Text style={styles.horizontalCardSubtext}>
                 of {(user?.targetSteps || 10000).toLocaleString()} target
               </Text>
+              {stepsSummary ? (
+                <View style={styles.sourceMetaRow}>
+                  <Badge variant="secondary" style={styles.sourceBadge}>
+                    {resolveSourceBadgeLabel(stepsSummary.resolvedSource)}
+                  </Badge>
+                  {stepsSummary.conflictFlags?.manualVsAppleMismatch ? (
+                    <MaterialIcons
+                      name="warning-amber"
+                      size={16}
+                      color="#b45309"
+                    />
+                  ) : null}
+                </View>
+              ) : null}
               <View style={styles.horizontalProgressBar}>
                 <View style={[styles.horizontalProgressFill, { 
                   width: `${Math.min((displayedSteps / (user?.targetSteps || 10000)) * 100, 100)}%`,
@@ -1378,7 +1423,17 @@ const styles = StyleSheet.create({
   horizontalCardSubtext: {
     fontSize: 12,
     color: '#6b7280',
-    marginBottom: 12,
+    marginBottom: 8,
+  },
+  sourceMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+  },
+  sourceBadge: {
+    backgroundColor: '#eef2ff',
+    borderColor: '#c7d2fe',
   },
   horizontalProgressBar: {
     width: '100%',
