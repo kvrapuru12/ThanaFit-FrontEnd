@@ -367,30 +367,15 @@ export const useDashboardData = (): UseDashboardDataReturn => {
         throw new Error('User not found');
       }
       console.log('Adding water intake:', { userId: user.id, amount, notes });
-      const newWaterIntake = await dashboardApiService.addWaterIntake(user.id, amount, notes);
-      
-      // Update local state
-      setData(prevData => {
-        if (!prevData) return prevData;
-        return {
-          ...prevData,
-          waterIntake: [newWaterIntake, ...prevData.waterIntake],
-          stats: {
-            ...prevData.stats,
-            water: {
-              ...prevData.stats.water,
-              consumed: prevData.stats.water.consumed + amount
-            }
-          }
-        };
-      });
-      
+      await dashboardApiService.addOrAccumulateTodayWaterIntake(user.id, amount, notes);
+      await fetchDashboardData();
+
       console.log('Water intake added successfully');
     } catch (err: any) {
       console.error('Failed to add water intake:', err);
       throw err;
     }
-  }, [user]);
+  }, [user, fetchDashboardData]);
 
   const addFoodLog = useCallback(async (foodData: {
     userId: number;

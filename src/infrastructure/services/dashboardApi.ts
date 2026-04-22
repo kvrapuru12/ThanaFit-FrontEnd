@@ -669,7 +669,7 @@ export class DashboardApiService {
       const response = await apiClient.post<WaterIntake>(`/water`, {
         userId,
         amount,
-        notes: notes || '',
+        note: notes || '',
         loggedAt: this.formatLocalDateTime(new Date()),
       });
       
@@ -678,6 +678,79 @@ export class DashboardApiService {
     } catch (error) {
       console.error('Failed to add water intake:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Update water intake by id.
+   */
+  async updateWaterIntake(
+    id: number,
+    waterData: { userId: number; amount: number; note?: string; loggedAt?: string }
+  ): Promise<WaterIntake> {
+    try {
+      try {
+        const patchResponse = await apiClient.patch<WaterIntake>(`/water/${id}`, waterData);
+        return patchResponse.data;
+      } catch {
+        const putResponse = await apiClient.put<WaterIntake>(`/water/${id}`, waterData);
+        return putResponse.data;
+      }
+    } catch (error) {
+      console.error('Failed to update water intake:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete water intake by id (DELETE /water/{id})
+   */
+  async deleteWaterIntake(id: number): Promise<{ message: string }> {
+    try {
+      const response = await apiClient.delete<{ message: string }>(`/water/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to delete water intake:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add water and automatically merge with today's existing intake.
+   * This avoids backend 400 errors when only one entry per day is allowed.
+   */
+  async addOrAccumulateTodayWaterIntake(userId: number, amount: number, notes?: string): Promise<WaterIntake> {
+    try {
+      return await this.addWaterIntake(userId, amount, notes);
+    } catch (error: any) {
+      const status = error?.response?.status;
+      if (status !== 400) {
+        throw error;
+      }
+
+      const todaysEntries = await this.getTodayWaterIntake(userId);
+      if (todaysEntries.length === 0) {
+        throw error;
+      }
+
+      const totalExistingAmount = todaysEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0);
+      const mergedAmount = totalExistingAmount + amount;
+      const latestEntry = [...todaysEntries].sort(
+        (a, b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime()
+      )[0];
+      const mergedNote = [latestEntry.note, notes].filter(Boolean).join(' | ');
+
+      try {
+        return await this.updateWaterIntake(latestEntry.id, {
+          userId,
+          amount: mergedAmount,
+          note: mergedNote,
+          loggedAt: this.formatLocalDateTime(new Date()),
+        });
+      } catch (updateError) {
+        await Promise.all(todaysEntries.map((entry) => this.deleteWaterIntake(entry.id)));
+        return await this.addWaterIntake(userId, mergedAmount, mergedNote);
+      }
     }
   }
 
@@ -754,6 +827,41 @@ export class DashboardApiService {
       return response.data;
     } catch (error) {
       console.error('Failed to add weight entry:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete weight entry by id (DELETE /weights/{id})
+   */
+  async deleteWeightEntry(id: number): Promise<{ message: string }> {
+    try {
+      const response = await apiClient.delete<{ message: string }>(`/weights/${id}`);
+      console.log('Weight entry deleted:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to delete weight entry:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Replace today's weight entry with a new value.
+   * Some backends enforce one weight log per day and return 400 for duplicates.
+   */
+  async addOrReplaceTodayWeightEntry(userId: number, weight: number, note?: string): Promise<WeightEntry> {
+    try {
+      const todaysEntries = await this.getTodayWeightEntries(userId);
+
+      if (todaysEntries.length > 0) {
+        await Promise.all(
+          todaysEntries.map((entry) => this.deleteWeightEntry(entry.id))
+        );
+      }
+
+      return await this.addWeightEntry(userId, weight, note);
+    } catch (error) {
+      console.error('Failed to replace today weight entry:', error);
       throw error;
     }
   }
