@@ -9,6 +9,26 @@ import {
   ensureAppleHealthStepReadAuthorization,
   readAppleHealthStepTotalForLocalDay,
 } from '../../infrastructure/services/appleHealthStepsReader';
+import {
+  ensureAppleHealthSleepReadAuthorization,
+  readAppleHealthAsleepStageHoursForLocalDay,
+} from '../../infrastructure/services/appleHealthSleepReader';
+
+function formatDateInTimeZone(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const year = parts.find((p) => p.type === 'year')?.value;
+  const month = parts.find((p) => p.type === 'month')?.value;
+  const day = parts.find((p) => p.type === 'day')?.value;
+  if (!year || !month || !day) {
+    throw new Error('Could not compute localDate in requested timezone.');
+  }
+  return `${year}-${month}-${day}`;
+}
 
 export interface DashboardData {
   stats: DashboardStats;
@@ -57,9 +77,13 @@ export interface UseDashboardDataReturn {
   }) => Promise<void>;
   /** Canonical steps for UI: BE daily merge when present, else first manual step entry. */
   displayedSteps: number;
+  /** Canonical sleep hours for UI: BE daily merge when present, else first manual sleep entry. */
+  displayedSleepHours: number;
   /** iOS Apple Health manual sync only; idle on other platforms. */
   appleHealthSyncState: 'idle' | 'syncing' | 'denied' | 'error';
   syncAppleHealthStepsForSelectedDay: () => Promise<void>;
+  appleHealthSleepSyncState: 'idle' | 'syncing' | 'denied' | 'error';
+  syncAppleHealthSleepForSelectedDay: () => Promise<void>;
 }
 
 export const useDashboardData = (): UseDashboardDataReturn => {
@@ -68,6 +92,9 @@ export const useDashboardData = (): UseDashboardDataReturn => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [appleHealthSyncState, setAppleHealthSyncState] = useState<
+    'idle' | 'syncing' | 'denied' | 'error'
+  >('idle');
+  const [appleHealthSleepSyncState, setAppleHealthSleepSyncState] = useState<
     'idle' | 'syncing' | 'denied' | 'error'
   >('idle');
   const [selectedDate, setSelectedDateState] = useState(() => startOfLocalDay(new Date()));
@@ -153,6 +180,23 @@ export const useDashboardData = (): UseDashboardDataReturn => {
     return 0;
   }, [data]);
 
+  const displayedSleepHours = useMemo(() => {
+    if (!data) return 0;
+    const fromDaily = data.dailyStepsSummary?.sleep?.displayedSleepHours;
+    if (typeof fromDaily === 'number' && !Number.isNaN(fromDaily)) {
+      return fromDaily;
+    }
+    if (data.sleepEntries?.length) {
+      return (
+        data.sleepEntries[0].hours ??
+        data.sleepEntries[0].durationHours ??
+        data.sleepEntries[0].sleepHours ??
+        0
+      );
+    }
+    return 0;
+  }, [data]);
+
   const syncAppleHealthStepsForSelectedDay = useCallback(async () => {
     if (Platform.OS !== 'ios') {
       throw new Error('Apple Health sync is only available on iPhone.');
@@ -212,6 +256,72 @@ export const useDashboardData = (): UseDashboardDataReturn => {
       setAppleHealthSyncState('idle');
     } catch (e) {
       setAppleHealthSyncState((prev) =>
+        prev === 'syncing' ? 'error' : prev
+      );
+      throw e;
+    }
+  }, [user?.id, selectedDate, fetchDashboardData]);
+
+  const syncAppleHealthSleepForSelectedDay = useCallback(async () => {
+    if (Platform.OS !== 'ios') {
+      throw new Error('Apple Health sync is only available on iPhone.');
+    }
+    if (!user?.id) {
+      throw new Error('User not found');
+    }
+
+    setAppleHealthSleepSyncState('syncing');
+    try {
+      const ok = await ensureAppleHealthSleepReadAuthorization();
+      if (!ok) {
+        setAppleHealthSleepSyncState('denied');
+        throw new Error('Apple Health access was not granted.');
+      }
+
+      const byStage = await readAppleHealthAsleepStageHoursForLocalDay(selectedDate);
+      if (byStage == null) {
+        setAppleHealthSleepSyncState('error');
+        throw new Error('Could not read sleep from Apple Health.');
+      }
+
+      const anchorTimeZone =
+        Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const samples = byStage.map((item) => ({
+        metric: 'SLEEP' as const,
+        sleepStage: item.sleepStage,
+        externalSampleId: item.externalSampleId,
+        localDate: formatDateInTimeZone(item.end, anchorTimeZone),
+        start: toIsoUtcSeconds(item.start),
+        end: toIsoUtcSeconds(item.end),
+        value: 0,
+      }));
+
+      if (samples.length === 0) {
+        setAppleHealthSleepSyncState('error');
+        throw new Error('No asleep sleep-stage data found for this date.');
+      }
+
+      const ingestRes = await ingestAppleHealthSamples({
+        clientIngestSchemaVersion: 2,
+        anchorTimeZone,
+        samples,
+      });
+
+      const rejected = ingestRes.rejected ?? 0;
+      const accepted = ingestRes.accepted ?? 0;
+      const unchanged = ingestRes.unchanged ?? 0;
+      if (rejected > 0 && accepted === 0 && unchanged === 0) {
+        const msg =
+          ingestRes.results?.find((r) => r.status === 'REJECTED')?.message ||
+          'Apple Health ingest was rejected.';
+        setAppleHealthSleepSyncState('error');
+        throw new Error(msg);
+      }
+
+      await fetchDashboardData();
+      setAppleHealthSleepSyncState('idle');
+    } catch (e) {
+      setAppleHealthSleepSyncState((prev) =>
         prev === 'syncing' ? 'error' : prev
       );
       throw e;
@@ -407,7 +517,10 @@ export const useDashboardData = (): UseDashboardDataReturn => {
     addWaterIntake,
     addFoodLog,
     displayedSteps,
+    displayedSleepHours,
     appleHealthSyncState,
     syncAppleHealthStepsForSelectedDay,
+    appleHealthSleepSyncState,
+    syncAppleHealthSleepForSelectedDay,
   };
 };

@@ -23,8 +23,11 @@ export const Dashboard: React.FC = () => {
     selectedDate,
     setSelectedDate,
     displayedSteps,
+    displayedSleepHours,
     appleHealthSyncState,
     syncAppleHealthStepsForSelectedDay,
+    appleHealthSleepSyncState,
+    syncAppleHealthSleepForSelectedDay,
   } = useDashboardData();
   
   // Modal states for adding entries
@@ -241,6 +244,15 @@ export const Dashboard: React.FC = () => {
       await syncAppleHealthStepsForSelectedDay();
     } catch (e: any) {
       const msg = e?.message || 'Could not sync steps from Apple Health.';
+      Alert.alert('Apple Health', msg);
+    }
+  };
+
+  const handleSyncAppleHealthSleep = async () => {
+    try {
+      await syncAppleHealthSleepForSelectedDay();
+    } catch (e: any) {
+      const msg = e?.message || 'Could not sync sleep from Apple Health.';
       Alert.alert('Apple Health', msg);
     }
   };
@@ -483,27 +495,41 @@ export const Dashboard: React.FC = () => {
 
           {/* Sleep Card */}
           <Card style={[styles.horizontalCard, styles.sleepCardEnhanced]}>
-            <CardContent style={styles.horizontalCardContent}>
+            <CardContent style={[styles.horizontalCardContent, styles.stepsCardContent]}>
+              {Platform.OS === 'ios' && (
+                <TouchableOpacity
+                  onPress={handleSyncAppleHealthSleep}
+                  disabled={!user?.id || isRefreshing || appleHealthSleepSyncState === 'syncing'}
+                  accessibilityLabel="Sync sleep from Apple Health"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.stepsSyncButtonFloating}
+                >
+                  {appleHealthSleepSyncState === 'syncing' ? (
+                    <ActivityIndicator size="small" color="#8b5cf6" />
+                  ) : (
+                    <MaterialIcons name="sync" size={22} color="#8b5cf6" />
+                  )}
+                </TouchableOpacity>
+              )}
               <View style={styles.horizontalCardHeader}>
-                <View style={[styles.horizontalCardIconContainer, { backgroundColor: '#f3e8ff' }]}>
-                  <MaterialIcons name="bedtime" size={24} color="#8b5cf6" />
+                <View style={[styles.stepsCardTitleGroup, Platform.OS === 'ios' && styles.stepsCardTitleGroupWithSync]}>
+                  <View style={[styles.horizontalCardIconContainer, { backgroundColor: '#f3e8ff' }]}>
+                    <MaterialIcons name="bedtime" size={24} color="#8b5cf6" />
+                  </View>
+                  <Text style={styles.horizontalCardTitle} numberOfLines={1}>
+                    Sleep
+                  </Text>
                 </View>
-                <Text style={styles.horizontalCardTitle}>Sleep</Text>
               </View>
               <Text style={styles.horizontalCardValue}>
-                {data?.sleepEntries && data.sleepEntries.length > 0 
-                  ? `${data.sleepEntries[0].hours || data.sleepEntries[0].durationHours || data.sleepEntries[0].sleepHours || 0}h` 
-                  : '0h'
-                }
+                {`${Math.round(displayedSleepHours * 100) / 100}h`}
               </Text>
               <Text style={styles.horizontalCardSubtext}>
                 of {user?.targetSleepHours || 8}h target
               </Text>
               <View style={styles.horizontalProgressBar}>
                 <View style={[styles.horizontalProgressFill, { 
-                  width: data?.sleepEntries && data.sleepEntries.length > 0 
-                    ? `${Math.min(((data.sleepEntries[0].hours || data.sleepEntries[0].durationHours || data.sleepEntries[0].sleepHours || 0) / (user?.targetSleepHours || 8)) * 100, 100)}%` 
-                    : '0%',
+                  width: `${Math.min((displayedSleepHours / (user?.targetSleepHours || 8)) * 100, 100)}%`,
                   backgroundColor: '#8b5cf6'
                 }]} />
               </View>
