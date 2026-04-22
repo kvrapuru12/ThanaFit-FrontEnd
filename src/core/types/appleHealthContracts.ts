@@ -1,9 +1,20 @@
 /** MVP contracts: POST /integrations/apple-health/ingest + GET /dashboard/daily */
 
-export type AppleHealthMetric = 'STEPS';
+/** SLEEP: value is total asleep hours (decimal) for `localDate` from HealthKit sleep analysis. */
+export type AppleHealthMetric = 'STEPS' | 'SLEEP';
+export type AppleHealthSleepStage =
+  | 'AWAKE'
+  | 'IN_BED'
+  | 'ASLEEP'
+  | 'ASLEEP_UNSPECIFIED'
+  | 'CORE'
+  | 'DEEP'
+  | 'REM';
 
 export interface AppleHealthIngestSample {
   metric: AppleHealthMetric;
+  /** Required for SLEEP metric when backend validates staged sleep. */
+  sleepStage?: AppleHealthSleepStage;
   externalSampleId: string;
   /** User-local day identifier in YYYY-MM-DD for aggregation. */
   localDate: string;
@@ -37,7 +48,7 @@ export interface AppleHealthIngestResponse {
 }
 
 export interface DashboardDailyStepsBySource {
-  source: string;
+  source: DashboardDailyResolvedSource;
   steps: number;
 }
 
@@ -49,9 +60,29 @@ export interface DashboardDailyConflictFlags {
 export interface DashboardDailySteps {
   mergePolicy: string;
   displayedSteps: number;
+  resolvedSource: DashboardDailyResolvedSource;
   bySource: DashboardDailyStepsBySource[];
   conflictFlags: DashboardDailyConflictFlags;
 }
+
+export interface DashboardDailySleepBySource {
+  source: DashboardDailyResolvedSource;
+  hours: number;
+}
+
+export interface DashboardDailySleep {
+  mergePolicy: string;
+  displayedSleepHours: number;
+  resolvedSource: DashboardDailyResolvedSource;
+  bySource: DashboardDailySleepBySource[];
+  conflictFlags: DashboardDailyConflictFlags;
+}
+
+export type DashboardDailyResolvedSource =
+  | 'BOTH'
+  | 'APPLE_HEALTH'
+  | 'MANUAL_APP'
+  | 'NONE';
 
 export interface DashboardDailyResponse {
   localDate: string;
@@ -59,4 +90,5 @@ export interface DashboardDailyResponse {
   schemaVersion: number;
   generatedAt: string;
   steps: DashboardDailySteps;
+  sleep?: DashboardDailySleep;
 }
