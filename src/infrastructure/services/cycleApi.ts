@@ -1,5 +1,8 @@
 import { apiClient } from '../api/ApiClient';
 
+// Cycle-sync AI routes can take ~20–30s; default apiClient timeout is 10s.
+const CYCLE_SYNC_SUGGESTIONS_TIMEOUT_MS = 45_000;
+
 // Cycle Data Types
 export interface Cycle {
   id: number;
@@ -49,6 +52,53 @@ export interface ActivityRecommendation {
   avoid: string[];
   note: string;
 }
+
+export type CycleSyncPhaseKey = 'menstrual' | 'follicular' | 'ovulation' | 'luteal';
+
+export interface CycleSyncSuggestionPhase {
+  phaseName: string;
+  days: string;
+  subtitle: string;
+  energyLevel: number;
+  move: {
+    title: string;
+    intensity: string;
+    sessionHint: string;
+    main: string;
+    mainDetail: string;
+    extra: string;
+    extraDetail: string;
+    strengthFocus: boolean;
+    note: string;
+  };
+  eatToday: {
+    categories: {
+      carbs: string[];
+      protein: string[];
+      fats: string[];
+      greens: string[];
+    };
+    digestiveSupport: string[];
+    prebioticFoods: string[];
+    probioticFoods: string[];
+    seedCycling: {
+      main: string[];
+      optionalAddons: string[];
+    };
+  };
+  feel: string[];
+  avoidDetailed: Array<{ item: string; reason: string }>;
+  tip: string;
+  digestionNote: string;
+  theme: {
+    accent: string;
+    background: string;
+  };
+}
+
+export type CycleSyncSuggestionsResponse = Partial<
+  Record<CycleSyncPhaseKey, CycleSyncSuggestionPhase>
+>;
 
 // Cycle API Service
 export class CycleApiService {
@@ -182,7 +232,10 @@ export class CycleApiService {
   async getFoodRecommendations(): Promise<FoodRecommendation> {
     try {
       console.log('=== GET FOOD RECOMMENDATIONS API CALL ===');
-      const response = await apiClient.get<FoodRecommendation>('/ai/suggestions/cycle-sync/food');
+      const response = await apiClient.get<FoodRecommendation>(
+        '/ai/suggestions/cycle-sync/food',
+        { timeout: CYCLE_SYNC_SUGGESTIONS_TIMEOUT_MS }
+      );
       console.log('Food recommendations fetched successfully:', response.data);
       return response.data;
     } catch (error) {
@@ -197,11 +250,32 @@ export class CycleApiService {
   async getActivityRecommendations(): Promise<ActivityRecommendation> {
     try {
       console.log('=== GET ACTIVITY RECOMMENDATIONS API CALL ===');
-      const response = await apiClient.get<ActivityRecommendation>('/ai/suggestions/cycle-sync/activity');
+      const response = await apiClient.get<ActivityRecommendation>(
+        '/ai/suggestions/cycle-sync/activity',
+        { timeout: CYCLE_SYNC_SUGGESTIONS_TIMEOUT_MS }
+      );
       console.log('Activity recommendations fetched successfully:', response.data);
       return response.data;
     } catch (error) {
       console.error('Failed to fetch activity recommendations:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get full cycle-sync suggestions grouped by phase
+   */
+  async getCycleSyncSuggestions(userId: number): Promise<CycleSyncSuggestionsResponse> {
+    try {
+      console.log('=== GET CYCLE SYNC SUGGESTIONS API CALL ===');
+      const response = await apiClient.get<CycleSyncSuggestionsResponse>(
+        `/ai/suggestions/cycle-sync?userId=${userId}`,
+        { timeout: CYCLE_SYNC_SUGGESTIONS_TIMEOUT_MS }
+      );
+      console.log('Cycle sync suggestions fetched successfully');
+      return response.data ?? {};
+    } catch (error) {
+      console.error('Failed to fetch cycle sync suggestions:', error);
       throw error;
     }
   }

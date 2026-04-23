@@ -18,7 +18,11 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../providers/AuthProvider';
 import { useMainTab } from '../providers/MainTabContext';
-import { cycleApiService, Cycle } from '../../infrastructure/services/cycleApi';
+import {
+  cycleApiService,
+  Cycle,
+  CycleSyncSuggestionsResponse,
+} from '../../infrastructure/services/cycleApi';
 import { apiClient } from '../../infrastructure/api/ApiClient';
 import { formatDateLocal, parseDateLocal } from '../../core/utils/dateUtils';
 import {
@@ -27,7 +31,12 @@ import {
   calculateDaysUntilNextPeriod,
   type PhaseKey,
 } from '../../core/utils/cyclePhaseUtils';
-import { phaseData, PHASE_ORDER } from '../data/cycleSyncPhaseData';
+import {
+  phaseData,
+  PHASE_ORDER,
+  type PhaseContent,
+  type AvoidItem,
+} from '../data/cycleSyncPhaseData';
 
 interface CycleSyncProps {
   navigation?: { navigate: (name: string, params?: object) => void };
@@ -126,6 +135,112 @@ function avoidShortLabel(item: string): string {
   return item.length > 12 ? `${item.slice(0, 10)}…` : item;
 }
 
+function clampEnergyLevel(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.max(1, Math.min(5, Math.round(value)));
+}
+
+function ensureStrings(value: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(value)) return fallback;
+  const filtered = value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+  return filtered.length > 0 ? filtered : fallback;
+}
+
+function ensureAvoidItems(value: unknown, fallback: AvoidItem[]): AvoidItem[] {
+  if (!Array.isArray(value)) return fallback;
+  const filtered = value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const maybeItem = (item as { item?: unknown }).item;
+      const maybeReason = (item as { reason?: unknown }).reason;
+      if (typeof maybeItem !== 'string' || typeof maybeReason !== 'string') return null;
+      return { item: maybeItem, reason: maybeReason };
+    })
+    .filter((item): item is AvoidItem => !!item);
+  return filtered.length > 0 ? filtered : fallback;
+}
+
+function normalizePhaseContent(
+  incoming: CycleSyncSuggestionsResponse | null
+): Partial<Record<PhaseKey, PhaseContent>> | null {
+  if (!incoming) return null;
+
+  const normalized: Partial<Record<PhaseKey, PhaseContent>> = {};
+
+  PHASE_ORDER.forEach((phaseKey) => {
+    const base = phaseData[phaseKey];
+    const candidate = incoming[phaseKey];
+    if (!candidate) return;
+
+    normalized[phaseKey] = {
+      phaseName: typeof candidate.phaseName === 'string' ? candidate.phaseName : base.phaseName,
+      days: typeof candidate.days === 'string' ? candidate.days : base.days,
+      subtitle: typeof candidate.subtitle === 'string' ? candidate.subtitle : base.subtitle,
+      energyLevel: clampEnergyLevel(candidate.energyLevel),
+      move: {
+        title: typeof candidate.move?.title === 'string' ? candidate.move.title : base.move.title,
+        intensity:
+          typeof candidate.move?.intensity === 'string' ? candidate.move.intensity : base.move.intensity,
+        sessionHint:
+          typeof candidate.move?.sessionHint === 'string'
+            ? candidate.move.sessionHint
+            : base.move.sessionHint,
+        main: typeof candidate.move?.main === 'string' ? candidate.move.main : base.move.main,
+        mainDetail:
+          typeof candidate.move?.mainDetail === 'string'
+            ? candidate.move.mainDetail
+            : base.move.mainDetail,
+        extra: typeof candidate.move?.extra === 'string' ? candidate.move.extra : base.move.extra,
+        extraDetail:
+          typeof candidate.move?.extraDetail === 'string'
+            ? candidate.move.extraDetail
+            : base.move.extraDetail,
+        strengthFocus:
+          typeof candidate.move?.strengthFocus === 'boolean'
+            ? candidate.move.strengthFocus
+            : base.move.strengthFocus,
+        note: typeof candidate.move?.note === 'string' ? candidate.move.note : base.move.note,
+      },
+      eatToday: {
+        categories: {
+          carbs: ensureStrings(candidate.eatToday?.categories?.carbs, base.eatToday.categories.carbs),
+          protein: ensureStrings(candidate.eatToday?.categories?.protein, base.eatToday.categories.protein),
+          fats: ensureStrings(candidate.eatToday?.categories?.fats, base.eatToday.categories.fats),
+          greens: ensureStrings(candidate.eatToday?.categories?.greens, base.eatToday.categories.greens),
+        },
+        digestiveSupport: ensureStrings(
+          candidate.eatToday?.digestiveSupport,
+          base.eatToday.digestiveSupport
+        ),
+        prebioticFoods: ensureStrings(candidate.eatToday?.prebioticFoods, base.eatToday.prebioticFoods),
+        probioticFoods: ensureStrings(candidate.eatToday?.probioticFoods, base.eatToday.probioticFoods),
+        seedCycling: {
+          main: ensureStrings(candidate.eatToday?.seedCycling?.main, base.eatToday.seedCycling.main),
+          optionalAddons: ensureStrings(
+            candidate.eatToday?.seedCycling?.optionalAddons,
+            base.eatToday.seedCycling.optionalAddons
+          ),
+        },
+      },
+      feel: ensureStrings(candidate.feel, base.feel),
+      avoidDetailed: ensureAvoidItems(candidate.avoidDetailed, base.avoidDetailed),
+      tip: typeof candidate.tip === 'string' ? candidate.tip : base.tip,
+      digestionNote:
+        typeof candidate.digestionNote === 'string' ? candidate.digestionNote : base.digestionNote,
+      theme: {
+        accent:
+          typeof candidate.theme?.accent === 'string' ? candidate.theme.accent : base.theme.accent,
+        background:
+          typeof candidate.theme?.background === 'string'
+            ? candidate.theme.background
+            : base.theme.background,
+      },
+    };
+  });
+
+  return normalized;
+}
+
 export function CycleSync({ navigation }: CycleSyncProps) {
   const { user, refreshUserData } = useAuth();
   const mainTab = useMainTab();
@@ -144,6 +259,9 @@ export function CycleSync({ navigation }: CycleSyncProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingCycle, setEditingCycle] = useState<Cycle | null>(null);
   const [seedOptionalOpen, setSeedOptionalOpen] = useState(false);
+  const [suggestionsData, setSuggestionsData] = useState<
+    Partial<Record<PhaseKey, PhaseContent>> | null
+  >(null);
 
   const hasLoggedData =
     !!user?.lastPeriodDate || recentCycle !== null;
@@ -153,11 +271,31 @@ export function CycleSync({ navigation }: CycleSyncProps) {
       setLoading(false);
       setRecentCycle(null);
       setCycleVm(null);
+      setSuggestionsData(null);
       return;
     }
     setLoading(true);
     try {
-      const recent = await cycleApiService.getMostRecentCycle(user.id);
+      const [recentResult, suggestionsResult] = await Promise.allSettled([
+        cycleApiService.getMostRecentCycle(user.id),
+        cycleApiService.getCycleSyncSuggestions(user.id),
+      ]);
+
+      const recent = recentResult.status === 'fulfilled' ? recentResult.value : null;
+      if (recentResult.status === 'rejected') {
+        console.warn('CycleSync V1 recent cycle fetch failed, continuing with fallback:', recentResult.reason);
+      }
+
+      if (suggestionsResult.status === 'fulfilled') {
+        setSuggestionsData(normalizePhaseContent(suggestionsResult.value));
+      } else {
+        console.warn(
+          'CycleSync V1 suggestions fetch failed, using static phase data fallback:',
+          suggestionsResult.reason
+        );
+        setSuggestionsData(null);
+      }
+
       setRecentCycle(recent);
       if (recent) {
         const currentPhase = calculateCurrentPhase(
@@ -197,6 +335,7 @@ export function CycleSync({ navigation }: CycleSyncProps) {
     } catch (e) {
       console.error('CycleSync V1 loadCycle:', e);
       setCycleVm(null);
+      setSuggestionsData(null);
     } finally {
       setLoading(false);
     }
@@ -207,7 +346,21 @@ export function CycleSync({ navigation }: CycleSyncProps) {
   }, [loadCycle]);
 
   const phase = cycleVm?.currentPhase ?? 'menstrual';
-  const content = phaseData[phase];
+  const usingBackendSuggestions = !!suggestionsData?.[phase];
+  const content = suggestionsData?.[phase] ?? phaseData[phase];
+
+  useEffect(() => {
+    const source = usingBackendSuggestions ? 'BACKEND_ENDPOINT' : 'STATIC_FALLBACK';
+    console.log('CycleSync suggestions source:', source, {
+      phase,
+      hasSuggestionsData: !!suggestionsData,
+      hasPhaseFromBackend: usingBackendSuggestions,
+      preview: {
+        phaseName: content.phaseName,
+        subtitle: content.subtitle,
+      },
+    });
+  }, [phase, usingBackendSuggestions, suggestionsData, content.phaseName, content.subtitle]);
 
   useEffect(() => {
     setSeedOptionalOpen(false);

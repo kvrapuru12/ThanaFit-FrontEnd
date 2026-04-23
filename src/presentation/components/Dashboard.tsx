@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, TextInput, Modal, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, TextInput, Modal, KeyboardAvoidingView, Platform, Image, Linking } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
 import { MaterialIcons } from '@expo/vector-icons';
 import { ImageWithFallback } from './figma/ImageWithFallback';
@@ -11,6 +10,11 @@ import { useDashboardData } from '../hooks/useDashboardData';
 import { dashboardApiService } from '../../infrastructure/services/dashboardApi';
 import { startOfLocalDay, addLocalCalendarDays, isSameLocalDay } from '../../core/utils/dateUtils';
 import type { DashboardDailyResolvedSource } from '../../core/types/appleHealthContracts';
+import {
+  HEALTHKIT_PRECHECK_ALERT_BODY,
+  markHealthKitSyncPrecheckComplete,
+  shouldShowHealthKitSyncPrecheck,
+} from '../../core/utils/healthKitSyncPrecheck';
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -45,6 +49,7 @@ export const Dashboard: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [draftPickerDate, setDraftPickerDate] = useState(() => startOfLocalDay(new Date()));
+  const [healthKitDetailsOpen, setHealthKitDetailsOpen] = useState(false);
 
   const todayStart = startOfLocalDay(new Date());
   const isViewingToday = isSameLocalDay(selectedDate, todayStart);
@@ -187,17 +192,19 @@ export const Dashboard: React.FC = () => {
   const stepsSummary = data?.dailyStepsSummary?.steps;
   const sleepSummary = data?.dailyStepsSummary?.sleep;
 
-  const resolveSourceBadgeLabel = (source?: DashboardDailyResolvedSource): string => {
+  const resolveSourceIconName = (
+    source?: DashboardDailyResolvedSource
+  ): React.ComponentProps<typeof MaterialIcons>['name'] => {
     switch (source) {
       case 'BOTH':
-        return 'Apple + Manual';
+        return 'join-full';
       case 'APPLE_HEALTH':
-        return 'Apple Health';
+        return 'favorite';
       case 'MANUAL_APP':
-        return 'Manual';
+        return 'edit';
       case 'NONE':
       default:
-        return 'No source';
+        return 'remove';
     }
   };
 
@@ -256,22 +263,63 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const handleSyncAppleHealthSteps = async () => {
+  const showAppleHealthSyncError = (e: any, fallback: string) => {
+    const msg = typeof e?.message === 'string' && e.message.length > 0 ? e.message : fallback;
+    const denied = /not granted|access was not granted/i.test(msg);
+    if (Platform.OS === 'ios' && denied) {
+      Alert.alert('Apple Health', msg, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ]);
+      return;
+    }
+    Alert.alert('Apple Health', msg);
+  };
+
+  const runAppleHealthStepsSync = async () => {
     try {
       await syncAppleHealthStepsForSelectedDay();
     } catch (e: any) {
-      const msg = e?.message || 'Could not sync steps from Apple Health.';
-      Alert.alert('Apple Health', msg);
+      showAppleHealthSyncError(e, 'Could not sync steps from Apple Health.');
     }
   };
 
-  const handleSyncAppleHealthSleep = async () => {
+  const runAppleHealthSleepSync = async () => {
     try {
       await syncAppleHealthSleepForSelectedDay();
     } catch (e: any) {
-      const msg = e?.message || 'Could not sync sleep from Apple Health.';
-      Alert.alert('Apple Health', msg);
+      showAppleHealthSyncError(e, 'Could not sync sleep from Apple Health.');
     }
+  };
+
+  const promptHealthKitPrecheckThen = (runSync: () => Promise<void>) => {
+    if (Platform.OS !== 'ios') return;
+    void (async () => {
+      if (await shouldShowHealthKitSyncPrecheck()) {
+        Alert.alert('Apple HealthKit', HEALTHKIT_PRECHECK_ALERT_BODY, [
+          { text: 'Not now', style: 'cancel' },
+          {
+            text: 'Continue',
+            onPress: () => {
+              void (async () => {
+                await markHealthKitSyncPrecheckComplete();
+                await runSync();
+              })();
+            },
+          },
+        ]);
+        return;
+      }
+      await runSync();
+    })();
+  };
+
+  const handleSyncAppleHealthSteps = () => {
+    promptHealthKitPrecheckThen(runAppleHealthStepsSync);
+  };
+
+  const handleSyncAppleHealthSleep = () => {
+    promptHealthKitPrecheckThen(runAppleHealthSleepSync);
   };
 
   const handleAddSteps = async () => {
@@ -480,6 +528,55 @@ export const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
 
+        {Platform.OS === 'ios' ? (
+          <View style={styles.healthKitBanner}>
+            <View style={styles.healthKitBannerTop}>
+              <MaterialIcons name="health-and-safety" size={20} color="#14b8a6" style={styles.healthKitBannerIcon} />
+              <View style={styles.healthKitBannerTextCol}>
+                <View style={styles.healthKitBannerTitleRow}>
+                  <Text style={styles.healthKitBannerTitle}>Apple Health sync</Text>
+                  <View style={styles.healthKitPill}>
+                    <Text style={styles.healthKitPillText}>HealthKit</Text>
+                  </View>
+                </View>
+                <Text
+                  style={styles.healthKitBannerLead}
+                  accessibilityRole="text"
+                  accessibilityLabel={
+                    healthKitDetailsOpen
+                      ? 'HealthKit sync summary, details expanded'
+                      : 'HealthKit sync summary'
+                  }
+                >
+                  {
+                    "Tap the sync icon on Sleep or Steps to refresh today's data—only when you ask. "
+                  }
+                  <Text
+                    style={styles.healthKitDetailsLink}
+                    onPress={() => setHealthKitDetailsOpen((o) => !o)}
+                    accessibilityRole="button"
+                    accessibilityLabel={healthKitDetailsOpen ? 'Hide HealthKit details' : 'Show HealthKit details'}
+                    accessibilityState={{ expanded: healthKitDetailsOpen }}
+                  >
+                    {healthKitDetailsOpen ? 'Hide' : 'Details'}
+                  </Text>
+                </Text>
+              </View>
+            </View>
+            {healthKitDetailsOpen ? (
+              <View style={styles.healthKitDetailsBody}>
+                <Text style={styles.healthKitDetailsParagraph}>
+                  ThanaFit uses Apple HealthKit to read step count and sleep analysis for your dashboard and
+                  reminders. We do not write to Apple Health or use this data for advertising.
+                </Text>
+                <Text style={styles.healthKitDetailsParagraph}>
+                  Manage access: Settings → Privacy and Security → Health → ThanaFit.
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
         {/* Water & Sleep Cards */}
         <View style={styles.horizontalCardsContainer}>
           {/* Water Card */}
@@ -538,26 +635,21 @@ export const Dashboard: React.FC = () => {
                   </Text>
                 </View>
               </View>
-              <Text style={styles.horizontalCardValue}>
-                {`${Math.round(displayedSleepHours * 100) / 100}h`}
-              </Text>
+              <View style={styles.valueWithSourceIconRow}>
+                <Text style={styles.horizontalCardValue}>
+                  {`${Math.round(displayedSleepHours * 100) / 100}h`}
+                </Text>
+                {sleepSummary ? (
+                  <MaterialIcons
+                    name={resolveSourceIconName(sleepSummary.resolvedSource)}
+                    size={16}
+                    color="#6b7280"
+                  />
+                ) : null}
+              </View>
               <Text style={styles.horizontalCardSubtext}>
                 of {user?.targetSleepHours || 8}h target
               </Text>
-              {sleepSummary ? (
-                <View style={styles.sourceMetaRow}>
-                  <Badge variant="secondary" style={styles.sourceBadge}>
-                    {resolveSourceBadgeLabel(sleepSummary.resolvedSource)}
-                  </Badge>
-                  {sleepSummary.conflictFlags?.manualVsAppleMismatch ? (
-                    <MaterialIcons
-                      name="warning-amber"
-                      size={16}
-                      color="#b45309"
-                    />
-                  ) : null}
-                </View>
-              ) : null}
               <View style={styles.horizontalProgressBar}>
                 <View style={[styles.horizontalProgressFill, { 
                   width: `${Math.min((displayedSleepHours / (user?.targetSleepHours || 8)) * 100, 100)}%`,
@@ -606,26 +698,21 @@ export const Dashboard: React.FC = () => {
                   </Text>
                 </View>
               </View>
-              <Text style={styles.horizontalCardValue}>
-                {displayedSteps.toLocaleString()}
-              </Text>
+              <View style={styles.valueWithSourceIconRow}>
+                <Text style={styles.horizontalCardValue}>
+                  {displayedSteps.toLocaleString()}
+                </Text>
+                {stepsSummary ? (
+                  <MaterialIcons
+                    name={resolveSourceIconName(stepsSummary.resolvedSource)}
+                    size={16}
+                    color="#6b7280"
+                  />
+                ) : null}
+              </View>
               <Text style={styles.horizontalCardSubtext}>
                 of {(user?.targetSteps || 10000).toLocaleString()} target
               </Text>
-              {stepsSummary ? (
-                <View style={styles.sourceMetaRow}>
-                  <Badge variant="secondary" style={styles.sourceBadge}>
-                    {resolveSourceBadgeLabel(stepsSummary.resolvedSource)}
-                  </Badge>
-                  {stepsSummary.conflictFlags?.manualVsAppleMismatch ? (
-                    <MaterialIcons
-                      name="warning-amber"
-                      size={16}
-                      color="#b45309"
-                    />
-                  ) : null}
-                </View>
-              ) : null}
               <View style={styles.horizontalProgressBar}>
                 <View style={[styles.horizontalProgressFill, { 
                   width: `${Math.min((displayedSteps / (user?.targetSteps || 10000)) * 100, 100)}%`,
@@ -1347,6 +1434,72 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
   },
+  healthKitBanner: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingTop: 12,
+    paddingHorizontal: 14,
+    paddingBottom: 10,
+    marginBottom: 14,
+  },
+  healthKitBannerTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  healthKitBannerIcon: { marginTop: 1 },
+  healthKitBannerTextCol: { flex: 1, minWidth: 0 },
+  healthKitBannerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 6,
+  },
+  healthKitBannerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
+    letterSpacing: -0.2,
+  },
+  healthKitPill: {
+    backgroundColor: 'rgba(20, 184, 166, 0.14)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  healthKitPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0f766e',
+    letterSpacing: 0.3,
+  },
+  healthKitBannerLead: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#64748b',
+    fontWeight: '400',
+  },
+  healthKitDetailsLink: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: '700',
+    color: '#0d9488',
+  },
+  healthKitDetailsBody: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    gap: 6,
+  },
+  healthKitDetailsParagraph: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: '#64748b',
+  },
   horizontalCardsContainer: {
     flexDirection: 'row',
     gap: 12,
@@ -1420,20 +1573,16 @@ const styles = StyleSheet.create({
     color: '#111827',
     marginBottom: 4,
   },
+  valueWithSourceIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
   horizontalCardSubtext: {
     fontSize: 12,
     color: '#6b7280',
     marginBottom: 8,
-  },
-  sourceMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 10,
-  },
-  sourceBadge: {
-    backgroundColor: '#eef2ff',
-    borderColor: '#c7d2fe',
   },
   horizontalProgressBar: {
     width: '100%',

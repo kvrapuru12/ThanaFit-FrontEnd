@@ -149,3 +149,27 @@ These are optional but recommended for better user experience:
 - Consider implementing soft delete initially (mark as deleted) vs hard delete (permanent removal) based on your data retention policies
 - Test thoroughly with real user accounts before production deployment
 
+---
+
+## Push Notification API Requirements
+
+These endpoints back the mobile Notifications settings and push registration flow:
+
+1. `POST /api/notifications/devices/register`
+   - Registers Expo token + device metadata for authenticated user.
+2. `DELETE /api/notifications/devices/{deviceId}`
+   - Deactivates device token on logout/uninstall cleanup.
+3. `GET /api/notifications/preferences`
+   - Returns per-user reminder settings.
+4. `PATCH /api/notifications/preferences`
+   - Updates reminder toggles, reminder time, quiet hours, timezone.
+5. `POST /api/notifications/test` (optional)
+   - Triggers a test push to current user.
+
+Reference backend implementation for schema/routes/scheduler/worker is included under:
+
+- `backend/notifications/schema.sql`
+- `backend/notifications/src/routes.ts`
+- `backend/notifications/src/rules.ts`
+- `backend/notifications/src/worker.ts`
+

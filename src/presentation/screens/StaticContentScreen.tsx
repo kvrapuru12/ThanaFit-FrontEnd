@@ -107,12 +107,16 @@ We collect information that you provide directly to us, including:
 - Health and fitness data (weight, height, activity levels, cycle tracking data)
 - Usage data and preferences
 
+Apple HealthKit (iPhone only)
+If you choose to sync from Apple Health on the Dashboard, ThanaFit reads step count and sleep analysis through Apple's HealthKit APIs to show your progress, insights, and reminders inside the app. We do not write health data back to Apple Health. We do not use HealthKit data for advertising. You can revoke access at any time in iOS Settings > Privacy & Security > Health > ThanaFit. ThanaFit does not use Apple's CareKit framework.
+
 3. HOW WE USE YOUR INFORMATION
 We use the information we collect to:
 - Provide and improve our services
 - Personalize your experience
 - Send you notifications and updates
 - Analyze usage patterns
+- When you sync from Apple Health on iPhone, use HealthKit-provided step and sleep data only for in-app displays, insights, and reminders (not for advertising)
 
 4. DATA SECURITY
 We implement appropriate technical and organizational measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction.
@@ -199,6 +203,9 @@ Some features work offline, but you'll need an internet connection to sync your 
 
 10. HOW DO I CONTACT SUPPORT?
 You can contact support through the Support section in Settings, or email us directly at support@thanafit.com.
+
+11. HOW DOES APPLE HEALTH SYNC WORK ON IPHONE?
+Open the Dashboard and tap the sync icon on the Sleep or Steps cards. ThanaFit uses Apple HealthKit to read that day's steps and sleep analysis. You can turn access off in iOS Settings > Privacy & Security > Health > ThanaFit. The app does not use Apple's CareKit framework.
 `;
 
 

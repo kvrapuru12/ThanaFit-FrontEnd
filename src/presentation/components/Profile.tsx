@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { 
   View, 
   Text, 
@@ -722,12 +722,32 @@ export function Profile({ navigation }: ProfileProps) {
     refreshKey, // Include refreshKey to force recalculation
   ]);
 
-  const menuItems = [
-    { icon: "settings", label: "Settings", subtitle: "App preferences", color: "#ff6b6b", screen: "Settings" },
-    { icon: "notifications", label: "Notifications", subtitle: "Manage alerts", color: "#4ecdc4", screen: "Notifications" },
-    { icon: "security", label: "Privacy", subtitle: "Data & security", color: "#ffa726", screen: "Privacy" },
-    { icon: "help", label: "Support", subtitle: "Get help", color: "#ff6b6b", screen: "Support" },
-  ];
+  const menuItems = useMemo(() => {
+    const base: {
+      icon: string;
+      label: string;
+      subtitle: string;
+      color: string;
+      screen: string;
+    }[] = [
+      { icon: 'settings', label: 'Settings', subtitle: 'App preferences', color: '#ff6b6b', screen: 'Settings' },
+      { icon: 'notifications', label: 'Notifications', subtitle: 'Manage alerts', color: '#4ecdc4', screen: 'Notifications' },
+    ];
+    if (Platform.OS === 'ios') {
+      base.push({
+        icon: 'health-and-safety',
+        label: 'Apple Health',
+        subtitle: 'HealthKit sync (Dashboard)',
+        color: '#0d9488',
+        screen: 'Settings',
+      });
+    }
+    base.push(
+      { icon: 'security', label: 'Privacy', subtitle: 'Data & security', color: '#ffa726', screen: 'Privacy' },
+      { icon: 'help', label: 'Support', subtitle: 'Get help', color: '#ff6b6b', screen: 'Support' }
+    );
+    return base;
+  }, []);
 
   const handleMenuPress = (screen: string) => {
     if (navigation) {

@@ -83,6 +83,29 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
           <View style={styles.placeholder} />
         </View>
 
+        {Platform.OS === 'ios' ? (
+          <Card style={styles.card}>
+            <CardHeader style={styles.cardHeader}>
+              <View style={styles.healthKitHeaderRow}>
+                <MaterialIcons name="health-and-safety" size={22} color="#0f766e" />
+                <Text style={styles.sectionTitle}>Apple HealthKit</Text>
+              </View>
+            </CardHeader>
+            <CardContent style={[styles.cardContent, styles.healthKitCardContent]}>
+              <Text style={styles.healthKitBody}>
+                ThanaFit uses Apple HealthKit only (we do not use CareKit). When you sync from the Dashboard,
+                we read step count and sleep analysis to update your progress, insights, and reminders.
+              </Text>
+              <Text style={styles.healthKitBody}>
+                We do not write health data to Apple Health and do not use HealthKit data for advertising.
+              </Text>
+              <Text style={styles.healthKitHint}>
+                Manage permissions: Settings → Privacy and Security → Health → ThanaFit.
+              </Text>
+            </CardContent>
+          </Card>
+        ) : null}
+
         {/* App Preferences Section */}
         <Card style={styles.card}>
           <CardHeader style={styles.cardHeader}>
@@ -270,6 +293,25 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#1f2937',
+  },
+  healthKitHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  healthKitCardContent: {
+    paddingTop: 4,
+  },
+  healthKitBody: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: '#374151',
+    marginBottom: 10,
+  },
+  healthKitHint: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#6b7280',
   },
   settingItem: {
     marginTop: 20,

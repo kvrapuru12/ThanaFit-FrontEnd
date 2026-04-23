@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { ActivityIndicator, View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { AuthProvider, useAuth } from './src/presentation/providers/AuthProvider';
 import { container } from './src/di/Container';
 import LoginScreen from './src/presentation/screens/LoginScreen';
@@ -16,13 +16,17 @@ import { ExerciseTracking } from './src/presentation/components/ExerciseTracking
 import { ProgressTracking } from './src/presentation/components/ProgressTracking';
 import { CycleSync } from './src/presentation/components/CycleSync';
 import { Profile } from './src/presentation/components/Profile';
-import { ApiTest } from './src/presentation/components/ApiTest';
 import { AddExerciseScreen } from './src/presentation/screens/AddExerciseScreen';
 import { AddFoodScreen } from './src/presentation/screens/AddFoodScreen';
 import { SettingsScreen } from './src/presentation/screens/SettingsScreen';
 import { PrivacyPolicyScreen, TermsOfServiceScreen, FAQScreen } from './src/presentation/screens/PrivacyAndLegalScreens';
 import { SupportScreen } from './src/presentation/screens/SupportScreen';
-import { WorkInProgressScreen } from './src/presentation/screens/WorkInProgressScreen';
+import { NotificationSettingsScreen } from './src/presentation/screens/NotificationSettingsScreen';
+import {
+  addNotificationResponseListener,
+  handleInitialNotificationResponse,
+  registerDeviceForUser,
+} from './src/infrastructure/services/notificationService';
 
 // Import global CSS for web builds (commented out for native builds)
 // import './src/styles/global.css';
@@ -38,7 +42,29 @@ const LoadingScreen = () => (
 
 // Main App Navigator Component
 const AppNavigator = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const [notificationTargetTab, setNotificationTargetTab] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) return;
+    registerDeviceForUser(user.id).catch((error) => {
+      console.warn('Push token registration failed:', error);
+    });
+  }, [isAuthenticated, user?.id]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    handleInitialNotificationResponse((tab) => {
+      setNotificationTargetTab(tab);
+    }).catch((error) => {
+      console.warn('Failed to handle initial notification response:', error);
+    });
+
+    const unsubscribe = addNotificationResponseListener((tab) => {
+      setNotificationTargetTab(tab);
+    });
+    return unsubscribe;
+  }, [isAuthenticated]);
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -57,9 +83,16 @@ const AppNavigator = () => {
           <>
             <Stack.Screen
               name="MainApp"
-              component={MainApp}
-              options={{ title: 'ThanaFit' }}
-            />
+            >
+              {(props) => (
+                <MainApp
+                  {...props}
+                  targetTabFromNotification={notificationTargetTab}
+                  onNotificationTabHandled={() => setNotificationTargetTab(null)}
+                />
+              )}
+            </Stack.Screen>
+            
             <Stack.Screen
               name="AddExercise"
               component={AddExerciseScreen}
@@ -97,11 +130,7 @@ const AppNavigator = () => {
             />
             <Stack.Screen
               name="Notifications"
-              component={WorkInProgressScreen}
-              initialParams={{
-                title: 'Notifications',
-                message: "We're working on notification settings. Check back soon!",
-              }}
+              component={NotificationSettingsScreen}
               options={{
                 title: 'Notifications',
               }}
@@ -128,7 +157,15 @@ const AppNavigator = () => {
 };
 
 // Main App Component with Bottom Navigation
-const MainApp = ({ navigation }: { navigation?: any }) => {
+const MainApp = ({
+  navigation,
+  targetTabFromNotification,
+  onNotificationTabHandled,
+}: {
+  navigation?: any;
+  targetTabFromNotification?: string | null;
+  onNotificationTabHandled?: () => void;
+}) => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const hasRedirectedForIncompleteProfile = useRef(false);
@@ -141,6 +178,12 @@ const MainApp = ({ navigation }: { navigation?: any }) => {
       hasRedirectedForIncompleteProfile.current = true;
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!targetTabFromNotification) return;
+    setActiveTab(targetTabFromNotification);
+    onNotificationTabHandled?.();
+  }, [targetTabFromNotification, onNotificationTabHandled]);
 
   // Debug logging
   console.log('MainApp - user:', user);
