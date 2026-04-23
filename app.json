@@ -25,10 +25,10 @@
         "NSMicrophoneUsageDescription": "ThanaFit uses the microphone to log food and exercise by voice.",
         "NSSpeechRecognitionUsageDescription": "ThanaFit uses speech recognition to turn your voice into text when you log food and exercise by voice.",
         "NSPhotoLibraryUsageDescription": "ThanaFit may access your photo library so you can attach photos to your entries, if you choose.",
-        "NSHealthShareUsageDescription": "ThanaFit reads your step count from Apple Health when you tap Sync on the dashboard, so your steps stay up to date.",
-        "NSHealthUpdateUsageDescription": "ThanaFit does not write to Apple Health."
+        "NSHealthShareUsageDescription": "ThanaFit uses Apple HealthKit to read your step count and sleep data to power cycle insights, reminders, and progress trends.",
+        "NSHealthUpdateUsageDescription": "ThanaFit does not write Health data to Apple Health."
       },
-      "buildNumber": "33"
+      "buildNumber": "42"
     },
     "plugins": [
       [
@@ -41,10 +41,18 @@
       ],
       "expo-apple-authentication",
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#2563eb",
+          "sounds": []
+        }
+      ],
+      [
         "@kingstinct/react-native-healthkit",
         {
-          "NSHealthShareUsageDescription": "ThanaFit reads your step count from Apple Health when you tap Sync on the dashboard, so your steps stay up to date.",
-          "NSHealthUpdateUsageDescription": "ThanaFit does not write to Apple Health.",
+          "NSHealthShareUsageDescription": "ThanaFit uses Apple HealthKit to read your step count and sleep data to power cycle insights, reminders, and progress trends.",
+          "NSHealthUpdateUsageDescription": "ThanaFit does not write Health data to Apple Health.",
           "background": false
         }
       ]

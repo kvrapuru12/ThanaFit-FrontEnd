@@ -35,7 +35,7 @@
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>33</string>
+    <string>42</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -56,9 +56,9 @@
       </dict>
     </dict>
     <key>NSHealthShareUsageDescription</key>
-    <string>ThanaFit reads your step count from Apple Health when you tap Sync on the dashboard, so your steps stay up to date.</string>
+    <string>ThanaFit uses Apple HealthKit to read your step count and sleep data to power cycle insights, reminders, and progress trends.</string>
     <key>NSHealthUpdateUsageDescription</key>
-    <string>ThanaFit does not write to Apple Health.</string>
+    <string>ThanaFit does not write Health data to Apple Health.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>ThanaFit uses the microphone to log food and exercise by voice.</string>
     <key>NSPhotoLibraryUsageDescription</key>
