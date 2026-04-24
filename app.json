@@ -2,7 +2,7 @@
   "expo": {
     "name": "ThanaFit",
     "slug": "thanafit-auth",
-    "version": "3.0.11",
+    "version": "3.0.12",
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash.png",
@@ -28,7 +28,7 @@
         "NSHealthShareUsageDescription": "ThanaFit uses Apple HealthKit to read your step count and sleep data to power cycle insights, reminders, and progress trends.",
         "NSHealthUpdateUsageDescription": "ThanaFit does not write Health data to Apple Health."
       },
-      "buildNumber": "42"
+      "buildNumber": "45"
     },
     "plugins": [
       [
@@ -70,7 +70,7 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.prod.thanafit",
-      "versionCode": 50
+      "versionCode": 51
     }
   }
 }
