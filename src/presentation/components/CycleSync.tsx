@@ -23,6 +23,15 @@ import {
   Cycle,
   CycleSyncSuggestionsResponse,
 } from '../../infrastructure/services/cycleApi';
+import {
+  dedupeInFlight,
+  invalidateRecentCycleCache,
+  invalidateSuggestionsCache,
+  readRecentCycleCache,
+  readSuggestionsCache,
+  writeRecentCycleCache,
+  writeSuggestionsCache,
+} from '../../infrastructure/cache/cycleSyncCache';
 import { apiClient } from '../../infrastructure/api/ApiClient';
 import { formatDateLocal, parseDateLocal } from '../../core/utils/dateUtils';
 import {
@@ -266,37 +275,8 @@ export function CycleSync({ navigation }: CycleSyncProps) {
   const hasLoggedData =
     !!user?.lastPeriodDate || recentCycle !== null;
 
-  const loadCycle = useCallback(async () => {
-    if (!user?.id) {
-      setLoading(false);
-      setRecentCycle(null);
-      setCycleVm(null);
-      setSuggestionsData(null);
-      return;
-    }
-    setLoading(true);
-    try {
-      const [recentResult, suggestionsResult] = await Promise.allSettled([
-        cycleApiService.getMostRecentCycle(user.id),
-        cycleApiService.getCycleSyncSuggestions(user.id),
-      ]);
-
-      const recent = recentResult.status === 'fulfilled' ? recentResult.value : null;
-      if (recentResult.status === 'rejected') {
-        console.warn('CycleSync V1 recent cycle fetch failed, continuing with fallback:', recentResult.reason);
-      }
-
-      if (suggestionsResult.status === 'fulfilled') {
-        setSuggestionsData(normalizePhaseContent(suggestionsResult.value));
-      } else {
-        console.warn(
-          'CycleSync V1 suggestions fetch failed, using static phase data fallback:',
-          suggestionsResult.reason
-        );
-        setSuggestionsData(null);
-      }
-
-      setRecentCycle(recent);
+  const applyCycleVm = useCallback(
+    (recent: Cycle | null, fallbackLastPeriodDate?: string | null) => {
       if (recent) {
         const currentPhase = calculateCurrentPhase(
           recent.periodStartDate,
@@ -313,33 +293,117 @@ export function CycleSync({ navigation }: CycleSyncProps) {
             recent.cycleLength
           ),
         });
-      } else if (user.lastPeriodDate) {
+        return;
+      }
+
+      if (fallbackLastPeriodDate) {
         const currentPhase = calculateCurrentPhase(
-          user.lastPeriodDate,
+          fallbackLastPeriodDate,
           DEFAULT_CYCLE
         );
         setCycleVm({
-          lastPeriodStart: user.lastPeriodDate,
+          lastPeriodStart: fallbackLastPeriodDate,
           cycleLength: DEFAULT_CYCLE,
           periodLength: DEFAULT_PERIOD,
           currentPhase,
-          dayInCycle: getDayInCycle(user.lastPeriodDate, DEFAULT_CYCLE),
+          dayInCycle: getDayInCycle(fallbackLastPeriodDate, DEFAULT_CYCLE),
           daysUntilNextPeriod: calculateDaysUntilNextPeriod(
-            user.lastPeriodDate,
+            fallbackLastPeriodDate,
             DEFAULT_CYCLE
           ),
         });
-      } else {
-        setCycleVm(null);
+        return;
       }
-    } catch (e) {
-      console.error('CycleSync V1 loadCycle:', e);
+
+      setCycleVm(null);
+    },
+    []
+  );
+
+  const loadCycle = useCallback(async () => {
+    if (!user?.id) {
+      setLoading(false);
+      setRecentCycle(null);
       setCycleVm(null);
       setSuggestionsData(null);
+      return;
+    }
+    setLoading(true);
+
+    try {
+      const [cachedRecent, cachedSuggestions] = await Promise.all([
+        readRecentCycleCache(user.id),
+        readSuggestionsCache(user.id),
+      ]);
+
+      const hasCachedRecent = cachedRecent.data !== null;
+      const hasCachedSuggestions = !!cachedSuggestions.data;
+      const hasRenderableCache = hasCachedRecent || hasCachedSuggestions;
+
+      if (hasCachedSuggestions) {
+        setSuggestionsData(normalizePhaseContent(cachedSuggestions.data));
+      }
+      if (hasCachedRecent) {
+        setRecentCycle(cachedRecent.data);
+      }
+      if (hasRenderableCache) {
+        applyCycleVm(cachedRecent.data, user.lastPeriodDate);
+        setLoading(false);
+      }
+
+      const shouldFetchRecent = !hasCachedRecent || cachedRecent.isStale;
+      const shouldFetchSuggestions = !hasCachedSuggestions || cachedSuggestions.isStale;
+      if (!shouldFetchRecent && !shouldFetchSuggestions) {
+        return;
+      }
+
+      const [recentResult, suggestionsResult] = await Promise.allSettled([
+        shouldFetchRecent
+          ? dedupeInFlight(`cycleSync:recent:${user.id}`, () =>
+              cycleApiService.getMostRecentCycle(user.id)
+            )
+          : Promise.resolve(cachedRecent.data),
+        shouldFetchSuggestions
+          ? dedupeInFlight(`cycleSync:suggestions:${user.id}`, () =>
+              cycleApiService.getCycleSyncSuggestions(user.id)
+            )
+          : Promise.resolve(cachedSuggestions.data ?? {}),
+      ]);
+
+      const nextRecent =
+        recentResult.status === 'fulfilled' ? recentResult.value : cachedRecent.data;
+      if (recentResult.status === 'rejected') {
+        console.warn('CycleSync V1 recent cycle fetch failed, continuing with fallback:', recentResult.reason);
+      } else if (shouldFetchRecent) {
+        await writeRecentCycleCache(user.id, nextRecent);
+      }
+
+      if (suggestionsResult.status === 'fulfilled') {
+        setSuggestionsData(normalizePhaseContent(suggestionsResult.value));
+        if (shouldFetchSuggestions) {
+          await writeSuggestionsCache(user.id, suggestionsResult.value);
+        }
+      } else {
+        console.warn(
+          'CycleSync V1 suggestions fetch failed, using static phase data fallback:',
+          suggestionsResult.reason
+        );
+        if (!hasCachedSuggestions) {
+          setSuggestionsData(null);
+        }
+      }
+
+      setRecentCycle(nextRecent);
+      applyCycleVm(nextRecent, user.lastPeriodDate);
+    } catch (e) {
+      console.error('CycleSync V1 loadCycle:', e);
+      const fallbackLastPeriodDate = user?.lastPeriodDate;
+      applyCycleVm(null, fallbackLastPeriodDate);
+      setSuggestionsData((prev) => prev ?? null);
     } finally {
       setLoading(false);
     }
-  }, [user?.id, user?.lastPeriodDate]);
+  }, [applyCycleVm, user?.id, user?.lastPeriodDate]);
 
   useEffect(() => {
     loadCycle();
@@ -495,6 +559,14 @@ export function CycleSync({ navigation }: CycleSyncProps) {
       } catch (e) {
         console.warn('Profile lastPeriodDate sync:', e);
       }
+      const shouldResetSuggestions =
+        !editingCycle ||
+        editingCycle.periodStartDate !== dateStr ||
+        editingCycle.cycleLength !== cycleLen;
+      await invalidateRecentCycleCache(user.id);
+      if (shouldResetSuggestions) {
+        await invalidateSuggestionsCache(user.id);
+      }
       await loadCycle();
       setShowPeriodLog(false);
       setEditingCycle(null);
@@ -511,6 +583,7 @@ export function CycleSync({ navigation }: CycleSyncProps) {
     if (mainTab?.setMainTab) mainTab.setMainTab('food');
     else navigation?.navigate('AddFood');
   };
+
   const goExerciseTab = () => {
     if (mainTab?.setMainTab) mainTab.setMainTab('exercise');
     else navigation?.navigate('AddExercise');
