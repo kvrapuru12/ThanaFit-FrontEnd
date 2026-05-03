@@ -14,23 +14,45 @@ import {
   Image,
   Animated,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
+import DateTimePicker, {
+  DateTimePickerAndroid,
+} from '@react-native-community/datetimepicker';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { MaterialIcons } from '@expo/vector-icons';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { useAuth } from '../providers/AuthProvider';
 import { apiClient } from '../../infrastructure/api/ApiClient';
-import { HttpMethod } from '../../infrastructure/api/ApiClient';
 import { cycleApiService } from '../../infrastructure/services/cycleApi';
-import { formatDateLocal } from '../../core/utils/dateUtils';
+import { formatDateLocal, parseDateLocal } from '../../core/utils/dateUtils';
 import { getAppVersionDisplay } from '../../core/utils/appVersionDisplay';
 
 const { width } = Dimensions.get('window');
 
-// API Configuration - Load from environment variable
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080/api';
+/** Parse API calendar date (YYYY-MM-DD) in local timezone; avoids UTC shift from `new Date(iso)`. */
+function parseApiCalendarDate(dateStr: string | undefined): Date | null {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  const d = parseDateLocal(dateStr);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function defaultDobSeed(): Date {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 30);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function startOfToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function formatApiDateDisplay(raw: string | null | undefined): string {
+  const d = parseApiCalendarDate(raw ?? undefined);
+  return d ? d.toLocaleDateString() : 'Not set';
+}
 
 /** Extract user-facing message from profile PATCH error (fieldErrors, message, or fallback). */
 function getProfileUpdateErrorMessage(error: any): string {
@@ -236,16 +258,14 @@ export function Profile({ navigation }: ProfileProps) {
     
     // If it's a date field, set the selected date
     if (field.field === 'lastPeriodDate' || field.field === 'dob') {
-      if (field.value && field.value !== 'Not set') {
-        // Parse the date from the field value
-        const dateValue = field.field === 'lastPeriodDate' ? user?.lastPeriodDate : user?.dob;
-        if (dateValue) {
-          setSelectedDate(new Date(dateValue));
-        } else {
-          setSelectedDate(new Date());
-        }
+      const raw = field.field === 'lastPeriodDate' ? user?.lastPeriodDate : user?.dob;
+      const parsed = raw ? parseApiCalendarDate(raw) : null;
+      if (parsed) {
+        setSelectedDate(parsed);
+      } else if (field.field === 'dob') {
+        setSelectedDate(defaultDobSeed());
       } else {
-        setSelectedDate(new Date());
+        setSelectedDate(startOfToday());
       }
     }
     
@@ -329,20 +349,17 @@ export function Profile({ navigation }: ProfileProps) {
     }
   };
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    if (selectedDate) {
-      setSelectedDate(selectedDate);
-      // On Android, just update the displayed value - user confirms by closing
-      if (Platform.OS === 'android' && event.type === 'set') {
-        setEditingValue(selectedDate.toLocaleDateString());
-      }
-      // On iOS, just update the date - user will confirm with button
-    }
+  /** Non-Android modal picker (iOS/web); Android uses DateTimePickerAndroid.open. */
+  const handleDateChange = (_event: unknown, date?: Date) => {
+    if (!date) return;
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    setSelectedDate(d);
   };
 
-  const handleFieldUpdateWithDate = async (field: string, date: Date) => {
-    if (!user) return;
-    
+  const handleFieldUpdateWithDate = async (field: string, date: Date): Promise<boolean> => {
+    if (!user) return false;
+
     setIsUpdatingField(true);
     try {
       const valueToUpdate = formatDateLocal(date);
@@ -353,7 +370,7 @@ export function Profile({ navigation }: ProfileProps) {
       // Use apiClient instead of direct fetch for proper token handling
       console.log('Updating date field via apiClient:', field, updateData);
       const response = await apiClient.patch(`/users/${user.id}`, updateData);
-      
+
       console.log('Date update successful - Response:', response.data);
 
       // Profile → CycleSync two-way sync: create/update cycle when lastPeriodDate changes
@@ -362,43 +379,68 @@ export function Profile({ navigation }: ProfileProps) {
       }
 
       await refreshUserData();
+      return true;
     } catch (error: any) {
       console.error('Date update error:', error);
       Alert.alert('Update failed', getProfileUpdateErrorMessage(error));
+      return false;
     } finally {
       setIsUpdatingField(false);
     }
   };
 
   const showDatePickerModal = (field: string) => {
-    // Initialize selectedDate with current value if editing a date field
     let dateToSet: Date;
-    
-    if (field === 'dob' && user?.dob) {
-      // Parse the date string properly - handle YYYY-MM-DD format
-      const dateStr = user.dob;
-      dateToSet = new Date(dateStr);
-      // Validate the date
-      if (isNaN(dateToSet.getTime())) {
-        dateToSet = new Date(); // Fallback to today if invalid
+
+    if (field === 'dob') {
+      const parsed = user?.dob ? parseApiCalendarDate(user.dob) : null;
+      if (parsed) {
+        dateToSet = parsed;
+        setEditingValue(parsed.toLocaleDateString());
+      } else {
+        dateToSet = defaultDobSeed();
+        setEditingValue('');
       }
-      setEditingValue(dateToSet.toLocaleDateString());
-    } else if (field === 'lastPeriodDate' && user?.lastPeriodDate) {
-      // Parse the date string properly - handle YYYY-MM-DD format
-      const dateStr = user.lastPeriodDate;
-      dateToSet = new Date(dateStr);
-      // Validate the date
-      if (isNaN(dateToSet.getTime())) {
-        dateToSet = new Date(); // Fallback to today if invalid
+    } else if (field === 'lastPeriodDate') {
+      const parsed = user?.lastPeriodDate ? parseApiCalendarDate(user.lastPeriodDate) : null;
+      if (parsed) {
+        dateToSet = parsed;
+        setEditingValue(parsed.toLocaleDateString());
+      } else {
+        dateToSet = startOfToday();
+        setEditingValue('');
       }
-      setEditingValue(dateToSet.toLocaleDateString());
     } else {
-      dateToSet = new Date();
+      dateToSet = startOfToday();
       setEditingValue('');
     }
-    
-    // Set the date state
+
     setSelectedDate(dateToSet);
+
+    // Android: declarative <DateTimePicker /> always opens a native dialog; nesting it in our
+    // Modal stacks two UIs and breaks OK/Cancel. Use the imperative API — system dialog only.
+    if (Platform.OS === 'android') {
+      if (!user) return;
+      DateTimePickerAndroid.open({
+        value: dateToSet,
+        mode: 'date',
+        maximumDate: new Date(),
+        minimumDate: field === 'dob' ? new Date(1900, 0, 1) : undefined,
+        onChange: (event, date) => {
+          if (event.type === 'set' && date) {
+            const d = new Date(date);
+            d.setHours(0, 0, 0, 0);
+            setSelectedDate(d);
+            setEditingValue(d.toLocaleDateString());
+            void handleFieldUpdateWithDate(field, d).then((ok) => {
+              if (ok) setEditingField(null);
+            });
+          }
+        },
+      });
+      return;
+    }
+
     setEditingDateField(field);
     setShowDatePicker(true);
   };
@@ -408,24 +450,22 @@ export function Profile({ navigation }: ProfileProps) {
     setEditingField(field);
     
     // Initialize selectedDate for date fields
-    if (field === 'dob' && user?.dob) {
-      const dateStr = user.dob;
-      const parsedDate = new Date(dateStr);
-      if (!isNaN(parsedDate.getTime())) {
-        setSelectedDate(parsedDate);
-        setEditingValue(parsedDate.toLocaleDateString());
+    if (field === 'dob') {
+      const parsed = user?.dob ? parseApiCalendarDate(user.dob) : null;
+      if (parsed) {
+        setSelectedDate(parsed);
+        setEditingValue(parsed.toLocaleDateString());
       } else {
-        setSelectedDate(new Date());
+        setSelectedDate(defaultDobSeed());
         setEditingValue('');
       }
-    } else if (field === 'lastPeriodDate' && user?.lastPeriodDate) {
-      const dateStr = user.lastPeriodDate;
-      const parsedDate = new Date(dateStr);
-      if (!isNaN(parsedDate.getTime())) {
-        setSelectedDate(parsedDate);
-        setEditingValue(parsedDate.toLocaleDateString());
+    } else if (field === 'lastPeriodDate') {
+      const parsed = user?.lastPeriodDate ? parseApiCalendarDate(user.lastPeriodDate) : null;
+      if (parsed) {
+        setSelectedDate(parsed);
+        setEditingValue(parsed.toLocaleDateString());
       } else {
-        setSelectedDate(new Date());
+        setSelectedDate(startOfToday());
         setEditingValue('');
       }
     } else if (field === 'gender' || field === 'activityLevel') {
@@ -791,7 +831,7 @@ export function Profile({ navigation }: ProfileProps) {
     {
       label: 'Date of Birth',
       field: 'dob',
-      value: user?.dob ? new Date(user.dob).toLocaleDateString() : 'Not set',
+      value: formatApiDateDisplay(user?.dob),
       icon: '🎂'
     },
     {
@@ -821,7 +861,7 @@ export function Profile({ navigation }: ProfileProps) {
     {
       label: 'Last Period Date',
       field: 'lastPeriodDate',
-      value: user?.lastPeriodDate ? new Date(user.lastPeriodDate).toLocaleDateString() : 'Not set',
+      value: formatApiDateDisplay(user?.lastPeriodDate),
       icon: '📅'
     }
   ];
@@ -1325,9 +1365,9 @@ export function Profile({ navigation }: ProfileProps) {
         </View>
       </Modal>
 
-      {/* Date Picker Modal */}
+      {/* Date Picker Modal — not used on Android (imperative picker); iOS + web */}
       <Modal
-        visible={showDatePicker && editingDateField !== null}
+        visible={Platform.OS !== 'android' && showDatePicker && editingDateField !== null}
         transparent={true}
         animationType="slide"
         onRequestClose={() => {
@@ -1357,25 +1397,22 @@ export function Profile({ navigation }: ProfileProps) {
                 key={`${editingDateField}-${selectedDate.getTime()}`}
                 value={selectedDate}
                 mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                display="spinner"
                 onChange={handleDateChange}
-                maximumDate={editingDateField === 'dob' ? new Date() : undefined}
+                maximumDate={new Date()}
                 minimumDate={editingDateField === 'dob' ? new Date(1900, 0, 1) : undefined}
                 textColor="#1f2937"
                 style={styles.datePickerComponent}
               />
-              
+
               <View style={styles.datePickerSelectedDate}>
                 <Text style={styles.datePickerSelectedDateText}>
-                  {Platform.OS === 'ios' 
-                    ? selectedDate.toLocaleDateString('en-US', { 
-                        weekday: 'long', 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      })
-                    : `Selected: ${selectedDate.toLocaleDateString()}`
-                  }
+                  {selectedDate.toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
                 </Text>
               </View>
             </View>
@@ -1394,16 +1431,15 @@ export function Profile({ navigation }: ProfileProps) {
               <TouchableOpacity 
                 style={styles.datePickerConfirmButton}
                 onPress={async () => {
+                  const field = editingDateField;
                   setEditingValue(selectedDate.toLocaleDateString());
                   setShowDatePicker(false);
-                  
-                  // Update the field when confirmed
-                  if (editingDateField && user) {
-                    await handleFieldUpdateWithDate(editingDateField, selectedDate);
-                    setEditingField(null);
-                  }
-                  
                   setEditingDateField(null);
+
+                  if (field && user) {
+                    const ok = await handleFieldUpdateWithDate(field, selectedDate);
+                    if (ok) setEditingField(null);
+                  }
                 }}
                 disabled={isUpdatingField}
               >
@@ -1997,7 +2033,7 @@ const styles = StyleSheet.create({
   },
   datePickerComponent: {
     width: '100%',
-    height: Platform.OS === 'ios' ? 200 : 50,
+    height: 200,
   },
   datePickerSelectedDate: {
     marginTop: 16,
