@@ -2,7 +2,7 @@
   "expo": {
     "name": "ThanaFit",
     "slug": "thanafit-auth",
-    "version": "3.0.12",
+    "version": "3.0.13",
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash.png",
@@ -70,7 +70,7 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.prod.thanafit",
-      "versionCode": 51
+      "versionCode": 52
     }
   }
 }
