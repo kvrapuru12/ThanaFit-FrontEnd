@@ -21,6 +21,7 @@ import * as FileSystem from 'expo-file-system';
 import { MaterialIcons } from '@expo/vector-icons';
 import { dashboardApiService } from '../../infrastructure/services/dashboardApi';
 import { whisperApiService } from '../../infrastructure/services/whisperApi';
+import { getUserFacingApiMessage } from '../../core/utils/apiErrorMessage';
 import { isSilentOrEmptyTranscript } from '../../core/utils/voiceUtils';
 
 const { width } = Dimensions.get('window');
@@ -412,20 +413,21 @@ export const FoodVoiceRecorder: React.FC<FoodVoiceRecorderProps> = ({
     } catch (error) {
       console.error('Failed to process food voice log:', error);
       setIsProcessing(false);
-      
+
+      const detail = getUserFacingApiMessage(error);
       Alert.alert(
-        'Food Voice Log Captured! 🎤',
-        `"${transcript}"\n\nNote: Could not automatically process this voice log. You can still use it manually.`,
+        'Could not log food',
+        `${detail}\n\nYou can try again or add items manually.`,
         [
           {
-            text: 'Use Manually',
+            text: 'Use transcript manually',
             onPress: () => {
               onVoiceLog?.(transcript);
               onClose?.();
             },
           },
           {
-            text: 'Record Again',
+            text: 'Try again',
             onPress: () => {
               setRecordingDuration(0);
               setIsProcessing(false);

@@ -21,7 +21,8 @@ import * as FileSystem from 'expo-file-system';
 import { MaterialIcons } from '@expo/vector-icons';
 import { dashboardApiService } from '../../infrastructure/services/dashboardApi';
 import { whisperApiService } from '../../infrastructure/services/whisperApi';
-import { isSilentOrEmptyTranscript } from '../../core/utils/voiceUtils';
+import { getUserFacingApiMessage } from '../../core/utils/apiErrorMessage';
+import { isSilentOrEmptyTranscript, validateActivityVoiceTextLength } from '../../core/utils/voiceUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -393,6 +394,12 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       return;
     }
 
+    const lengthHint = validateActivityVoiceTextLength(transcript);
+    if (lengthHint) {
+      Alert.alert('Check your entry', lengthHint);
+      return;
+    }
+
     try {
       setIsProcessing(true);
       
@@ -412,20 +419,21 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     } catch (error) {
       console.error('Failed to process voice log:', error);
       setIsProcessing(false);
-      
+
+      const detail = getUserFacingApiMessage(error);
       Alert.alert(
-        'Voice Log Captured! 🎤',
-        `"${transcript}"\n\nNote: Could not automatically process this voice log. You can still use it manually.`,
+        'Could not log activity',
+        `${detail}\n\nYou can try again or add your workout manually.`,
         [
           {
-            text: 'Use Manually',
+            text: 'Use transcript manually',
             onPress: () => {
               onVoiceLog?.(transcript);
               onClose?.();
             },
           },
           {
-            text: 'Record Again',
+            text: 'Try again',
             onPress: () => {
               setRecordingDuration(0);
               setIsProcessing(false);

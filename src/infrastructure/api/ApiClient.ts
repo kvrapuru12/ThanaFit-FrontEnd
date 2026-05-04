@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { composeSpringApiErrorMessage } from '../../core/utils/apiErrorMessage';
 import { getStoredAuthToken, tokenStorage } from '../../core/utils/tokenStorage';
 import { shouldAttemptAccessTokenRefresh } from './authRefreshPolicy';
 
@@ -37,6 +38,10 @@ export interface ApiError {
   status: number;
   code?: string;
   details?: any;
+}
+
+function buildHttpErrorUserMessage(data: unknown, status: number): string {
+  return composeSpringApiErrorMessage(data) ?? `HTTP ${status}`;
 }
 
 // Request Configuration
@@ -222,10 +227,10 @@ export class ApiClient {
         console.log('Backend returned expected error (no data exists):', data.message);
       }
       
-      // Create a more detailed error object
-      const apiError = new Error(data.message || `HTTP ${response.status}`);
+      const composedMessage = buildHttpErrorUserMessage(data, response.status);
+      const apiError = new Error(composedMessage);
       (apiError as any).status = response.status;
-      (apiError as any).code = data.code;
+      (apiError as any).code = data.code ?? data.errorCode;
       (apiError as any).details = data.errors || data.validationErrors || data.details || data.fieldErrors;
       (apiError as any).responseData = data;
       throw apiError;

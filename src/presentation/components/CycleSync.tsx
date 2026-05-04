@@ -46,6 +46,7 @@ import {
   type PhaseContent,
   type AvoidItem,
 } from '../data/cycleSyncPhaseData';
+import { getUserFacingApiMessage } from '../../core/utils/apiErrorMessage';
 
 interface CycleSyncProps {
   navigation?: { navigate: (name: string, params?: object) => void };
@@ -266,6 +267,8 @@ export function CycleSync({ navigation }: CycleSyncProps) {
   const [periodDurationInput, setPeriodDurationInput] = useState('5');
   const [isCycleRegular, setIsCycleRegular] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [cycleVoiceText, setCycleVoiceText] = useState('');
+  const [cycleVoiceSubmitting, setCycleVoiceSubmitting] = useState(false);
   const [editingCycle, setEditingCycle] = useState<Cycle | null>(null);
   const [seedOptionalOpen, setSeedOptionalOpen] = useState(false);
   const [suggestionsData, setSuggestionsData] = useState<
@@ -453,6 +456,7 @@ export function CycleSync({ navigation }: CycleSyncProps) {
       setIsCycleRegular(true);
     }
     setShowDatePicker(false);
+    setCycleVoiceText('');
     setShowPeriodLog(true);
   };
 
@@ -469,6 +473,7 @@ export function CycleSync({ navigation }: CycleSyncProps) {
     setPeriodDurationInput(String(recent.periodDuration));
     setIsCycleRegular(recent.isCycleRegular);
     setShowDatePicker(false);
+    setCycleVoiceText('');
     setShowPeriodLog(true);
   };
 
@@ -477,6 +482,7 @@ export function CycleSync({ navigation }: CycleSyncProps) {
     setShowDatePicker(false);
     setEditingCycle(null);
     setOriginalPeriodDate(null);
+    setCycleVoiceText('');
   };
 
   const handleDateChange = (event: { type?: string }, selectedDate?: Date) => {
@@ -570,12 +576,58 @@ export function CycleSync({ navigation }: CycleSyncProps) {
       await loadCycle();
       setShowPeriodLog(false);
       setEditingCycle(null);
-    } catch (err: any) {
-      const msg =
-        err?.responseData?.message || err?.message || 'Could not save. Try again.';
-      Alert.alert('Error', msg);
+    } catch (err: unknown) {
+      Alert.alert('Error', getUserFacingApiMessage(err));
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleCycleVoiceFromText = async () => {
+    if (!user?.id) {
+      Alert.alert('Error', 'User not found.');
+      return;
+    }
+    const t = cycleVoiceText.trim();
+    if (t.length < 1) {
+      Alert.alert('Describe your cycle', 'For example: "My period started yesterday".');
+      return;
+    }
+    setCycleVoiceSubmitting(true);
+    try {
+      const res = await cycleApiService.logCycleFromVoice({
+        userId: user.id,
+        voiceText: t,
+      });
+      if (!res.periodStartDate) {
+        Alert.alert(
+          'Could not log cycle',
+          res.message?.trim() || 'Please try again or set the date manually.'
+        );
+        return;
+      }
+      const dateStr = res.periodStartDate;
+      setPeriodStartDate(parseDateLocal(dateStr));
+      try {
+        await apiClient.patch(`/users/${user.id}`, { lastPeriodDate: dateStr });
+        await refreshUserData();
+      } catch (e) {
+        console.warn('Profile lastPeriodDate sync:', e);
+      }
+      await invalidateRecentCycleCache(user.id);
+      await invalidateSuggestionsCache(user.id);
+      await loadCycle();
+      setCycleVoiceText('');
+      setShowPeriodLog(false);
+      setEditingCycle(null);
+      const nextHint = res.estimatedNextPeriod
+        ? `\n\nNext period (estimate): ${res.estimatedNextPeriod}`
+        : '';
+      Alert.alert('Cycle logged', `${res.message}${nextHint}`);
+    } catch (err: unknown) {
+      Alert.alert('Could not parse voice', getUserFacingApiMessage(err));
+    } finally {
+      setCycleVoiceSubmitting(false);
     }
   };
 
@@ -1036,6 +1088,32 @@ export function CycleSync({ navigation }: CycleSyncProps) {
                     />
                   </View>
                 )}
+              </View>
+              <View style={styles.formField}>
+                <Text style={styles.formLabel}>Or describe in your own words</Text>
+                <Text style={styles.formHint}>
+                  {`e.g. "My period started yesterday" — we'll set the date for you.`}
+                </Text>
+                <TextInput
+                  style={[styles.textInput, styles.cycleVoiceMultiline]}
+                  value={cycleVoiceText}
+                  onChangeText={setCycleVoiceText}
+                  placeholder="Natural language…"
+                  placeholderTextColor={APP.muted}
+                  multiline
+                  editable={!cycleVoiceSubmitting && !isSubmitting}
+                />
+                <TouchableOpacity
+                  style={[styles.voiceParseBtn, (cycleVoiceSubmitting || isSubmitting) && { opacity: 0.6 }]}
+                  onPress={() => void handleCycleVoiceFromText()}
+                  disabled={cycleVoiceSubmitting || isSubmitting}
+                >
+                  {cycleVoiceSubmitting ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.voiceParseBtnText}>Parse & apply</Text>
+                  )}
+                </TouchableOpacity>
               </View>
               <View style={styles.formField}>
                 <Text style={styles.formLabel}>Cycle length (days)</Text>
@@ -1673,6 +1751,16 @@ const styles = StyleSheet.create({
   modalBody: { padding: 20, maxHeight: 400 },
   formField: { marginBottom: 20 },
   formLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8, color: APP.ink },
+  formHint: { fontSize: 13, color: APP.muted, marginBottom: 10, lineHeight: 18 },
+  cycleVoiceMultiline: { minHeight: 88, textAlignVertical: 'top' },
+  voiceParseBtn: {
+    marginTop: 12,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: APP.primary,
+    alignItems: 'center',
+  },
+  voiceParseBtnText: { fontWeight: '700', color: '#fff', fontSize: 16 },
   dateButton: {
     flexDirection: 'row',
     alignItems: 'center',

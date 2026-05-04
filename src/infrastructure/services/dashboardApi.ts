@@ -1,4 +1,24 @@
+import { validateActivityVoiceTextLength } from '../../core/utils/voiceUtils';
 import { apiClient } from '../api/ApiClient';
+
+export interface VoiceFoodLogEntry {
+  food: string;
+  quantity: number;
+  mealType: 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK';
+  compositeMeal?: boolean;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  loggedAt?: string;
+}
+
+export interface VoiceFoodLogResponse {
+  message: string;
+  logs: VoiceFoodLogEntry[];
+  errorCode?: string;
+}
 
 // Dashboard Data Types
 export interface DashboardStats {
@@ -940,11 +960,16 @@ export class DashboardApiService {
       console.log('=== VOICE LOG API CALL ===');
       console.log('Processing voice log:', voiceData);
       console.log('==========================');
-      
+
+      const lengthError = validateActivityVoiceTextLength(voiceData.voiceText);
+      if (lengthError) {
+        throw new Error(lengthError);
+      }
+
       // Use only the fields that backend expects: userId and voiceText
       const requestData = {
         userId: voiceData.userId,
-        voiceText: voiceData.voiceText
+        voiceText: voiceData.voiceText.trim(),
       };
       
       const response = await apiClient.post<{
@@ -1203,42 +1228,23 @@ export class DashboardApiService {
   async processFoodVoiceLog(voiceData: {
     userId: number;
     voiceText: string;
-  }): Promise<{
-    message: string;
-    logs: Array<{
-      food: string;
-      quantity: number;
-      mealType: 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK';
-      calories: number;
-      protein: number;
-      carbs: number;
-      fat: number;
-      fiber: number;
-    }>;
-  }> {
+  }): Promise<VoiceFoodLogResponse> {
     try {
       console.log('=== FOOD VOICE LOG API CALL ===');
       console.log('Processing food voice log:', voiceData);
       console.log('==============================');
-      
+
+      const trimmed = voiceData.voiceText?.trim() ?? '';
+      if (!trimmed) {
+        throw new Error('Please describe what you ate.');
+      }
+
       const requestData = {
         userId: voiceData.userId,
-        voiceText: voiceData.voiceText
+        voiceText: trimmed,
       };
-      
-      const response = await apiClient.post<{
-        message: string;
-        logs: Array<{
-          food: string;
-          quantity: number;
-          mealType: 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK';
-          calories: number;
-          protein: number;
-          carbs: number;
-          fat: number;
-          fiber: number;
-        }>;
-      }>('/ai/food-log/from-voice', requestData);
+
+      const response = await apiClient.post<VoiceFoodLogResponse>('/ai/food-log/from-voice', requestData);
       
       console.log('Food voice log processed successfully:', response.data);
       return response.data;
