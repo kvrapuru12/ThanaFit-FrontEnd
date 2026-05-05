@@ -74,6 +74,7 @@ export interface UseDashboardDataReturn {
     };
     servingSize: string;
     image?: string;
+    foodCategory?: string;
   }) => Promise<void>;
   /** Canonical steps for UI: BE daily merge when present, else first manual step entry. */
   displayedSteps: number;
@@ -386,6 +387,7 @@ export const useDashboardData = (): UseDashboardDataReturn => {
     };
     servingSize: string;
     image?: string;
+    foodCategory?: string;
   }) => {
     try {
       const newFoodLog = await dashboardApiService.addFoodLog({
@@ -414,7 +416,7 @@ export const useDashboardData = (): UseDashboardDataReturn => {
             food: {
               id: foodData.foodItemId,
               name: foodData.foodName,
-              category: 'protein',
+              category: foodData.foodCategory ?? '',
               defaultUnit: foodData.unit || 'grams',
               quantityPerUnit: foodData.quantity,
               caloriesPerUnit: foodData.calories,
@@ -437,7 +439,7 @@ export const useDashboardData = (): UseDashboardDataReturn => {
               hour12: true 
             }),
             type: (foodData.mealType.charAt(0).toUpperCase() + foodData.mealType.slice(1)) as "Breakfast" | "Lunch" | "Dinner" | "Snack",
-            image: foodData.image || 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxiYW5hbmF8ZW58MXx8fHwxNzU3NTMwMjY5fDA&ixlib=rb-4.1.0&q=80&w=300',
+            foodCategory: foodData.foodCategory,
             macros: {
               protein: newFoodLog.protein,
               carbs: newFoodLog.carbs,

@@ -28,7 +28,7 @@
         "NSHealthShareUsageDescription": "ThanaFit uses Apple HealthKit to read your step count and sleep data to power cycle insights, reminders, and progress trends.",
         "NSHealthUpdateUsageDescription": "ThanaFit does not write Health data to Apple Health."
       },
-      "buildNumber": "48"
+      "buildNumber": "49"
     },
     "plugins": [
       [

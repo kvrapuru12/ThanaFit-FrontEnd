@@ -15,6 +15,7 @@ import {
   Image,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../providers/AuthProvider';
 import { useMainTab } from '../providers/MainTabContext';
@@ -33,6 +34,11 @@ import {
   writeSuggestionsCache,
 } from '../../infrastructure/cache/cycleSyncCache';
 import { apiClient } from '../../infrastructure/api/ApiClient';
+import {
+  TabScreenHeader,
+  TAB_SCREEN_HORIZONTAL_PADDING,
+  tabScreenScrollTopInset,
+} from './TabScreenHeader';
 import { formatDateLocal, parseDateLocal } from '../../core/utils/dateUtils';
 import {
   calculateCurrentPhase,
@@ -252,6 +258,7 @@ function normalizePhaseContent(
 }
 
 export function CycleSync({ navigation }: CycleSyncProps) {
+  const insets = useSafeAreaInsets();
   const { user, refreshUserData } = useAuth();
   const mainTab = useMainTab();
   const [loading, setLoading] = useState(true);
@@ -654,23 +661,19 @@ export function CycleSync({ navigation }: CycleSyncProps) {
     <View style={styles.screen}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: tabScreenScrollTopInset(insets.top),
+            paddingHorizontal: TAB_SCREEN_HORIZONTAL_PADDING,
+          },
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header — align with Food / Exercise: title + subtitle left, ThanaFit logo right */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.headerTitle}>CycleSync</Text>
-            <Text style={styles.headerSubtitle}>Understand your cycle. Feel your best.</Text>
-          </View>
-          <View style={styles.thanafitLogo}>
-            <Image
-              source={require('../../../assets/logo-icon.png')}
-              style={styles.thanafitLogoImage}
-              resizeMode="contain"
-            />
-          </View>
-        </View>
+        <TabScreenHeader
+          title="CycleSync"
+          subtitle="Understand your cycle. Feel your best."
+        />
 
         {!hasLoggedData || !cycleVm ? (
           <View style={styles.emptyCard}>
@@ -1164,33 +1167,9 @@ export function CycleSync({ navigation }: CycleSyncProps) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: APP.bgScreen },
   scroll: { flex: 1 },
-  /** Match ExerciseTracking: top inset + horizontal padding so title sits like Food / Exercise */
-  scrollContent: { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 120 },
+  scrollContent: { paddingBottom: 120 },
   loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: APP.bgScreen },
   loadingText: { marginTop: 12, fontSize: 16, color: APP.muted, fontWeight: '400' },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  headerLeft: { flex: 1 },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#ff6b6b',
-    marginBottom: 4,
-    lineHeight: 26,
-    includeFontPadding: false,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-    lineHeight: 22,
-    fontWeight: '400',
-  },
-  thanafitLogo: { width: 80, height: 80 },
-  thanafitLogoImage: { width: '100%', height: '100%' },
   emptyCard: {
     backgroundColor: APP.surface,
     borderRadius: 20,

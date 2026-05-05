@@ -266,6 +266,7 @@ const FOOD_IMAGE_BY_KEYWORD: Array<{ keyword: string; imagePath: string }> = [
   { keyword: 'nut', imagePath: '1490474418585-ba9bad8fd0ea?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=300' },
   { keyword: 'cashew', imagePath: '1490474418585-ba9bad8fd0ea?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=300' },
   { keyword: 'almond', imagePath: '1490474418585-ba9bad8fd0ea?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=300' },
+  { keyword: 'pizza', imagePath: '1565299624946-b28f40a0ca4b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=300' },
 ];
 
 export const inferFoodVisualCategory = (input?: FoodVisualInput): FoodVisualCategory => {
@@ -356,6 +357,12 @@ export const getFoodImageUrl = (input?: FoodVisualInput): string | undefined => 
   if (!categoryImage) return undefined;
   return baseUrl + categoryImage;
 };
+
+export const DEFAULT_FOOD_IMAGE_URL =
+  'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxoZWFsdGh5JTIwZm9vZHxlbnwxfHx8fDE3NTc1MzAyNjl8MA&ixlib=rb-4.1.0&q=80&w=300';
+
+export const resolveFoodImageUrl = (input?: FoodVisualInput): string =>
+  getFoodImageUrl(input) ?? DEFAULT_FOOD_IMAGE_URL;
 
 const ACTIVITY_ICON_KEYWORDS: Record<string, string> = {
   swimming: 'pool',
@@ -555,4 +562,66 @@ export const getActivityEmoji = (input?: ActivityVisualInput): string | undefine
   if (icon === 'music-note') return '💃';
   if (icon === 'stairs') return '🪜';
   return undefined;
+};
+
+/** Stock thumbnails keyed like Material icon names from {@link getActivityIconName}. */
+const ACTIVITY_ICON_TO_IMAGE_URL: Record<string, string> = {
+  pool: 'https://images.unsplash.com/photo-1562883679-16e9bb318cac?auto=format&fit=crop&w=300&q=80',
+  'directions-run':
+    'https://images.unsplash.com/photo-1545186079-85b6e2424f28?auto=format&fit=crop&w=300&q=80',
+  'directions-walk':
+    'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=300&q=80',
+  'directions-bike':
+    'https://images.unsplash.com/photo-1541625602330-2277a4c46195?auto=format&fit=crop&w=300&q=80',
+  'fitness-center':
+    'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=300&q=80',
+  'self-improvement':
+    'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&w=300&q=80',
+  'music-note': 'https://images.unsplash.com/photo-1524594152303-925992356ffc?auto=format&fit=crop&w=300&q=80',
+  'sports-tennis':
+    'https://images.unsplash.com/photo-1622279457498-725dc1123e54?auto=format&fit=crop&w=300&q=80',
+  'sports-basketball':
+    'https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=300&q=80',
+  'sports-football':
+    'https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?auto=format&fit=crop&w=300&q=80',
+  'sports-soccer':
+    'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=300&q=80',
+  'sports-volleyball':
+    'https://images.unsplash.com/photo-1612872087720-bb876e2e67d1?auto=format&fit=crop&w=300&q=80',
+  hiking: 'https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&w=300&q=80',
+  'sports-mma':
+    'https://images.unsplash.com/photo-1549719386-74dfcbf7a31e?auto=format&fit=crop&w=300&q=80',
+  rowing: 'https://images.unsplash.com/photo-1540497075689-aa23b88227cc?auto=format&fit=crop&w=300&q=80',
+  kayaking: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=300&q=80',
+  surfing: 'https://images.unsplash.com/photo-1502680390469-be75c86b636f?auto=format&fit=crop&w=300&q=80',
+  'downhill-skiing':
+    'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?auto=format&fit=crop&w=300&q=80',
+  snowboarding:
+    'https://images.unsplash.com/photo-1551524164-687a55dd1326?auto=format&fit=crop&w=300&q=80',
+  'ice-skating':
+    'https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=300&q=80',
+  skateboarding:
+    'https://images.unsplash.com/photo-1564982752979-32402cce2f48?auto=format&fit=crop&w=300&q=80',
+  'golf-course':
+    'https://images.unsplash.com/photo-1535131749006-fa095fd934c7?auto=format&fit=crop&w=300&q=80',
+  'sports-baseball':
+    'https://images.unsplash.com/photo-1566577739112-5180d843eae8?auto=format&fit=crop&w=300&q=80',
+  'sports-cricket':
+    'https://images.unsplash.com/photo-1531417538963-de349480d874?auto=format&fit=crop&w=300&q=80',
+  'sports-badminton':
+    'https://images.unsplash.com/photo-1626224582827-2972aec82738?auto=format&fit=crop&w=300&q=80',
+  stairs: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=300&q=80',
+  favorite: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=300&q=80',
+  sports: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=300&q=80',
+};
+
+const DEFAULT_ACTIVITY_IMAGE_URL =
+  ACTIVITY_ICON_TO_IMAGE_URL['fitness-center'];
+
+export const getActivityImageUrl = (input?: ActivityVisualInput): string => {
+  const icon = getActivityIconName(input);
+  if (icon && ACTIVITY_ICON_TO_IMAGE_URL[icon]) {
+    return ACTIVITY_ICON_TO_IMAGE_URL[icon];
+  }
+  return DEFAULT_ACTIVITY_IMAGE_URL;
 };

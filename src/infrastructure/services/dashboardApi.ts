@@ -48,6 +48,8 @@ export interface Meal {
   time: string;
   type: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack';
   image?: string;
+  /** Nested food.category when API sends it */
+  foodCategory?: string;
   macros?: {
     carbs: number;
     protein: number;
@@ -220,49 +222,6 @@ export interface ActivitiesResponse {
 // Dashboard API Service
 export class DashboardApiService {
   private baseUrl = '/dashboard';
-
-  /**
-   * Get appropriate food image based on food name
-   */
-  private getFoodImage(foodName: string): string {
-    const foodImages: { [key: string]: string } = {
-      'chicken breast': 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjaGlja2VuJTIwYnJlYXN0fGVufDF8fHx8MTc1NzUzMDI2OXww&ixlib=rb-4.1.0&q=80&w=300',
-      'chicken': 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjaGlja2VuJTIwYnJlYXN0fGVufDF8fHx8MTc1NzUzMDI2OXww&ixlib=rb-4.1.0&q=80&w=300',
-      'oatmeal': 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxvYXRtZWFsfGVufDF8fHx8MTc1NzUzMDI2OXww&ixlib=rb-4.1.0&q=80&w=300',
-      'banana': 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxiYW5hbmF8ZW58MXx8fHwxNzU3NTMwMjY5fDA&ixlib=rb-4.1.0&q=80&w=300',
-      'rice': 'https://images.unsplash.com/photo-1586201375761-83865001e31c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxicm93biUyMHJpY2V8ZW58MXx8fHwxNzU3NTMwMjY5fDA&ixlib=rb-4.1.0&q=80&w=300',
-      'brown rice': 'https://images.unsplash.com/photo-1586201375761-83865001e31c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxicm93biUyMHJpY2V8ZW58MXx8fHwxNzU3NTMwMjY5fDA&ixlib=rb-4.1.0&q=80&w=300',
-      'salmon': 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzYWxtb258ZW58MXx8fHwxNzU3NTMwMjY5fDA&ixlib=rb-4.1.0&q=80&w=300',
-      'eggs': 'https://images.unsplash.com/photo-1518492104633-130d0cc84637?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlZ2dzfGVufDF8fHx8MTc1NzUzMDI2OXww&ixlib=rb-4.1.0&q=80&w=300',
-      'bread': 'https://images.unsplash.com/photo-1509440159596-0249088772ff?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxicmVhZHxlbnwxfHx8fDE3NTc1MzAyNjl8MA&ixlib=rb-4.1.0&q=80&w=300',
-      'avocado': 'https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhdm9jYWRvfGVufDF8fHx8MTc1NzUzMDI2OXww&ixlib=rb-4.1.0&q=80&w=300',
-      'apple': 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhcHBsZXxlbnwxfHx8fDE3NTc1MzAyNjl8MA&ixlib=rb-4.1.0&q=80&w=300',
-      'salad': 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzYWxhZHxlbnwxfHx8fDE3NTc1MzAyNjl8MA&ixlib=rb-4.1.0&q=80&w=300',
-      'pasta': 'https://images.unsplash.com/photo-1621996346565-e3dbc353d2e5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwYXN0YXxlbnwxfHx8fDE3NTc1MzAyNjl8MA&ixlib=rb-4.1.0&q=80&w=300',
-      'pizza': 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwaXp6YXxlbnwxfHx8fDE3NTc1MzAyNjl8MA&ixlib=rb-4.1.0&q=80&w=300',
-      'yogurt': 'https://images.unsplash.com/photo-1571212515410-3b4a54d21592?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHl5b2d1cnR8ZW58MXx8fHwxNzU3NTMwMjY5fDA&ixlib=rb-4.1.0&q=80&w=300',
-      'milk': 'https://images.unsplash.com/photo-1550583724-b2692b85b150?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtaWxrfGVufDF8fHx8MTc1NzUzMDI2OXww&ixlib=rb-4.1.0&q=80&w=300',
-      'cheese': 'https://images.unsplash.com/photo-1486297678162-eb2a19b0a32d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjaGVlc2V8ZW58MXx8fHwxNzU3NTMwMjY5fDA&ixlib=rb-4.1.0&q=80&w=300',
-      'nuts': 'https://images.unsplash.com/photo-1551782450-17144efb9c50?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxudXRzfGVufDF8fHx8MTc1NzUzMDI2OXww&ixlib=rb-4.1.0&q=80&w=300',
-      'almonds': 'https://images.unsplash.com/photo-1551782450-17144efb9c50?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxudXRzfGVufDF8fHx8MTc1NzUzMDI2OXww&ixlib=rb-4.1.0&q=80&w=300'
-    };
-
-    // Try to find exact match first
-    const exactMatch = foodImages[foodName.toLowerCase()];
-    if (exactMatch) {
-      return exactMatch;
-    }
-
-    // Try to find partial match
-    for (const [key, imageUrl] of Object.entries(foodImages)) {
-      if (foodName.toLowerCase().includes(key) || key.includes(foodName.toLowerCase())) {
-        return imageUrl;
-      }
-    }
-
-    // Default healthy food image
-    return 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxoZWFsdGh5JTIwZm9vZHxlbnwxfHx8fDE3NTc1MzAyNjl8MA&ixlib=rb-4.1.0&q=80&w=300';
-  }
 
   /**
    * Get today's dashboard statistics
@@ -567,17 +526,18 @@ export class DashboardApiService {
       };
 
       // Convert food logs to recent meals format for display
-      const recentMeals: Meal[] = foodLogs.map(food => ({
+      const recentMeals: Meal[] = foodLogs.map((food) => ({
         id: food.id.toString(),
         name: food.foodItemName,
         calories: food.calories,
-        time: new Date(food.loggedAt).toLocaleTimeString('en-US', { 
-          hour: 'numeric', 
+        time: new Date(food.loggedAt).toLocaleTimeString('en-US', {
+          hour: 'numeric',
           minute: '2-digit',
-          hour12: true 
+          hour12: true,
         }),
-        type: (food.mealType.charAt(0).toUpperCase() + food.mealType.slice(1)) as 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack',
-        image: this.getFoodImage(food.foodItemName)
+        type: (food.mealType.charAt(0).toUpperCase() +
+          food.mealType.slice(1)) as 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack',
+        foodCategory: food.food?.category,
       }));
 
       return {

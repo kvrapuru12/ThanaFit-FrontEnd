@@ -9,12 +9,12 @@ interface ImageWithFallbackProps {
   style?: any;
 }
 
-export const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({ 
-  src, 
-  alt = 'Image', 
-  width = 100, 
-  height = 100, 
-  style 
+export const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
+  src,
+  alt = 'Image',
+  width = 100,
+  height = 100,
+  style,
 }) => {
   const [didError, setDidError] = useState(false);
 
@@ -22,39 +22,42 @@ export const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
     setDidError(true);
   };
 
-  return didError ? (
-    <View style={[styles.errorContainer, { width, height }, style]}>
-      <View style={styles.errorContent}>
-        <Text style={styles.errorText}>📷</Text>
-        <Text style={styles.errorLabel}>Image failed to load</Text>
+  if (didError) {
+    return (
+      <View
+        style={[styles.slot, { width, height }, style]}
+        accessibilityRole="image"
+        accessibilityLabel={`${alt}, no image`}
+      >
+        <Text style={styles.noImageLabel} numberOfLines={1}>
+          No image
+        </Text>
       </View>
-    </View>
-  ) : (
+    );
+  }
+
+  return (
     <Image
       source={{ uri: src }}
       style={[styles.image, { width, height }, style]}
       onError={handleError}
+      accessibilityRole="image"
+      accessibilityLabel={alt}
     />
   );
 };
 
 const styles = StyleSheet.create({
-  errorContainer: {
-    backgroundColor: '#f3f4f6',
+  slot: {
     borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#f3f4f6',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 6,
   },
-  errorContent: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  errorText: {
-    fontSize: 24,
-    marginBottom: 4,
-  },
-  errorLabel: {
-    fontSize: 12,
+  noImageLabel: {
+    fontSize: 11,
     color: '#6b7280',
     textAlign: 'center',
   },

@@ -14,6 +14,7 @@ import {
   Image,
   Animated,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker, {
   DateTimePickerAndroid,
 } from '@react-native-community/datetimepicker';
@@ -26,6 +27,11 @@ import { apiClient } from '../../infrastructure/api/ApiClient';
 import { cycleApiService } from '../../infrastructure/services/cycleApi';
 import { formatDateLocal, parseDateLocal } from '../../core/utils/dateUtils';
 import { getAppVersionDisplay } from '../../core/utils/appVersionDisplay';
+import {
+  TabScreenHeader,
+  TAB_SCREEN_HORIZONTAL_PADDING,
+  tabScreenScrollTopInset,
+} from './TabScreenHeader';
 
 const { width } = Dimensions.get('window');
 
@@ -90,6 +96,7 @@ interface ProfileProps {
 }
 
 export function Profile({ navigation }: ProfileProps) {
+  const insets = useSafeAreaInsets();
   const { logout, isLoading, user, refreshUserData } = useAuth();
   
   // Edit modal state
@@ -792,7 +799,15 @@ export function Profile({ navigation }: ProfileProps) {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.content}>
+      <View
+        style={[
+          styles.content,
+          {
+            paddingTop: tabScreenScrollTopInset(insets.top),
+            paddingHorizontal: TAB_SCREEN_HORIZONTAL_PADDING,
+          },
+        ]}
+      >
         {/* Incomplete-profile toast banner (top of screen) */}
         {showIncompleteBanner && (
           <Animated.View style={[styles.incompleteBanner, { opacity: incompleteBannerOpacity }]}>
@@ -817,20 +832,7 @@ export function Profile({ navigation }: ProfileProps) {
           </Animated.View>
         )}
 
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.title}>Profile</Text>
-            <Text style={styles.subtitle}>Manage your account</Text>
-          </View>
-          <View style={styles.thanafitLogo}>
-            <Image
-              source={require('../../../assets/logo-icon.png')}
-              style={styles.thanafitLogoImage}
-              resizeMode="contain"
-            />
-          </View>
-        </View>
+        <TabScreenHeader title="Profile" subtitle="Manage your account" />
 
         {/* Profile Card */}
         <Card style={styles.profileCard}>
@@ -1385,8 +1387,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fef7ed',
   },
   content: {
-    padding: 24,
-    paddingTop: 60, // More space from top
     paddingBottom: 100, // Space for bottom navigation
   },
   incompleteBanner: {
@@ -1432,33 +1432,6 @@ const styles = StyleSheet.create({
   },
   incompleteBannerDismiss: {
     padding: 4,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  headerLeft: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#ff6b6b',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  thanafitLogo: {
-    width: 80,
-    height: 80,
-  },
-  thanafitLogoImage: {
-    width: '100%',
-    height: '100%',
   },
   profileCard: {
     backgroundColor: '#ffa726',

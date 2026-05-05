@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, TextInput, Modal, KeyboardAvoidingView, Platform, Image, Linking } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, TextInput, Modal, KeyboardAvoidingView, Platform, Linking } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Badge } from './ui/badge';
 import { MaterialIcons } from '@expo/vector-icons';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { useAuth } from '../providers/AuthProvider';
@@ -15,9 +15,15 @@ import {
   markHealthKitSyncPrecheckComplete,
   shouldShowHealthKitSyncPrecheck,
 } from '../../core/utils/healthKitSyncPrecheck';
-import { getActivityIconName } from '../utils/visualMappings';
+import { getActivityImageUrl, resolveFoodImageUrl } from '../utils/visualMappings';
+import {
+  TabScreenHeader,
+  TAB_SCREEN_HORIZONTAL_PADDING,
+  tabScreenScrollTopInset,
+} from './TabScreenHeader';
 
 export const Dashboard: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const {
     data,
@@ -321,62 +327,25 @@ export const Dashboard: React.FC = () => {
         />
       }
     >
-      <View style={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.title}>
-              Welcome, {user?.firstName || 'User'}!
-            </Text>
-            <View style={styles.dateNavRow}>
-              <TouchableOpacity
-                accessibilityLabel="Previous day"
-                onPress={() => setSelectedDate(addLocalCalendarDays(selectedDate, -1))}
-                style={styles.dateArrowButton}
-                disabled={isRefreshing}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <MaterialIcons name="chevron-left" size={20} color="#10b981" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.dateTextButton}
-                onPress={openDatePicker}
-                disabled={isRefreshing}
-                accessibilityRole="button"
-                accessibilityLabel="Open date picker"
-              >
-                <MaterialIcons name="event" size={16} color="#10b981" />
-                <Text style={styles.dateText} numberOfLines={1} ellipsizeMode="tail">
-                  {selectedDate.toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    month: 'short',
-                    day: 'numeric',
-                  })}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                accessibilityLabel="Next day"
-                onPress={() => {
-                  if (canGoNextDay) {
-                    setSelectedDate(addLocalCalendarDays(selectedDate, 1));
-                  }
-                }}
-                style={styles.dateArrowButton}
-                disabled={!canGoNextDay || isRefreshing}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <MaterialIcons name="chevron-right" size={20} color={canGoNextDay ? '#10b981' : '#d1d5db'} />
-              </TouchableOpacity>
-            </View>
-          </View>
-          <View style={styles.thanafitLogo}>
-            <Image
-              source={require('../../../assets/logo-icon.png')}
-              style={styles.thanafitLogoImage}
-              resizeMode="contain"
-            />
-          </View>
-        </View>
+      <View
+        style={[
+          styles.content,
+          { paddingTop: tabScreenScrollTopInset(insets.top) },
+        ]}
+      >
+        <TabScreenHeader
+          accent="emerald"
+          titleColor="#1f2937"
+          title={`Welcome, ${user?.firstName || 'User'}!`}
+          dateNav={{
+            selectedDate,
+            onPrevDay: () => setSelectedDate(addLocalCalendarDays(selectedDate, -1)),
+            onNextDay: () => setSelectedDate(addLocalCalendarDays(selectedDate, 1)),
+            onOpenPicker: openDatePicker,
+            canGoNextDay,
+            disabled: isRefreshing,
+          }}
+        />
 
         {/* Quick Stats */}
         <View style={styles.statsGrid}>
@@ -695,20 +664,20 @@ export const Dashboard: React.FC = () => {
                 <View key={meal.id || index} style={styles.mealRow}>
                   <View style={styles.mealImageContainer}>
                     <ImageWithFallback
-                      src={meal.image || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxoZWFsdGh5JTIwZm9vZHxlbnwxfHx8fDE3NTc1MzAyNjl8MA&ixlib=rb-4.1.0&q=80&w=300"}
+                      src={resolveFoodImageUrl({
+                        name: meal.name,
+                        category: meal.foodCategory,
+                      })}
                       alt={meal.name}
                       width={64}
                       height={64}
                       style={styles.mealImage}
                     />
-                    <View style={styles.mealEmoji}>
-                      <Text style={styles.emojiText}>🥭</Text>
-                    </View>
                   </View>
                   <View style={styles.mealInfo}>
                     <Text style={styles.mealName}>{meal.name}</Text>
                     <Text style={styles.mealDetails}>
-                      {meal.time} • {Math.round(meal.calories)} cal
+                      {meal.type} • {meal.time} • {Math.round(meal.calories)} cal
                     </Text>
                     {meal.macros && (
                       <View style={styles.mealMacros}>
@@ -724,9 +693,6 @@ export const Dashboard: React.FC = () => {
                       </View>
                     )}
                   </View>
-                  <Badge variant="secondary" style={styles.mealBadge}>
-                    {meal.type}
-                  </Badge>
                 </View>
               ))
             ) : (
@@ -751,20 +717,22 @@ export const Dashboard: React.FC = () => {
             {data?.activityLogs && data.activityLogs.length > 0 ? (
               data.activityLogs.slice(0, 3).map((activity, index) => (
                 <View key={activity.id} style={styles.activityRow}>
-                  <View style={styles.activityIconContainer}>
-                    <MaterialIcons
-                      name={
-                        (getActivityIconName({
-                          name: activity.note,
-                          category: activity.activity?.category,
-                        }) || 'fitness-center') as any
-                      }
-                      size={24}
-                      color="#10b981"
+                  <View style={styles.activityImageContainer}>
+                    <ImageWithFallback
+                      src={getActivityImageUrl({
+                        name: activity.activity?.name || activity.note,
+                        category: activity.activity?.category,
+                      })}
+                      alt={activity.activity?.name || activity.note || 'Activity'}
+                      width={64}
+                      height={64}
+                      style={styles.activityThumbnail}
                     />
                   </View>
                   <View style={styles.activityInfo}>
-                    <Text style={styles.activityName}>{activity.note}</Text>
+                    <Text style={styles.activityName}>
+                      {activity.activity?.name || activity.note}
+                    </Text>
                     <Text style={styles.activityDetails}>
                       {new Date(activity.loggedAt).toLocaleTimeString('en-US', { 
                         hour: 'numeric', 
@@ -1040,54 +1008,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   content: {
-    paddingHorizontal: 16,
-    paddingTop: 56,
+    paddingHorizontal: TAB_SCREEN_HORIZONTAL_PADDING,
     paddingBottom: 100, // Space for bottom navigation
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  headerLeft: {
-    flex: 1,
-    minWidth: 0,
-    paddingRight: 12,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  dateNavRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 2,
-    marginTop: 2,
-    flexWrap: 'nowrap',
-    maxWidth: '100%',
-  },
-  dateArrowButton: {
-    paddingVertical: 2,
-    paddingHorizontal: 2,
-  },
-  dateTextButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 2,
-    paddingHorizontal: 4,
-    flexShrink: 1,
-    minWidth: 0,
-  },
-  dateText: {
-    fontSize: 14,
-    color: '#6b7280',
-    flexShrink: 1,
-    minWidth: 0,
   },
   addButtonDisabled: {
     opacity: 0.45,
@@ -1169,14 +1091,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: 'white',
-  },
-  thanafitLogo: {
-    width: 80,
-    height: 80,
-  },
-  thanafitLogoImage: {
-    width: '100%',
-    height: '100%',
   },
   statsGrid: {
     flexDirection: 'row',
@@ -1561,25 +1475,6 @@ const styles = StyleSheet.create({
   mealImage: {
     borderRadius: 16,
   },
-  mealEmoji: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    width: 28,
-    height: 28,
-    backgroundColor: 'white',
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  emojiText: {
-    fontSize: 12,
-  },
   mealInfo: {
     flex: 1,
   },
@@ -1592,10 +1487,6 @@ const styles = StyleSheet.create({
   mealDetails: {
     fontSize: 14,
     color: '#6b7280',
-  },
-  mealBadge: {
-    backgroundColor: '#f0fdf4',
-    borderColor: '#10b981',
   },
   loadingContainer: {
     flex: 1,
@@ -1661,10 +1552,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 16,
   },
-  activityIconContainer: {
-    padding: 12,
-    backgroundColor: '#f0fdf4',
-    borderRadius: 12,
+  activityImageContainer: {
+    position: 'relative',
+  },
+  activityThumbnail: {
+    borderRadius: 16,
   },
   activityInfo: {
     flex: 1,

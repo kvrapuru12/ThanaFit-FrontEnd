@@ -1,12 +1,19 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Image } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../providers/AuthProvider';
 import { useProgressData } from '../hooks/useProgressData';
+import {
+  TabScreenHeader,
+  TAB_SCREEN_HORIZONTAL_PADDING,
+  tabScreenScrollTopInset,
+} from './TabScreenHeader';
 
 export const ProgressTracking: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { data, isLoading, error, refresh } = useProgressData();
 
@@ -104,27 +111,27 @@ export const ProgressTracking: React.FC = () => {
 
   return (
     <ScrollView style={styles.container}>
-      <View style={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.title}>Progress</Text>
-            <Text style={styles.subtitle}>Monitor your fitness journey</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <View style={styles.thanafitLogo}>
-              <Image
-                source={require('../../../assets/logo-icon.png')}
-                style={styles.thanafitLogoImage}
-                resizeMode="contain"
-              />
-            </View>
+      <View
+        style={[
+          styles.content,
+          {
+            paddingTop: tabScreenScrollTopInset(insets.top),
+            paddingHorizontal: TAB_SCREEN_HORIZONTAL_PADDING,
+          },
+        ]}
+      >
+        <TabScreenHeader
+          accent="emerald"
+          titleColor="#1f2937"
+          title="Progress"
+          subtitle="Monitor your fitness journey"
+          logoTrailingAccessory={
             <Badge variant="secondary" style={styles.headerBadge}>
               <MaterialIcons name="trending-up" size={16} color="#10b981" />
               <Text style={styles.badgeText}>This Week</Text>
             </Badge>
-          </View>
-        </View>
+          }
+        />
 
         {/* Goal Stats */}
         <View style={styles.statsGrid}>
@@ -255,41 +262,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   content: {
-    padding: 24,
-    paddingTop: 60, // More space from top
     paddingBottom: 100, // Space for bottom navigation
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  headerLeft: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginTop: 4,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  thanafitLogo: {
-    width: 80,
-    height: 80,
-  },
-  thanafitLogoImage: {
-    width: '100%',
-    height: '100%',
   },
   headerBadge: {
     flexDirection: 'row',

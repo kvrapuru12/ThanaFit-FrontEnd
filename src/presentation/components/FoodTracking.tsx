@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ScrollView, Swipeable } from 'react-native-gesture-handler';
+import { ScrollView } from 'react-native-gesture-handler';
 import { Card, CardContent, CardHeader } from './ui/card';
 import { Input } from './Input';
 import { Button } from './ui/button';
@@ -26,12 +26,170 @@ import { useFoodLogs } from '../hooks/useFoodLogs';
 import { FoodItem, FoodLog } from '../../infrastructure/services/dashboardApi';
 import { FoodVoiceRecorder } from './FoodVoiceRecorder';
 import { startOfLocalDay, addLocalCalendarDays, isSameLocalDay } from '../../core/utils/dateUtils';
-import { getFoodImageUrl } from '../utils/visualMappings';
+import { getFoodImageUrl, resolveFoodImageUrl, type FoodVisualInput } from '../utils/visualMappings';
+import { showRowActionsMenu } from '../utils/showRowActionsMenu';
+import {
+  TabScreenHeader,
+  TAB_SCREEN_HORIZONTAL_PADDING,
+  TAB_SCREEN_STICKY_SCROLL_PADDING_TOP,
+} from './TabScreenHeader';
 
 const { width } = Dimensions.get('window');
 
 /** Bottom tab bar overlay height (see BottomNavigation: padding + min tab height). */
 const TAB_BAR_CLEARANCE = 88;
+
+const SUMMARY_GRID_GAP = 12;
+const SUMMARY_CARD_WIDTH =
+  (width - TAB_SCREEN_HORIZONTAL_PADDING * 2 - SUMMARY_GRID_GAP) / 2;
+
+/** Fixed diameter so macro dots stay identical circles (not stretched by flex columns). */
+const MACRO_DOT_DIAMETER = 20;
+
+type MealTimeConfig = {
+  id: string;
+  label: string;
+  icon: string;
+  gradient: string;
+  summaryBg: string;
+  cornerIcon: React.ComponentProps<typeof MaterialIcons>['name'];
+  cornerColor: string;
+  heroDefault: FoodVisualInput;
+  emptyHeroWhenNoLogs?: boolean;
+};
+
+/** Shorter Unsplash query params load more reliably on-device than long ixlib URLs. */
+function relaxedUnsplashHeroUrl(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  try {
+    const { origin, pathname } = new URL(raw);
+    if (!pathname.includes('/photo-')) return raw;
+    return `${origin}${pathname}?w=400&q=85&fm=jpg&fit=crop`;
+  } catch {
+    return raw;
+  }
+}
+
+function summaryHeroUrl(meal: MealTimeConfig, mealLogs: FoodLog[]): string | undefined {
+  let raw: string | undefined;
+  if (mealLogs.length > 0) {
+    const first = mealLogs[0];
+    raw = getFoodImageUrl({
+      name: first.foodItemName,
+      category: first.food?.category,
+    });
+  } else if (meal.emptyHeroWhenNoLogs) {
+    raw = undefined;
+  } else {
+    raw = getFoodImageUrl(meal.heroDefault);
+  }
+  return relaxedUnsplashHeroUrl(raw);
+}
+
+function MealMacroCircles({
+  protein,
+  carbs,
+  fat,
+  muted,
+}: {
+  protein: number;
+  carbs: number;
+  fat: number;
+  muted?: boolean;
+}) {
+  const items: {
+    key: string;
+    a11yLabel: string;
+    value: number;
+    circleStyle: object;
+  }[] = [
+    {
+      key: 'p',
+      a11yLabel: 'Protein',
+      value: protein,
+      circleStyle: styles.summaryMacroCircleProtein,
+    },
+    {
+      key: 'c',
+      a11yLabel: 'Carbs',
+      value: carbs,
+      circleStyle: styles.summaryMacroCircleCarbs,
+    },
+    {
+      key: 'f',
+      a11yLabel: 'Fat',
+      value: fat,
+      circleStyle: styles.summaryMacroCircleFat,
+    },
+  ];
+
+  return (
+    <View style={styles.summaryMacroRow} accessibilityRole="text">
+      {items.map((item) => (
+        <View
+          key={item.key}
+          style={styles.summaryMacroCircleOuter}
+          accessible
+          accessibilityLabel={
+            muted ? `${item.a11yLabel}, loading` : `${item.a11yLabel}, ${Math.round(item.value)} grams`
+          }
+        >
+          <View
+            style={[
+              styles.summaryMacroCircle,
+              item.circleStyle,
+              muted && styles.summaryMacroCircleMuted,
+            ]}
+          >
+            <Text
+              style={styles.summaryMacroCircleGrams}
+              allowFontScaling
+              adjustsFontSizeToFit
+              numberOfLines={1}
+              minimumFontScale={0.45}
+              accessible={false}
+              importantForAccessibility="no"
+            >
+              {muted ? '—' : `${Math.round(item.value)}g`}
+            </Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function MealSummaryHero({
+  uri,
+  placeholderIcon,
+  placeholderColor,
+}: {
+  uri?: string;
+  placeholderIcon: React.ComponentProps<typeof MaterialIcons>['name'];
+  placeholderColor: string;
+}) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [uri]);
+
+  if (!uri || failed) {
+    return (
+      <View style={styles.summaryHeroPlaceholder}>
+        <MaterialIcons name={placeholderIcon} size={22} color={placeholderColor} />
+      </View>
+    );
+  }
+
+  return (
+    <Image
+      source={{ uri }}
+      style={styles.summaryHeroImage}
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 interface FoodTrackingProps {
   navigation?: any;
@@ -193,180 +351,188 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
   // No need for handleConfirmAddFood - handled in AddFoodScreen
 
   // Calculate total calories for a meal using backend data
-  const calculateMealCalories = (mealLogs: any[]): number => {
+  const calculateMealCalories = (mealLogs: FoodLog[]): number => {
     return mealLogs.reduce((total, log) => {
-      // Use backend calories data directly
       return total + (log.calories || 0);
     }, 0);
   };
 
-  // Calculate total macronutrients for a meal
-  const calculateMealMacros = (mealLogs: any[]): { protein: number; carbs: number; fat: number } => {
-    return mealLogs.reduce((total, log) => {
-      return {
-        protein: total.protein + (log.protein || 0),
-        carbs: total.carbs + (log.carbs || 0),
-        fat: total.fat + (log.fat || 0)
-      };
-    }, { protein: 0, carbs: 0, fat: 0 });
+  const calculateMealMacros = (mealLogs: FoodLog[]) => {
+    return mealLogs.reduce(
+      (acc, log) => ({
+        protein: acc.protein + Number(log.protein ?? 0),
+        carbs: acc.carbs + Number(log.carbs ?? 0),
+        fat: acc.fat + Number(log.fat ?? 0),
+      }),
+      { protein: 0, carbs: 0, fat: 0 },
+    );
   };
 
-
-  const mealTimes = [
-    { id: 'breakfast', label: 'Breakfast', icon: '🥞', gradient: 'gradient-papaya' },
-    { id: 'lunch', label: 'Lunch', icon: '🥗', gradient: 'gradient-paradise' },
-    { id: 'dinner', label: 'Dinner', icon: '🍽️', gradient: 'gradient-fuschia' },
-    { id: 'snack', label: 'Snacks', icon: '🍎', gradient: 'gradient-palm' }
+  const mealTimes: MealTimeConfig[] = [
+    {
+      id: 'breakfast',
+      label: 'Breakfast',
+      icon: '🥞',
+      gradient: 'gradient-papaya',
+      summaryBg: '#fff1f2',
+      cornerIcon: 'wb-sunny',
+      cornerColor: '#ea580c',
+      heroDefault: { name: 'oatmeal', category: 'grains' },
+    },
+    {
+      id: 'lunch',
+      label: 'Lunch',
+      icon: '🥗',
+      gradient: 'gradient-paradise',
+      summaryBg: '#ecfdf5',
+      cornerIcon: 'wb-sunny',
+      cornerColor: '#16a34a',
+      heroDefault: { name: 'salad', category: 'vegetables' },
+    },
+    {
+      id: 'dinner',
+      label: 'Dinner',
+      icon: '🍽️',
+      gradient: 'gradient-fuschia',
+      summaryBg: '#f5f3ff',
+      cornerIcon: 'bedtime',
+      cornerColor: '#9333ea',
+      heroDefault: { name: 'chicken', category: 'protein' },
+      emptyHeroWhenNoLogs: true,
+    },
+    {
+      id: 'snack',
+      label: 'Snacks',
+      icon: '🍎',
+      gradient: 'gradient-palm',
+      summaryBg: '#fffbeb',
+      cornerIcon: 'bakery-dining',
+      cornerColor: '#ea580c',
+      heroDefault: { name: 'apple fruit snack', category: 'fruits' },
+    },
   ];
   const hasAnyLoggedFoods = mealTimes.some((meal) => (todaysMeals[meal.id] || []).length > 0);
 
   return (
     <View style={styles.container}>
-      {/* Static Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.title}>Food Diary</Text>
-          <Text style={styles.subtitle}>Track your meals and nutrition</Text>
-          <View style={styles.dateNavRow}>
-            <TouchableOpacity
-              accessibilityLabel="Previous day"
-              onPress={() => setSelectedDate(addLocalCalendarDays(selectedDate, -1))}
-              style={styles.dateArrowButton}
-              disabled={mealsLoading}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <MaterialIcons name="chevron-left" size={20} color="#ff6b6b" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.dateTextButton}
-              onPress={openDatePicker}
-              disabled={mealsLoading}
-              accessibilityRole="button"
-              accessibilityLabel="Open date picker"
-            >
-              <MaterialIcons name="event" size={16} color="#ff6b6b" />
-              <Text style={styles.dateText} numberOfLines={1} ellipsizeMode="tail">
-                {selectedDate.toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  month: 'short',
-                  day: 'numeric',
-                })}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              accessibilityLabel="Next day"
-              onPress={() => {
-                if (canGoNextDay) {
-                  setSelectedDate(addLocalCalendarDays(selectedDate, 1));
-                }
-              }}
-              style={styles.dateArrowButton}
-              disabled={!canGoNextDay || mealsLoading}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <MaterialIcons
-                name="chevron-right"
-                size={20}
-                color={canGoNextDay ? '#ff6b6b' : '#d1d5db'}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-        <View style={styles.thanafitLogo}>
-          <Image
-            source={require('../../../assets/logo-icon.png')}
-            style={styles.thanafitLogoImage}
-            resizeMode="contain"
-          />
-        </View>
-      </View>
+      <TabScreenHeader
+        placement="sticky"
+        showBottomBorder
+        backgroundColor="#fef7ed"
+        borderBottomColor="#f3f4f6"
+        title="Food Diary"
+        subtitle="Track your meals and nutrition"
+        dateNav={{
+          selectedDate,
+          onPrevDay: () => setSelectedDate(addLocalCalendarDays(selectedDate, -1)),
+          onNextDay: () => setSelectedDate(addLocalCalendarDays(selectedDate, 1)),
+          onOpenPicker: openDatePicker,
+          canGoNextDay,
+          disabled: mealsLoading,
+        }}
+      />
 
       {/* Scrollable Content */}
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={[styles.content, { paddingBottom: scrollBottomPadding }]}>
-          {/* Meal Selection */}
-        <View style={styles.mealsGrid}>
-          {mealTimes.map((meal) => {
-            const mealLogs = todaysMeals[meal.id] || [];
-            const mealCalories = calculateMealCalories(mealLogs);
-            const mealMacros = calculateMealMacros(mealLogs);
-            return (
-              <TouchableOpacity
-                key={meal.id}
-                style={[
-                  styles.mealCard,
-                  selectedMeal === meal.id && styles.selectedMealCard
-                ]}
-                onPress={() => setSelectedMeal(meal.id)}
-              >
-                <View style={styles.mealContent}>
-                  <View style={styles.mealHeader}>
-                    <Text style={styles.mealIcon}>{meal.icon}</Text>
-                    <Text style={[
-                      styles.mealLabel,
-                      selectedMeal === meal.id && styles.selectedMealText
-                    ]}>
-                      {meal.label}
-                    </Text>
-                  </View>
-                  <Text style={[
-                    styles.mealCalories,
-                    selectedMeal === meal.id && styles.selectedMealCalories
-                  ]}>
-                    {Math.round(mealCalories)} cal
-                  </Text>
-                  <View style={styles.mealMacros}>
-                        <View style={[
-                          styles.macroBadge,
-                          styles.proteinBadge,
-                          selectedMeal === meal.id && styles.selectedProteinBadge,
-                          mealMacros.protein === 0 && styles.emptyMacroBadge
-                        ]}>
-                          <Text style={styles.macroLetter}>P</Text>
-                          <Text style={[
-                            styles.macroValue,
-                            selectedMeal === meal.id && styles.selectedMealMacroValue,
-                            mealMacros.protein === 0 && styles.emptyMacroValue
-                          ]}>
-                            {mealMacros.protein.toFixed(0)}g
-                          </Text>
+        <View
+          style={[
+            styles.content,
+            {
+              paddingTop: TAB_SCREEN_STICKY_SCROLL_PADDING_TOP,
+              paddingBottom: scrollBottomPadding,
+            },
+          ]}
+        >
+          {/* Meal summary (dashboard tiles) */}
+          <View style={styles.summaryGridWrap}>
+            <View style={styles.summaryGrid}>
+              {mealTimes.map((meal) => {
+                const mealLogs = todaysMeals[meal.id] || [];
+                const mealCalories = calculateMealCalories(mealLogs);
+                const mealMacros = calculateMealMacros(mealLogs);
+                const heroUri = summaryHeroUrl(meal, mealLogs);
+                const isSelected = selectedMeal === meal.id;
+                const macroSummary =
+                  mealLogs.length > 0
+                    ? `. Protein ${mealMacros.protein.toFixed(0)} grams, carbs ${mealMacros.carbs.toFixed(0)} grams, fat ${mealMacros.fat.toFixed(0)} grams`
+                    : '';
+                return (
+                  <TouchableOpacity
+                    key={meal.id}
+                    activeOpacity={0.92}
+                    style={[
+                      styles.summaryCardOuter,
+                      { width: SUMMARY_CARD_WIDTH },
+                      isSelected && styles.summaryCardOuterSelected,
+                      mealsLoading && styles.summaryCardMuted,
+                    ]}
+                    onPress={() => setSelectedMeal(meal.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${meal.label}, ${Math.round(mealCalories)} calories${macroSummary}`}
+                    accessibilityState={{ selected: isSelected }}
+                  >
+                    <View
+                      style={[styles.summaryCardClip, { backgroundColor: meal.summaryBg }]}
+                    >
+                      <MaterialIcons
+                        name={meal.cornerIcon}
+                        size={20}
+                        color={meal.cornerColor}
+                        style={styles.summaryCornerIconTopRight}
+                        pointerEvents="none"
+                      />
+                      <View style={styles.summaryCardInner}>
+                        <View style={styles.summaryImageRing}>
+                          <MealSummaryHero
+                            uri={heroUri}
+                            placeholderIcon={
+                              meal.emptyHeroWhenNoLogs && !heroUri
+                                ? 'restaurant'
+                                : meal.cornerIcon
+                            }
+                            placeholderColor={
+                              meal.emptyHeroWhenNoLogs && !heroUri ? '#c4b5fd' : meal.cornerColor
+                            }
+                          />
                         </View>
-                        <View style={[
-                          styles.macroBadge,
-                          styles.carbsBadge,
-                          selectedMeal === meal.id && styles.selectedCarbsBadge,
-                          mealMacros.carbs === 0 && styles.emptyMacroBadge
-                        ]}>
-                          <Text style={styles.macroLetter}>C</Text>
-                          <Text style={[
-                            styles.macroValue,
-                            selectedMeal === meal.id && styles.selectedMealMacroValue,
-                            mealMacros.carbs === 0 && styles.emptyMacroValue
-                          ]}>
-                            {mealMacros.carbs.toFixed(0)}g
+                        <View style={styles.summaryTextCol}>
+                          <Text
+                            style={styles.summaryMealTitle}
+                            numberOfLines={1}
+                            ellipsizeMode="clip"
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.82}
+                            maxFontSizeMultiplier={1.25}
+                          >
+                            {meal.label}
                           </Text>
+                          <View style={styles.summaryCalorieRow}>
+                            <Text style={styles.summaryCalorieNumber}>
+                              {mealsLoading ? '—' : Math.round(mealCalories)}
+                            </Text>
+                            <Text style={styles.summaryCalorieUnit}>cal</Text>
+                          </View>
+                          {mealLogs.length > 0 ? (
+                            <MealMacroCircles
+                              protein={mealMacros.protein}
+                              carbs={mealMacros.carbs}
+                              fat={mealMacros.fat}
+                              muted={mealsLoading}
+                            />
+                          ) : null}
                         </View>
-                        <View style={[
-                          styles.macroBadge,
-                          styles.fatBadge,
-                          selectedMeal === meal.id && styles.selectedFatBadge,
-                          mealMacros.fat === 0 && styles.emptyMacroBadge
-                        ]}>
-                          <Text style={styles.macroLetter}>F</Text>
-                          <Text style={[
-                            styles.macroValue,
-                            selectedMeal === meal.id && styles.selectedMealMacroValue,
-                            mealMacros.fat === 0 && styles.emptyMacroValue
-                          ]}>
-                            {mealMacros.fat.toFixed(0)}g
-                          </Text>
-                        </View>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {mealsLoading ? (
+              <View style={styles.summaryGridLoading} pointerEvents="none">
+                <ActivityIndicator size="small" color="#ff6b6b" />
+              </View>
+            ) : null}
+          </View>
         {/* Today's Meals Summary */}
         <Card style={styles.mealsCard}>
           <CardHeader style={styles.mealsCardHeader}>
@@ -422,69 +588,32 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
                     <View style={styles.foodsList}>
                       {mealLogs.length > 0 ? (
                         mealLogs.map((log) => {
-                          const foodImageUrl = getFoodImageUrl({
+                          const foodImageUrl = resolveFoodImageUrl({
                             name: log.foodItemName,
                             category: log.food?.category,
                           });
                           return (
-                          <Swipeable
-                            key={log.id}
-                            friction={2}
-                            overshootRight={false}
-                            renderRightActions={() => (
-                              <TouchableOpacity
-                                style={styles.foodDeleteAction}
-                                onPress={() => confirmDeleteFoodLog(log)}
-                                accessibilityRole="button"
-                                accessibilityLabel="Delete food log"
-                              >
-                                <MaterialIcons name="delete-outline" size={26} color="#ffffff" />
-                                <Text style={styles.foodDeleteActionText}>Delete</Text>
-                              </TouchableOpacity>
-                            )}
-                          >
-                            <View style={styles.foodCard}>
+                            <View key={log.id} style={styles.foodCard}>
                               <View style={styles.foodImageContainer}>
-                                {foodImageUrl ? (
-                                  <ImageWithFallback
-                                    src={foodImageUrl}
-                                    alt={log.food?.name || 'Unknown Food'}
-                                    width={56}
-                                    height={56}
-                                    style={styles.foodImage}
-                                  />
-                                ) : (
-                                  <View style={[styles.foodImage, styles.foodImagePlaceholder]}>
-                                    <MaterialIcons name="restaurant" size={22} color="#9ca3af" />
-                                  </View>
-                                )}
+                                <ImageWithFallback
+                                  src={foodImageUrl}
+                                  alt={log.food?.name || 'Unknown Food'}
+                                  width={56}
+                                  height={56}
+                                  style={styles.foodImage}
+                                />
                               </View>
                               <View style={styles.foodInfo}>
-                                <View style={styles.foodNameRow}>
-                                  <Text
-                                    style={styles.foodCardName}
-                                    numberOfLines={2}
-                                    ellipsizeMode="tail"
-                                  >
-                                    {log.foodItemName}
-                                  </Text>
-                                  <View style={styles.foodNameRowActions}>
-                                    <Badge variant="secondary" style={styles.foodCalories}>
-                                      {Math.round(log.calories)} cal
-                                    </Badge>
-                                    <TouchableOpacity
-                                      style={styles.rowDeleteButton}
-                                      onPress={() => confirmDeleteFoodLog(log)}
-                                      accessibilityRole="button"
-                                      accessibilityLabel="Delete food log"
-                                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                    >
-                                      <MaterialIcons name="delete-outline" size={22} color="#9ca3af" />
-                                    </TouchableOpacity>
-                                  </View>
-                                </View>
+                                <Text
+                                  style={styles.foodCardName}
+                                  numberOfLines={2}
+                                  ellipsizeMode="tail"
+                                >
+                                  {log.foodItemName}
+                                </Text>
                                 <Text style={styles.foodCardMeta}>
-                                  {Number(log.quantity) % 1 === 0 ? Math.round(log.quantity) : Number(log.quantity).toFixed(1)} {log.unit}
+                                  {Number(log.quantity) % 1 === 0 ? Math.round(log.quantity) : Number(log.quantity).toFixed(1)} {log.unit} •{' '}
+                                  {Math.round(log.calories)} cal
                                 </Text>
                                 <View style={styles.nutritionBadges}>
                                   <View style={styles.nutritionBadge}>
@@ -498,9 +627,24 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
                                   </View>
                                 </View>
                               </View>
+                              <View style={styles.foodCardMenuRail}>
+                                <TouchableOpacity
+                                  style={styles.rowMoreButton}
+                                  onPress={() =>
+                                    showRowActionsMenu({
+                                      title: log.foodItemName || 'Food log',
+                                      onDelete: () => confirmDeleteFoodLog(log),
+                                    })
+                                  }
+                                  accessibilityRole="button"
+                                  accessibilityLabel="Food log options"
+                                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                >
+                                  <MaterialIcons name="more-vert" size={22} color="#9ca3af" />
+                                </TouchableOpacity>
+                              </View>
                             </View>
-                          </Swipeable>
-                        );
+                          );
                         })
                       ) : null}
                     </View>
@@ -559,26 +703,20 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
               </View>
             ) : foods.length > 0 ? (
               foods.map((food) => {
-                const foodImageUrl = getFoodImageUrl({
+                const foodImageUrl = resolveFoodImageUrl({
                   name: food.name,
                   category: food.category,
                 });
                 return (
                 <View key={food.id} style={styles.foodCard}>
                   <View style={styles.foodImageContainer}>
-                    {foodImageUrl ? (
-                      <ImageWithFallback
-                        src={foodImageUrl}
-                        alt={food.name}
-                        width={64}
-                        height={64}
-                        style={styles.foodImage}
-                      />
-                    ) : (
-                      <View style={[styles.foodImage, styles.foodImagePlaceholder, { width: 64, height: 64 }]}>
-                        <MaterialIcons name="restaurant" size={24} color="#9ca3af" />
-                      </View>
-                    )}
+                    <ImageWithFallback
+                      src={foodImageUrl}
+                      alt={food.name}
+                      width={64}
+                      height={64}
+                      style={styles.foodImage}
+                    />
                   </View>
                   <View style={styles.foodInfo}>
               <View style={styles.foodNameRow}>
@@ -704,61 +842,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 60, // Safe area from top
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: '#fef7ed',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-    zIndex: 10,
-  },
-  headerLeft: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#ff6b6b',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  dateNavRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 2,
-    marginTop: 8,
-    flexWrap: 'nowrap',
-    maxWidth: '100%',
-  },
-  dateArrowButton: {
-    paddingVertical: 2,
-    paddingHorizontal: 2,
-  },
-  dateTextButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 2,
-    paddingHorizontal: 4,
-    flexShrink: 1,
-    minWidth: 0,
-  },
-  dateText: {
-    fontSize: 14,
-    color: '#6b7280',
-    flexShrink: 1,
-    minWidth: 0,
+    paddingHorizontal: TAB_SCREEN_HORIZONTAL_PADDING,
   },
   actionDisabled: {
     opacity: 0.45,
@@ -841,149 +925,170 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'white',
   },
-  thanafitLogo: {
-    width: 64,
-    height: 64,
+  summaryGridWrap: {
+    marginBottom: 22,
+    position: 'relative',
   },
-  thanafitLogoImage: {
-    width: '100%',
-    height: '100%',
-  },
-  mealsGrid: {
+  summaryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 16,
-    marginBottom: 26,
+    gap: SUMMARY_GRID_GAP,
   },
-  mealCard: {
-    width: (width - 16 * 2 - 16) / 2,
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-  },
-  selectedMealCard: {
-    backgroundColor: '#ff6b6b',
-    shadowColor: '#ff6b6b',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 12,
-    borderColor: '#ff6b6b',
-    transform: [{ scale: 1.02 }],
-  },
-  mealContent: {
-    alignItems: 'center',
-    width: '100%',
-  },
-  mealHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-  },
-  mealIcon: {
-    fontSize: 28,
-    textShadowColor: 'rgba(0,0,0,0.1)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  mealLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    textTransform: 'capitalize',
-    marginBottom: 0,
-    textAlign: 'center',
-  },
-  selectedMealText: {
-    color: 'white',
-    textShadowColor: 'rgba(0,0,0,0.2)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  mealCalories: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  selectedMealCalories: {
-    color: 'white',
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  mealMacros: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    gap: 6,
-  },
-  macroBadge: {
-    flex: 1,
-    flexDirection: 'row',
+  summaryGridLoading: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    borderRadius: 12,
-    backgroundColor: '#f8fafc',
+    backgroundColor: 'rgba(254, 247, 237, 0.35)',
+    borderRadius: 4,
+  },
+  summaryCardOuter: {
+    borderRadius: 26,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 5,
+  },
+  summaryCardOuterSelected: {
+    shadowColor: '#ff6b6b',
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 2,
+    borderColor: '#ff6b6b',
+  },
+  summaryCardClip: {
+    position: 'relative',
+    borderRadius: 26,
+    minHeight: 132,
+    overflow: 'hidden',
+    paddingVertical: 14,
+    paddingHorizontal: 10,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: 'rgba(255,255,255,0.9)',
   },
-  proteinBadge: {
-    backgroundColor: '#ef4444', // Red background for protein
-    borderColor: '#dc2626',
+  summaryCornerIconTopRight: {
+    position: 'absolute',
+    top: 6,
+    right: 10,
+    zIndex: 2,
   },
-  carbsBadge: {
-    backgroundColor: '#3b82f6', // Blue background for carbs
-    borderColor: '#2563eb',
+  summaryCardMuted: {
+    opacity: 0.72,
   },
-  fatBadge: {
-    backgroundColor: '#8b5cf6', // Purple background for fat
-    borderColor: '#7c3aed',
+  summaryCardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingTop: 8,
   },
-  selectedProteinBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderColor: 'rgba(255,255,255,0.3)',
+  summaryImageRing: {
+    borderRadius: 999,
+    padding: 2,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  selectedCarbsBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderColor: 'rgba(255,255,255,0.3)',
+  summaryHeroImage: {
+    borderRadius: 999,
+    width: 48,
+    height: 48,
   },
-  selectedFatBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderColor: 'rgba(255,255,255,0.3)',
+  summaryHeroPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 999,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
-  macroLetter: {
-    fontSize: 10,
+  summaryTextCol: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 22,
+    justifyContent: 'flex-start',
+  },
+  summaryMealTitle: {
+    fontSize: 16,
     fontWeight: '600',
-    marginRight: 4,
-    color: 'white', // White text for visibility
+    color: '#374151',
+    includeFontPadding: false,
+    lineHeight: 20,
+    marginTop: 4,
   },
-  macroValue: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: 'white', // White text for visibility
+  summaryCalorieRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    flexWrap: 'nowrap',
+    gap: 3,
+    marginTop: 4,
   },
-  selectedMealMacroValue: {
-    color: 'white',
+  summaryCalorieNumber: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#111827',
+    includeFontPadding: false,
+    lineHeight: 20,
   },
-  emptyMacroBadge: {
-    backgroundColor: '#f8fafc',
-    borderColor: '#e2e8f0',
-    opacity: 0.6,
+  summaryCalorieUnit: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#6b7280',
+    includeFontPadding: false,
+    lineHeight: 16,
   },
-  emptyMacroValue: {
-    color: '#9ca3af',
+  summaryMacroRow: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    justifyContent: 'flex-start',
+    gap: 4,
+    marginTop: 6,
+  },
+  summaryMacroCircleOuter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  summaryMacroCircle: {
+    width: MACRO_DOT_DIAMETER,
+    height: MACRO_DOT_DIAMETER,
+    borderRadius: MACRO_DOT_DIAMETER / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 1,
+  },
+  summaryMacroCircleMuted: {
+    opacity: 0.55,
+  },
+  summaryMacroCircleProtein: {
+    backgroundColor: '#ff6b6b',
+  },
+  summaryMacroCircleCarbs: {
+    backgroundColor: '#3b82f6',
+  },
+  summaryMacroCircleFat: {
+    backgroundColor: '#8b5cf6',
+  },
+  summaryMacroCircleGrams: {
+    fontSize: 8,
+    fontWeight: '400',
+    color: '#ffffff',
+    includeFontPadding: false,
+    textAlign: 'center',
+    width: '100%',
+    lineHeight: 9,
   },
   mealsCard: {
     backgroundColor: 'white',
@@ -1179,29 +1284,9 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     fontWeight: '600',
   },
-  foodCalories: {
-    backgroundColor: '#ffa726',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  foodDeleteAction: {
-    backgroundColor: '#ef4444',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 92,
-    borderRadius: 16,
-    marginLeft: 10,
-  },
-  foodDeleteActionText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 4,
-  },
   foodCard: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
     gap: 12,
     paddingVertical: 12,
     paddingHorizontal: 14,
@@ -1212,6 +1297,12 @@ const styles = StyleSheet.create({
   },
   foodImageContainer: {
     position: 'relative',
+    alignSelf: 'flex-start',
+  },
+  foodCardMenuRail: {
+    justifyContent: 'center',
+    flexShrink: 0,
+    paddingLeft: 4,
   },
   foodImage: {
     borderRadius: 16,
@@ -1231,13 +1322,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 4,
   },
-  foodNameRowActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flexShrink: 0,
-  },
-  rowDeleteButton: {
+  rowMoreButton: {
     padding: 2,
   },
   foodCardName: {
@@ -1263,6 +1348,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
+  },
+  carbsBadge: {
+    backgroundColor: '#3b82f6',
+  },
+  fatBadge: {
+    backgroundColor: '#8b5cf6',
   },
   nutritionText: {
     fontSize: 12,
