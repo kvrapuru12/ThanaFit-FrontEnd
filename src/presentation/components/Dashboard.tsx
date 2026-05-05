@@ -15,6 +15,7 @@ import {
   markHealthKitSyncPrecheckComplete,
   shouldShowHealthKitSyncPrecheck,
 } from '../../core/utils/healthKitSyncPrecheck';
+import { getActivityIconName } from '../utils/visualMappings';
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -75,93 +76,6 @@ export const Dashboard: React.FC = () => {
     setDatePickerVisible(false);
   };
 
-  // Get appropriate activity icon based on activity name
-  const getActivityIcon = (activityName: string): any => {
-    const activityIcons: { [key: string]: string } = {
-      'swimming': 'pool',
-      'swim': 'pool',
-      'run': 'directions-run',
-      'running': 'directions-run',
-      'jog': 'directions-run',
-      'walk': 'directions-walk',
-      'walking': 'directions-walk',
-      'cycling': 'directions-bike',
-      'bike': 'directions-bike',
-      'weight': 'fitness-center',
-      'weight training': 'fitness-center',
-      'gym': 'fitness-center',
-      'strength': 'fitness-center',
-      'yoga': 'self-improvement',
-      'pilates': 'self-improvement',
-      'stretch': 'self-improvement',
-      'dance': 'music-note',
-      'dancing': 'music-note',
-      'tennis': 'sports-tennis',
-      'basketball': 'sports-basketball',
-      'football': 'sports-football',
-      'soccer': 'sports-soccer',
-      'volleyball': 'sports-volleyball',
-      'hiking': 'hiking',
-      'climbing': 'hiking',
-      'boxing': 'sports-mma',
-      'martial arts': 'sports-mma',
-      'karate': 'sports-mma',
-      'kickboxing': 'sports-mma',
-      'rowing': 'rowing',
-      'surfing': 'surfing',
-      'skiing': 'downhill-skiing',
-      'snowboarding': 'snowboarding',
-      'skating': 'ice-skating',
-      'ice skating': 'ice-skating',
-      'roller skating': 'roller-skating',
-      'skateboarding': 'skateboarding',
-      'golf': 'golf-course',
-      'baseball': 'sports-baseball',
-      'softball': 'sports-baseball',
-      'cricket': 'sports-cricket',
-      'badminton': 'sports-badminton',
-      'table tennis': 'sports-tennis',
-      'ping pong': 'sports-tennis',
-      'squash': 'sports-tennis',
-      'racquetball': 'sports-tennis',
-      'aerobic': 'fitness-center',
-      'aerobics': 'fitness-center',
-      'cardio': 'favorite',
-      'elliptical': 'fitness-center',
-      'treadmill': 'directions-run',
-      'stair': 'stairs',
-      'stairs': 'stairs',
-      'stairmaster': 'stairs',
-      'rowing machine': 'rowing',
-      'crossfit': 'fitness-center',
-      'cross training': 'fitness-center',
-      'circuit': 'fitness-center',
-      'hiit': 'fitness-center',
-      'tabata': 'fitness-center',
-      'spinning': 'directions-bike',
-      'spin': 'directions-bike',
-      'zumba': 'music-note',
-      'barre': 'self-improvement',
-      'meditation': 'self-improvement',
-      'breathing': 'self-improvement'
-    };
-
-    // Try to find exact match first
-    const exactMatch = activityIcons[activityName.toLowerCase()];
-    if (exactMatch) {
-      return exactMatch;
-    }
-
-    // Try to find partial match
-    for (const [key, iconName] of Object.entries(activityIcons)) {
-      if (activityName.toLowerCase().includes(key) || key.includes(activityName.toLowerCase())) {
-        return iconName;
-      }
-    }
-
-    // Default fitness icon
-    return 'fitness-center';
-  };
 
   // Calculate exercise calories from activity logs
   const totalCaloriesBurned = data?.activityLogs?.reduce((total, activity) => total + activity.caloriesBurned, 0) || 0;
@@ -839,7 +753,16 @@ export const Dashboard: React.FC = () => {
               data.activityLogs.slice(0, 3).map((activity, index) => (
                 <View key={activity.id} style={styles.activityRow}>
                   <View style={styles.activityIconContainer}>
-                    <MaterialIcons name={getActivityIcon(activity.note)} size={24} color="#10b981" />
+                    <MaterialIcons
+                      name={
+                        (getActivityIconName({
+                          name: activity.note,
+                          category: activity.activity?.category,
+                        }) || 'fitness-center') as any
+                      }
+                      size={24}
+                      color="#10b981"
+                    />
                   </View>
                   <View style={styles.activityInfo}>
                     <Text style={styles.activityName}>{activity.note}</Text>

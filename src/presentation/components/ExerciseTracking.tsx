@@ -32,6 +32,7 @@ import {
   isSameLocalDay,
   loggedAtIsoForBackdatedLocalDay,
 } from '../../core/utils/dateUtils';
+import { getActivityEmoji, getActivityIconName } from '../utils/visualMappings';
 
 const { width } = Dimensions.get('window');
 
@@ -364,7 +365,11 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
                   >
                     <View style={styles.workoutItem}>
                       <View style={styles.workoutIcon}>
-                        <MaterialIcons name="fitness-center" size={24} color="white" />
+                        <MaterialIcons
+                          name={(getActivityIconName({ name: workout.name, category: workout.type }) || 'fitness-center') as any}
+                          size={24}
+                          color="white"
+                        />
                       </View>
                       <View style={styles.workoutDetailsCol}>
                         <View style={styles.workoutTitleRow}>
@@ -478,7 +483,9 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
                         style={styles.exerciseImage}
                       />
                       <View style={styles.exerciseBadge}>
-                        <Text style={styles.exerciseBadgeText}>⚡</Text>
+                        <Text style={styles.exerciseBadgeText}>
+                          {getActivityEmoji({ name: activity.name, category: activity.category }) || '⚡'}
+                        </Text>
                       </View>
                     </View>
                     <View style={styles.exerciseInfo}>
@@ -546,7 +553,9 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
                       style={styles.exerciseImage}
                     />
                     <View style={styles.exerciseBadge}>
-                      <Text style={styles.exerciseBadgeText}>🏄‍♀️</Text>
+                      <Text style={styles.exerciseBadgeText}>
+                        {getActivityEmoji({ name: activity.name, category: activity.category }) || '⚡'}
+                      </Text>
                     </View>
                   </View>
                   <View style={styles.exerciseInfo}>
@@ -1005,10 +1014,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 16,
     marginTop: 16,
+    width: '100%',
   },
   addWorkoutButton: {
     flex: 1,
-    minHeight: 52,
+    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1027,7 +1037,7 @@ const styles = StyleSheet.create({
   },
   voiceLogButton: {
     flex: 1,
-    minHeight: 52,
+    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

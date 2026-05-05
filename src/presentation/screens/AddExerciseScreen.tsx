@@ -18,6 +18,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../providers/AuthProvider';
 import { dashboardApiService, Activity } from '../../infrastructure/services/dashboardApi';
 import { startOfLocalDay, loggedAtIsoForBackdatedLocalDay } from '../../core/utils/dateUtils';
+import { getActivityIconName } from '../utils/visualMappings';
 
 interface AddExerciseScreenProps {
   navigation: any;
@@ -203,22 +204,6 @@ export const AddExerciseScreen: React.FC<AddExerciseScreenProps> = ({ navigation
     }
   };
 
-  const getActivityIcon = (activityName: string): any => {
-    const name = activityName.toLowerCase();
-    if (name.includes('swim')) return 'pool';
-    if (name.includes('run')) return 'directions-run';
-    if (name.includes('walk')) return 'directions-walk';
-    if (name.includes('bike') || name.includes('cycle')) return 'directions-bike';
-    if (name.includes('weight') || name.includes('strength')) return 'fitness-center';
-    if (name.includes('yoga')) return 'self-improvement';
-    if (name.includes('dance')) return 'music-note';
-    if (name.includes('tennis')) return 'sports-tennis';
-    if (name.includes('basketball')) return 'sports-basketball';
-    if (name.includes('football')) return 'sports-football';
-    if (name.includes('soccer')) return 'sports-soccer';
-    return 'fitness-center';
-  };
-
   return (
     <KeyboardAvoidingView 
       style={styles.container} 
@@ -275,7 +260,7 @@ export const AddExerciseScreen: React.FC<AddExerciseScreenProps> = ({ navigation
                   >
                     <View style={styles.activityIconContainer}>
                       <MaterialIcons 
-                        name={getActivityIcon(activity.name)} 
+                        name={(getActivityIconName({ name: activity.name, category: activity.category }) || 'fitness-center') as any}
                         size={24} 
                         color={selectedActivity?.id === activity.id ? '#ff6b6b' : '#6b7280'} 
                       />

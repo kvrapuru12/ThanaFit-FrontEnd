@@ -26,6 +26,7 @@ import { useFoodLogs } from '../hooks/useFoodLogs';
 import { FoodItem, FoodLog } from '../../infrastructure/services/dashboardApi';
 import { FoodVoiceRecorder } from './FoodVoiceRecorder';
 import { startOfLocalDay, addLocalCalendarDays, isSameLocalDay } from '../../core/utils/dateUtils';
+import { getFoodImageUrl } from '../utils/visualMappings';
 
 const { width } = Dimensions.get('window');
 
@@ -215,21 +216,6 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
     }, { protein: 0, carbs: 0, fat: 0 });
   };
 
-  // Helper function to get food image URL based on category
-  const getFoodImageUrl = (food: FoodItem): string => {
-    const baseUrl = "https://images.unsplash.com/photo-";
-    const categoryImages = {
-      protein: "1606858274001-dd10efc5ce7d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxoZWFsdGh5JTIwZm9vZCUyMG1lYWwlMjBwcmVwfGVufDF8fHx8MTc1NzQzNTEwN3ww&ixlib=rb-4.1.0&q=80&w=300",
-      grains: "1606858274001-dd10efc5ce7d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxoZWFsdGh5JTIwZm9vZCUyMG1lYWwlMjBwcmVwfGVufDF8fHx8MTc1NzQzNTEwN3ww&ixlib=rb-4.1.0&q=80&w=300",
-      vegetables: "1606858274001-dd10efc5ce7d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxoZWFsdGh5JTIwZm9vZCUyMG1lYWwlMjBwcmVwfGVufDF8fHx8MTc1NzQzNTEwN3ww&ixlib=rb-4.1.0&q=80&w=300",
-      dairy: "1592503469196-3a7880cc2d05?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxoZWFsdGh5JTIwYnJlYWtmYXN0JTIwYm93bHxlbnwxfHx8fDE3NTc1MzAyNjl8MA&ixlib=rb-4.1.0&q=80&w=300",
-      fruits: "1592503469196-3a7880cc2d05?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxoZWFsdGh5JTIwYnJlYWtmYXN0JTIwYm93bHxlbnwxfHx8fDE3NTc1MzAyNjl8MA&ixlib=rb-4.1.0&q=80&w=300",
-      default: "1606858274001-dd10efc5ce7d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxoZWFsdGh5JTIwZm9vZCUyMG1lYWwlMjBwcmVwfGVufDF8fHx8MTc1NzQzNTEwN3ww&ixlib=rb-4.1.0&q=80&w=300"
-    };
-    
-    const categoryKey = food.category.toLowerCase() as keyof typeof categoryImages;
-    return baseUrl + (categoryImages[categoryKey] || categoryImages.default);
-  };
 
   const mealTimes = [
     { id: 'breakfast', label: 'Breakfast', icon: '🥞', gradient: 'gradient-papaya' },
@@ -440,7 +426,12 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
                     </View>
                     <View style={styles.foodsList}>
                       {mealLogs.length > 0 ? (
-                        mealLogs.map((log) => (
+                        mealLogs.map((log) => {
+                          const foodImageUrl = getFoodImageUrl({
+                            name: log.foodItemName,
+                            category: log.food?.category,
+                          });
+                          return (
                           <Swipeable
                             key={log.id}
                             friction={2}
@@ -459,22 +450,19 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
                           >
                             <View style={styles.foodCard}>
                               <View style={styles.foodImageContainer}>
-                                <ImageWithFallback
-                                  src={getFoodImageUrl(log.food || { category: 'default' } as FoodItem)}
-                                  alt={log.food?.name || 'Unknown Food'}
-                                  width={56}
-                                  height={56}
-                                  style={styles.foodImage}
-                                />
-                                <View style={styles.foodBadge}>
-                                  <Text style={styles.foodBadgeText}>
-                                    {log.food?.category === 'protein' ? '🥩' : 
-                                     log.food?.category === 'grains' ? '🌾' :
-                                     log.food?.category === 'vegetables' ? '🥬' :
-                                     log.food?.category === 'dairy' ? '🥛' :
-                                     log.food?.category === 'fruits' ? '🍎' : '🥥'}
-                                  </Text>
-                                </View>
+                                {foodImageUrl ? (
+                                  <ImageWithFallback
+                                    src={foodImageUrl}
+                                    alt={log.food?.name || 'Unknown Food'}
+                                    width={56}
+                                    height={56}
+                                    style={styles.foodImage}
+                                  />
+                                ) : (
+                                  <View style={[styles.foodImage, styles.foodImagePlaceholder]}>
+                                    <MaterialIcons name="restaurant" size={22} color="#9ca3af" />
+                                  </View>
+                                )}
                               </View>
                               <View style={styles.foodInfo}>
                                 <View style={styles.foodNameRow}>
@@ -517,7 +505,8 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
                               </View>
                             </View>
                           </Swipeable>
-                        ))
+                        );
+                        })
                       ) : null}
                     </View>
                   </View>
@@ -574,25 +563,27 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
                 <Text style={styles.loadingText}>Loading foods...</Text>
               </View>
             ) : foods.length > 0 ? (
-              foods.map((food) => (
+              foods.map((food) => {
+                const foodImageUrl = getFoodImageUrl({
+                  name: food.name,
+                  category: food.category,
+                });
+                return (
                 <View key={food.id} style={styles.foodCard}>
                   <View style={styles.foodImageContainer}>
-                    <ImageWithFallback
-                      src={getFoodImageUrl(food)}
-                      alt={food.name}
-                      width={64}
-                      height={64}
-                      style={styles.foodImage}
-                    />
-                    <View style={styles.foodBadge}>
-                      <Text style={styles.foodBadgeText}>
-                        {food.category === 'protein' ? '🥩' : 
-                         food.category === 'grains' ? '🌾' :
-                         food.category === 'vegetables' ? '🥬' :
-                         food.category === 'dairy' ? '🥛' :
-                         food.category === 'fruits' ? '🍎' : '🥥'}
-                      </Text>
-                    </View>
+                    {foodImageUrl ? (
+                      <ImageWithFallback
+                        src={foodImageUrl}
+                        alt={food.name}
+                        width={64}
+                        height={64}
+                        style={styles.foodImage}
+                      />
+                    ) : (
+                      <View style={[styles.foodImage, styles.foodImagePlaceholder, { width: 64, height: 64 }]}>
+                        <MaterialIcons name="restaurant" size={24} color="#9ca3af" />
+                      </View>
+                    )}
                   </View>
                   <View style={styles.foodInfo}>
               <View style={styles.foodNameRow}>
@@ -621,7 +612,8 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
                     </View>
                   </View>
                 </View>
-              ))
+              );
+              })
             ) : (
               <View style={styles.emptyContainer}>
                 <MaterialIcons name="restaurant" size={48} color="#9ca3af" />
@@ -1218,8 +1210,10 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 12,
     paddingHorizontal: 14,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#ffffff',
     borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
   },
   foodImageContainer: {
     position: 'relative',
@@ -1227,24 +1221,10 @@ const styles = StyleSheet.create({
   foodImage: {
     borderRadius: 16,
   },
-  foodBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    width: 28,
-    height: 28,
-    backgroundColor: 'white',
-    borderRadius: 14,
+  foodImagePlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  foodBadgeText: {
-    fontSize: 12,
+    backgroundColor: '#f3f4f6',
   },
   foodInfo: {
     flex: 1,
