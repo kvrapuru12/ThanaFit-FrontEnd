@@ -13,8 +13,9 @@ import {
   Platform,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScrollView, Swipeable } from 'react-native-gesture-handler';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Card, CardContent, CardHeader } from './ui/card';
 import { Input } from './Input';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -34,15 +35,16 @@ import {
 
 const { width } = Dimensions.get('window');
 
+const TAB_BAR_CLEARANCE = 88;
+
 interface ExerciseTrackingProps {
   navigation?: any;
 }
 
 export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
-  console.log('=== EXERCISE TRACKING COMPONENT LOADED ===');
-  console.log('Category cards have been removed from this component');
-  console.log('Start Workout button has been removed from this component');
-  
+  const insets = useSafeAreaInsets();
+  const scrollBottomPadding = insets.bottom + TAB_BAR_CLEARANCE;
+
   const { user } = useAuth();
   const { activities, quickWorkouts, isLoading: activitiesLoading, error: activitiesError } = useActivities();
   const {
@@ -234,7 +236,7 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
   return (
     <View style={styles.screenWrapper}>
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.content}>
+      <View style={[styles.content, { paddingBottom: scrollBottomPadding }]}>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -322,7 +324,7 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
 
         {/* Today's Workouts */}
         <Card style={styles.workoutsCard}>
-          <CardHeader style={styles.cardHeader}>
+          <CardHeader style={styles.workoutsCardHeader}>
             <View style={styles.cardTitle}>
               <View style={styles.titleIndicator} />
               <Text style={styles.cardTitleText}>
@@ -330,7 +332,7 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
               </Text>
             </View>
           </CardHeader>
-          <CardContent style={styles.cardContent}>
+          <CardContent style={styles.workoutsCardContent}>
             {workoutsLoading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#4ecdc4" />
@@ -379,6 +381,15 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
                           {workout.duration} · {workout.calories} cal
                         </Text>
                       </View>
+                      <TouchableOpacity
+                        style={styles.workoutRowDelete}
+                        onPress={() => confirmDeleteWorkout(workout)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Delete workout"
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <MaterialIcons name="delete-outline" size={22} color="#9ca3af" />
+                      </TouchableOpacity>
                     </View>
                   </Swipeable>
                 ))}
@@ -437,13 +448,13 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
 
         {/* Quick Workouts */}
         <Card style={styles.quickWorkoutsCard}>
-          <CardHeader style={styles.cardHeader}>
+          <CardHeader style={styles.quickWorkoutsCardHeader}>
             <View style={styles.cardTitle}>
               <View style={[styles.titleIndicator, styles.papayaIndicator]} />
               <Text style={styles.cardTitleText}>Quick Workouts</Text>
             </View>
           </CardHeader>
-          <CardContent>
+          <CardContent style={styles.quickWorkoutsCardContent}>
             {activitiesLoading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#ffa726" />
@@ -455,7 +466,7 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
                 <Text style={styles.errorText}>{activitiesError}</Text>
               </View>
             ) : quickWorkouts.length > 0 ? (
-              <View style={styles.cardContent}>
+              <View style={styles.quickWorkoutsList}>
                 {quickWorkouts.map((activity) => (
                   <View key={activity.id} style={styles.exerciseItem}>
                     <View style={styles.exerciseImageContainer}>
@@ -506,13 +517,13 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
 
         {/* Popular Exercises */}
         <Card style={styles.popularCard}>
-          <CardHeader style={styles.cardHeader}>
+          <CardHeader style={styles.popularCardHeader}>
             <View style={styles.cardTitle}>
               <View style={[styles.titleIndicator, styles.paradiseIndicator]} />
               <Text style={styles.cardTitleText}>Popular Exercises</Text>
             </View>
           </CardHeader>
-          <CardContent style={styles.cardContent}>
+          <CardContent style={styles.popularCardContent}>
             {activitiesLoading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#ff6b6b" />
@@ -649,15 +660,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#fef7ed',
   },
   content: {
-    padding: 24,
-    paddingTop: 60, // More space from top
-    paddingBottom: 100, // Space for bottom navigation
+    paddingHorizontal: 16,
+    paddingTop: 52,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   headerLeft: {
     flex: 1,
@@ -784,8 +794,8 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   thanafitLogo: {
-    width: 80,
-    height: 80,
+    width: 64,
+    height: 64,
   },
   thanafitLogoImage: {
     width: '100%',
@@ -793,8 +803,8 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     backgroundColor: '#ff6b6b',
-    borderRadius: 24,
-    marginBottom: 32,
+    borderRadius: 20,
+    marginBottom: 26,
     shadowColor: '#ff6b6b',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -802,7 +812,8 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   summaryContent: {
-    padding: 32,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
   },
   summaryGrid: {
     flexDirection: 'row',
@@ -823,50 +834,84 @@ const styles = StyleSheet.create({
   },
   workoutsCard: {
     backgroundColor: 'white',
-    borderRadius: 24,
-    marginBottom: 32,
+    borderRadius: 20,
+    marginBottom: 26,
+    padding: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  workoutsCardHeader: {
+    marginBottom: 4,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 8,
+  },
+  workoutsCardContent: {
+    gap: 16,
+    paddingHorizontal: 14,
+    paddingBottom: 16,
   },
   quickWorkoutsCard: {
     backgroundColor: 'white',
-    borderRadius: 24,
-    marginBottom: 32,
+    borderRadius: 20,
+    marginBottom: 26,
+    padding: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  quickWorkoutsCardHeader: {
+    marginBottom: 4,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 8,
+  },
+  quickWorkoutsCardContent: {
+    paddingHorizontal: 14,
+    paddingBottom: 16,
+  },
+  quickWorkoutsList: {
+    gap: 16,
   },
   popularCard: {
     backgroundColor: 'white',
-    borderRadius: 24,
-    marginBottom: 32,
+    borderRadius: 20,
+    marginBottom: 26,
+    padding: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-  cardHeader: {
+  popularCardHeader: {
+    marginBottom: 4,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 8,
+  },
+  popularCardContent: {
+    gap: 16,
+    paddingHorizontal: 14,
     paddingBottom: 16,
   },
   cardTitle: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
     justifyContent: 'flex-start',
-    height: 40,
+    minHeight: 40,
   },
   titleIndicator: {
     width: 4,
-    height: 24,
+    height: 22,
     backgroundColor: '#4ecdc4',
     borderRadius: 2,
-    alignSelf: 'center',
   },
   papayaIndicator: {
     backgroundColor: '#ffa726',
@@ -876,11 +921,11 @@ const styles = StyleSheet.create({
   },
   cardTitleText: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#1f2937',
     textAlign: 'left',
     flex: 1,
-    lineHeight: 24,
+    lineHeight: 22,
     includeFontPadding: false,
     textAlignVertical: 'center',
   },
@@ -903,12 +948,18 @@ const styles = StyleSheet.create({
   },
   workoutItem: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     backgroundColor: '#f3f4f6',
-    padding: 24,
-    borderRadius: 24,
-    gap: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    gap: 12,
     overflow: 'visible',
+  },
+  workoutRowDelete: {
+    alignSelf: 'center',
+    padding: 4,
+    flexShrink: 0,
   },
   workoutIcon: {
     backgroundColor: '#4ecdc4',
@@ -952,15 +1003,17 @@ const styles = StyleSheet.create({
   },
   buttonRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 16,
     marginTop: 16,
   },
   addWorkoutButton: {
     flex: 1,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     borderWidth: 2,
     borderColor: '#e5e7eb',
     borderStyle: 'dashed',
@@ -969,15 +1022,17 @@ const styles = StyleSheet.create({
   },
   addWorkoutText: {
     color: '#ff6b6b',
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
   },
   voiceLogButton: {
     flex: 1,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     backgroundColor: '#f0fdfa',
     borderWidth: 2,
     borderColor: '#4ecdc4',
@@ -986,8 +1041,8 @@ const styles = StyleSheet.create({
   },
   voiceLogText: {
     color: '#4ecdc4',
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
   },
   quickWorkoutsGrid: {
     flexDirection: 'row',
@@ -1028,10 +1083,11 @@ const styles = StyleSheet.create({
   exerciseItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-    padding: 16,
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     backgroundColor: '#f9fafb',
-    borderRadius: 16,
+    borderRadius: 14,
   },
   exerciseImageContainer: {
     position: 'relative',

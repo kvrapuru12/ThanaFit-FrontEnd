@@ -1118,15 +1118,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   content: {
-    padding: 24,
-    paddingTop: 60, // More space from top
+    paddingHorizontal: 16,
+    paddingTop: 56,
     paddingBottom: 100, // Space for bottom navigation
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   headerLeft: {
     flex: 1,
@@ -1259,12 +1259,13 @@ const styles = StyleSheet.create({
   statsGrid: {
     flexDirection: 'row',
     gap: 16,
-    marginBottom: 24,
+    marginBottom: 26,
   },
   calorieCard: {
     flex: 1,
     backgroundColor: '#f59e0b',
     borderRadius: 24,
+    marginBottom: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1275,6 +1276,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#10b981',
     borderRadius: 24,
+    marginBottom: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1323,7 +1325,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   card: {
-    marginBottom: 24,
+    marginBottom: 26,
   },
   cardTitleRow: {
     flexDirection: 'row',
@@ -1442,7 +1444,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingHorizontal: 14,
     paddingBottom: 10,
-    marginBottom: 14,
+    marginBottom: 26,
   },
   healthKitBannerTop: {
     flexDirection: 'row',
@@ -1503,10 +1505,11 @@ const styles = StyleSheet.create({
   horizontalCardsContainer: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 26,
   },
   horizontalCard: {
     flex: 1,
+    marginBottom: 0,
     backgroundColor: '#ffffff',
     borderRadius: 12,
     shadowColor: '#000',
@@ -1516,15 +1519,16 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   horizontalCardContent: {
-    padding: 16,
+    padding: 14,
   },
   stepsCardContent: {
     position: 'relative',
+    paddingTop: 18,
   },
   horizontalCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   stepsCardHeader: {
     width: '100%',
@@ -1547,10 +1551,14 @@ const styles = StyleSheet.create({
   },
   stepsSyncButtonFloating: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    padding: 4,
-    borderRadius: 12,
+    top: 1,
+    right: 1,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.65)',
     zIndex: 2,
   },
   horizontalCardIconContainer: {
@@ -1568,7 +1576,7 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   horizontalCardValue: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#111827',
     marginBottom: 4,
@@ -1582,7 +1590,7 @@ const styles = StyleSheet.create({
   horizontalCardSubtext: {
     fontSize: 12,
     color: '#6b7280',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   horizontalProgressBar: {
     width: '100%',

@@ -4,6 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/presentation/providers/AuthProvider';
 import { container } from './src/di/Container';
 import LoginScreen from './src/presentation/screens/LoginScreen';
@@ -239,9 +240,11 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider authRepository={authRepository}>
-        <AppNavigator />
-      </AuthProvider>
+      <SafeAreaProvider>
+        <AuthProvider authRepository={authRepository}>
+          <AppNavigator />
+        </AuthProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
