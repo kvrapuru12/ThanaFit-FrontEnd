@@ -138,12 +138,6 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
     const totalCalories = todaysWorkouts.reduce((sum, workout) => sum + workout.calories, 0);
     const totalWorkouts = todaysWorkouts.length;
 
-    console.log('=== SUMMARY STATS CALCULATION ===');
-    console.log('Total minutes:', totalMinutes);
-    console.log('Total calories:', totalCalories);
-    console.log('Total workouts:', totalWorkouts);
-    console.log('===============================');
-
     return {
       totalMinutes,
       totalCalories,
@@ -155,8 +149,6 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
 
   // Handle voice log functionality (fallback for manual processing)
   const handleVoiceLog = (transcript: string) => {
-    console.log('=== VOICE LOG RECEIVED (MANUAL) ===');
-    console.log('Transcript:', transcript);
     if (!navigation || addActionsDisabled) return;
     navigation.navigate('AddExercise', {
       onWorkoutAdded: refreshWorkouts,
@@ -167,14 +159,8 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
 
   // Handle successful voice log processing
   const handleVoiceLogSuccess = async (activityLog: any) => {
-    console.log('=== VOICE LOG SUCCESS ===');
-    console.log('Activity log created:', activityLog);
-    
     // Refresh the workouts data to show the new entry
     await refreshWorkouts();
-    
-    // Show success message (optional, since VoiceRecorder already shows one)
-    console.log('Workout data refreshed successfully');
   };
 
   // Handle quick add functionality
@@ -183,12 +169,6 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
       return;
     }
     try {
-      console.log('=== QUICK ADD DEBUG ===');
-      console.log('Adding activity:', activity.name);
-      console.log('Activity ID:', activity.id);
-      console.log('User ID:', user?.id);
-      console.log('========================');
-
       if (!user?.id) {
         Alert.alert('Error', 'User not authenticated');
         return;
@@ -207,10 +187,7 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
         note: `Quick add: ${activity.name}`
       };
 
-      console.log('Creating activity log with data:', logData);
-      
-      const result = await dashboardApiService.createActivityLog(logData);
-      console.log('Activity log created successfully:', result);
+      await dashboardApiService.createActivityLog(logData);
 
       // Refresh the workouts data
       await refreshWorkouts();

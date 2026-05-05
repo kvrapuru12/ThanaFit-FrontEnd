@@ -283,23 +283,12 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
         role: 'USER' as const
       };
 
-
-      console.log('=== SIGNUP SCREEN SUBMISSION ===');
-      console.log('Signup data being sent:', JSON.stringify(signupData, null, 2));
-      
       const success = await signup(signupData);
 
       if (success) {
-        console.log('=== SIGNUP SCREEN SUCCESS ===');
-        console.log('Signup successful, user should be automatically logged in');
-        
         // Since user is now automatically logged in, navigate to main app
         // The navigation will be handled by the AppNavigator based on authentication state
         // No need to navigate to login screen
-        console.log('User is now logged in, navigation will be handled by AppNavigator');
-      } else {
-        console.log('=== SIGNUP SCREEN FAILED ===');
-        console.log('Signup failed, staying on signup screen');
       }
 
     } catch (error: any) {
@@ -471,11 +460,8 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
         secureTextEntry
         value={userData.password}
         onChangeText={(value) => {
-          console.log('Password field changed:', value);
           updateUserData('password', value);
         }}
-        onFocus={() => console.log('Password field focused')}
-        onBlur={() => console.log('Password field blurred')}
         autoComplete="new-password"
         textContentType="newPassword"
         autoCorrect={false}
@@ -493,11 +479,8 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
         secureTextEntry
         value={userData.confirmPassword}
         onChangeText={(value) => {
-          console.log('Confirm password field changed:', value);
           updateUserData('confirmPassword', value);
         }}
-        onFocus={() => console.log('Confirm password field focused')}
-        onBlur={() => console.log('Confirm password field blurred')}
         autoComplete="new-password"
         textContentType="newPassword"
         autoCorrect={false}

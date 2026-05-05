@@ -11,11 +11,8 @@ const API_CONFIG = {
   RETRY_DELAY: 1000,
 } as const;
 
-// Log API configuration on initialization
-console.log('=== API CLIENT INITIALIZATION ===');
-console.log('EXPO_PUBLIC_API_BASE_URL from env:', process.env.EXPO_PUBLIC_API_BASE_URL);
-console.log('Final BASE_URL:', API_CONFIG.BASE_URL);
-console.log('=================================');
+const REQUEST_DEDUPE_TTL_MS = 1500;
+const DEV_API_METRICS_KEY = '__THANAFIT_DEV_API_METRICS__';
 
 // HTTP Methods
 export enum HttpMethod {
@@ -64,6 +61,7 @@ export class ApiClient {
   private retryAttempts: number;
   private retryDelay: number;
   private refreshInFlight: Promise<string | null> | null = null;
+  private inFlightGetRequests = new Map<string, { createdAt: number; promise: Promise<ApiResponse<any>> }>();
 
   constructor(config: Partial<typeof API_CONFIG> = {}) {
     this.baseURL = config.BASE_URL || API_CONFIG.BASE_URL;
@@ -74,14 +72,43 @@ export class ApiClient {
 
   // Main request method with retry logic
   async request<T>(config: RequestConfig): Promise<ApiResponse<T>> {
+    const dedupeKey = this.getDedupeKey(config);
+    if (dedupeKey) {
+      const existing = this.inFlightGetRequests.get(dedupeKey);
+      if (existing && Date.now() - existing.createdAt <= REQUEST_DEDUPE_TTL_MS) {
+        this.recordDevMetric(config.method, config.url, 0, true, true);
+        return existing.promise as Promise<ApiResponse<T>>;
+      }
+    }
+
+    const requestPromise = this.executeWithRetry<T>(config);
+    if (!dedupeKey) {
+      return requestPromise;
+    }
+
+    const wrappedPromise = requestPromise.finally(() => {
+      this.inFlightGetRequests.delete(dedupeKey);
+    });
+    this.inFlightGetRequests.set(dedupeKey, {
+      createdAt: Date.now(),
+      promise: wrappedPromise as Promise<ApiResponse<any>>,
+    });
+    return wrappedPromise;
+  }
+
+  private async executeWithRetry<T>(config: RequestConfig): Promise<ApiResponse<T>> {
     let lastError: ApiError;
     const maxRetryAttempts = config.retryAttempts ?? this.retryAttempts;
 
     for (let attempt = 0; attempt <= maxRetryAttempts; attempt++) {
+      const requestStartedAt = Date.now();
       try {
-        return await this.makeRequest<T>(config);
+        const response = await this.makeRequest<T>(config);
+        this.recordDevMetric(config.method, config.url, Date.now() - requestStartedAt, true, false);
+        return response;
       } catch (error: any) {
         lastError = this.handleError(error);
+        this.recordDevMetric(config.method, config.url, Date.now() - requestStartedAt, false, false);
 
         if (
           shouldAttemptAccessTokenRefresh(error) &&
@@ -119,13 +146,6 @@ export class ApiClient {
   private async makeRequest<T>(config: RequestConfig): Promise<ApiResponse<T>> {
     const url = `${this.baseURL}${config.url}`;
     
-    // Debug URL construction
-    console.log('=== API CLIENT URL DEBUG ===');
-    console.log('Base URL:', this.baseURL);
-    console.log('Config URL:', config.url);
-    console.log('Final URL:', url);
-    console.log('============================');
-    
     // Get stored token
     const token = await this.getStoredToken();
     
@@ -141,15 +161,6 @@ export class ApiClient {
       headers.Authorization = authToken;
     }
 
-    // Log detailed request information
-    console.log('=== BACKEND API REQUEST ===');
-    console.log('URL:', url);
-    console.log('Method:', config.method);
-    console.log('Headers:', JSON.stringify(headers, null, 2));
-    console.log('Request Body:', config.data ? JSON.stringify(config.data, null, 2) : 'No body');
-    console.log('Timeout:', config.timeout || this.timeout, 'ms');
-    console.log('==========================');
-
     // Create request config
     const requestConfig: RequestInit = {
       method: config.method,
@@ -163,19 +174,15 @@ export class ApiClient {
     });
 
     // Make request with timeout
-    console.log('Sending request to backend...');
     const response = await Promise.race([
       fetch(url, requestConfig),
       timeoutPromise,
     ]);
-    console.log('Received response from backend');
 
     // Parse response
     let data;
     try {
       const responseText = await response.text();
-      console.log('Raw response text:', responseText);
-      
       if (responseText.trim()) {
         data = JSON.parse(responseText);
       } else {
@@ -183,8 +190,6 @@ export class ApiClient {
       }
     } catch (parseError) {
       console.error('JSON Parse Error:', parseError);
-      console.error('Response status:', response.status);
-      console.error('Response headers:', Object.fromEntries(response.headers.entries()));
       
       // Create a proper error response
       data = {
@@ -194,15 +199,6 @@ export class ApiClient {
       };
     }
 
-    // Log detailed response information
-    console.log('=== BACKEND API RESPONSE ===');
-    console.log('Status:', response.status);
-    console.log('Status Text:', response.statusText);
-    console.log('OK:', response.ok);
-    console.log('Response Headers:', JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
-    console.log('Response Data:', JSON.stringify(data, null, 2));
-    console.log('============================');
-
     if (!response.ok) {
       // Check if this is an expected backend error (e.g., when no cycle data exists)
       const isExpectedError = (response.status === 400 || response.status === 500) &&
@@ -210,21 +206,19 @@ export class ApiClient {
         (data.message.includes('Queue.peek()') || data.message.includes('null'));
       
       if (!isExpectedError) {
-        // Log detailed error information only for unexpected errors
-        console.error('=== BACKEND API ERROR ===');
-        console.error('Error Status:', response.status);
-        console.error('Error Status Text:', response.statusText);
-        console.error('Error URL:', url);
-        console.error('Error Method:', config.method);
-        console.error('Request Body:', config.data ? JSON.stringify(config.data, null, 2) : 'No body');
-        console.error('Response Data:', JSON.stringify(data, null, 2));
-        console.error('Error Message:', data.message);
-        console.error('Error Code:', data.code);
-        console.error('Validation Errors:', data.errors || data.validationErrors || data.details || data.fieldErrors);
-        console.error('=========================');
+        console.error('API request failed', {
+          method: config.method,
+          endpoint: config.url,
+          status: response.status,
+          code: data?.code ?? data?.errorCode ?? 'UNKNOWN',
+        });
       } else {
-        // Log as info instead of error for expected backend errors
-        console.log('Backend returned expected error (no data exists):', data.message);
+        if (__DEV__) {
+          console.warn('Backend returned expected empty-data error', {
+            endpoint: config.url,
+            status: response.status,
+          });
+        }
       }
       
       const composedMessage = buildHttpErrorUserMessage(data, response.status);
@@ -346,6 +340,76 @@ export class ApiClient {
   // Utility methods
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  private getDedupeKey(config: RequestConfig): string | null {
+    if (config.method !== HttpMethod.GET) {
+      return null;
+    }
+
+    const headers = config.headers
+      ? Object.entries(config.headers).sort(([a], [b]) => a.localeCompare(b))
+      : [];
+    return JSON.stringify({
+      method: config.method,
+      url: config.url,
+      data: config.data ?? null,
+      headers,
+      skipAuth: !!config.skipAuth,
+    });
+  }
+
+  private recordDevMetric(
+    method: HttpMethod,
+    url: string,
+    durationMs: number,
+    ok: boolean,
+    deduped: boolean
+  ): void {
+    if (!__DEV__) {
+      return;
+    }
+
+    const globalThisWithMetrics = globalThis as typeof globalThis & {
+      [DEV_API_METRICS_KEY]?: {
+        events: Array<{
+          timestamp: string;
+          method: HttpMethod;
+          url: string;
+          durationMs: number;
+          ok: boolean;
+          deduped: boolean;
+        }>;
+        byEndpoint: Record<string, { total: number; deduped: number; failed: number }>;
+      };
+    };
+
+    if (!globalThisWithMetrics[DEV_API_METRICS_KEY]) {
+      globalThisWithMetrics[DEV_API_METRICS_KEY] = {
+        events: [],
+        byEndpoint: {},
+      };
+    }
+
+    const metrics = globalThisWithMetrics[DEV_API_METRICS_KEY]!;
+    const endpointKey = `${method} ${url}`;
+    const current = metrics.byEndpoint[endpointKey] ?? { total: 0, deduped: 0, failed: 0 };
+    current.total += 1;
+    if (deduped) current.deduped += 1;
+    if (!ok) current.failed += 1;
+    metrics.byEndpoint[endpointKey] = current;
+
+    metrics.events.push({
+      timestamp: new Date().toISOString(),
+      method,
+      url,
+      durationMs,
+      ok,
+      deduped,
+    });
+    if (metrics.events.length > 500) {
+      metrics.events.shift();
+    }
   }
 
   // Convenience methods

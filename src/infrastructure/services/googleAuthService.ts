@@ -46,7 +46,6 @@ export class GoogleAuthService {
           'Google Web Client ID not configured. Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in .env and add your site redirect URI in Google Cloud Console.'
         );
       }
-      console.log('[GoogleAuthService] Using Web Client ID');
       return clientId;
     }
     const clientId = Platform.OS === 'ios'
@@ -58,7 +57,6 @@ export class GoogleAuthService {
         `Please set EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID or EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID in .env.`
       );
     }
-    console.log(`[GoogleAuthService] Using ${Platform.OS} Client ID for native build`);
     return clientId;
   }
 
@@ -88,7 +86,6 @@ export class GoogleAuthService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-      console.log('[GoogleAuthService] Starting token exchange with 60s timeout...');
       const response = await fetch(tokenEndpoint, {
         method: 'POST',
         headers: {
@@ -99,8 +96,6 @@ export class GoogleAuthService {
       });
 
       clearTimeout(timeoutId);
-      console.log('[GoogleAuthService] Token exchange request completed');
-
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Token exchange failed: ${errorText}`);
@@ -153,7 +148,6 @@ export class GoogleAuthService {
    */
   async signIn(): Promise<string> {
     try {
-      console.log('[GoogleAuthService] signIn called');
       const discovery = await this.getDiscovery();
 
       const isExpoGo = Constants.appOwnership === 'expo';
@@ -175,24 +169,7 @@ export class GoogleAuthService {
       const redirectUri = Platform.OS === 'web'
         ? AuthSession.makeRedirectUri()
         : AuthSession.makeRedirectUri({ scheme: 'com.prod.thanafit' });
-      console.log(`[GoogleAuthService] Platform: ${Platform.OS}, redirect URI: ${redirectUri}`);
-
       const clientId = this.getClientId(redirectUri);
-      const clientIdType = Platform.OS === 'web' ? 'Web' : Platform.OS === 'ios' ? 'iOS' : 'Android';
-      console.log(`[GoogleAuthService] Using Client ID type: ${clientIdType}`);
-      console.log(`[GoogleAuthService] Client ID (first 30 chars): ${clientId.substring(0, 30)}...`);
-      
-      // Android-specific diagnostic information
-      if (Platform.OS === 'android') {
-        console.log(`[GoogleAuthService] ⚠️ ANDROID DIAGNOSTICS:`);
-        console.log(`[GoogleAuthService]   1. Verify Android Client ID in Google Cloud Console:`);
-        console.log(`[GoogleAuthService]      - Package name: com.prod.thanafit (must match exactly)`);
-        console.log(`[GoogleAuthService]      - SHA-1 fingerprint: Must match your debug/release keystore`);
-        console.log(`[GoogleAuthService]   2. Redirect URI: ${redirectUri}`);
-        console.log(`[GoogleAuthService]      - Android Client IDs auto-validate redirect URIs with matching scheme`);
-        console.log(`[GoogleAuthService]      - No need to register redirect URI in Google Cloud Console`);
-        console.log(`[GoogleAuthService]   3. Get debug SHA-1: keytool -list -v -keystore android/app/debug.keystore -alias androiddebugkey -storepass android -keypass android | grep SHA1`);
-      }
 
       // Use authorization code flow with PKCE
       // expo-auth-session automatically handles PKCE when using ResponseType.Code
@@ -205,20 +182,12 @@ export class GoogleAuthService {
         extraParams: {},
       });
       
-      console.log('[GoogleAuthService] Auth request created with PKCE, prompting user...');
-      console.log(`[GoogleAuthService] Expected redirect URI: ${redirectUri}`);
-      console.log(`[GoogleAuthService] Client ID: ${clientId.substring(0, 20)}...`);
-
       // Perform authentication
       // Note: This can take a while if user is completing QR code/Passkey flow on their phone
       // We let this run without timeout since it's user interaction time
-      console.log('[GoogleAuthService] Calling promptAsync...');
       const result = await request.promptAsync(discovery, {
         showInRecents: true,
       });
-      console.log(`[GoogleAuthService] promptAsync completed`);
-      console.log(`[GoogleAuthService] Auth result type: ${result.type}`);
-      console.log(`[GoogleAuthService] Auth result:`, JSON.stringify(result, null, 2));
 
       if (result.type === 'success') {
         // Extract authorization code from response
@@ -228,27 +197,18 @@ export class GoogleAuthService {
           throw new Error('No authorization code received from Google');
         }
 
-        console.log('[GoogleAuthService] Authorization code received, exchanging for tokens...');
-
         // Get code verifier from AuthRequest (it's automatically generated)
         const codeVerifier = request.codeVerifier;
         if (!codeVerifier) {
           throw new Error('Code verifier not available from AuthRequest. PKCE may not be properly configured.');
         }
-        console.log('[GoogleAuthService] Retrieved code verifier from AuthRequest (first 20 chars):', codeVerifier.substring(0, 20));
-
-        console.log('[GoogleAuthService] Exchanging authorization code for ID token...');
         const idToken = await this.exchangeCodeForTokens(code, codeVerifier, redirectUri);
-        console.log('[GoogleAuthService] ID token obtained successfully');
 
         return idToken;
       } else if (result.type === 'error') {
         const errorCode = result.error?.code;
         const errorMessage = result.error?.message || 'Unknown error';
-        
-        console.log(`[GoogleAuthService] Error details - Code: ${errorCode}, Message: ${errorMessage}`);
-        console.log(`[GoogleAuthService] Full error object:`, JSON.stringify(result.error, null, 2));
-        
+
         // Handle specific Google OAuth errors
         if (errorCode === 'access_denied' || errorMessage.includes('access_denied')) {
           throw new Error('Google Sign-In was cancelled or denied. Please try again.');

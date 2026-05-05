@@ -25,7 +25,7 @@ const { width } = Dimensions.get('window');
 
 export const AddFoodScreen = ({ navigation, route }: any) => {
   const { user } = useAuth();
-  const { foods, searchFoods, loadPopularFoods } = useFoods();
+  const { foods, searchFoods } = useFoods();
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
   const [quantity, setQuantity] = useState('1');
   const [note, setNote] = useState('');
@@ -73,10 +73,6 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
     `${Math.round(food.caloriesPerUnit)} cal per ${formatQuantity(food.quantityPerUnit)} ${food.defaultUnit}`
   );
 
-  useEffect(() => {
-    loadPopularFoods();
-  }, []);
-
   // Handle search functionality
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
@@ -87,7 +83,6 @@ export const AddFoodScreen = ({ navigation, route }: any) => {
         // The searchFoods function updates the foods state, so we use that
         setSearchResults([]);
       } catch (err) {
-        console.error('Search failed:', err);
         setSearchResults([]);
       } finally {
         setIsSearching(false);

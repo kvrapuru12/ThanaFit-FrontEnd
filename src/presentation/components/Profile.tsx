@@ -71,7 +71,6 @@ async function syncCycleWithLastPeriodDate(userId: number, dateStr: string): Pro
     const recentCycle = await cycleApiService.getMostRecentCycle(userId);
     if (recentCycle) {
       await cycleApiService.updateCycle(recentCycle.id, { periodStartDate: dateStr });
-      console.log('Profile → CycleSync: Updated existing cycle with lastPeriodDate:', dateStr);
     } else {
       await cycleApiService.createCycle({
         userId,
@@ -80,7 +79,6 @@ async function syncCycleWithLastPeriodDate(userId: number, dateStr: string): Pro
         periodDuration: 5,
         isCycleRegular: true,
       });
-      console.log('Profile → CycleSync: Created new cycle with lastPeriodDate:', dateStr);
     }
   } catch (err) {
     console.warn('Could not sync lastPeriodDate to CycleSync:', err);
@@ -129,14 +127,10 @@ export function Profile({ navigation }: ProfileProps) {
   // Inline validation error for profile field updates (shown under active edit)
   const [fieldUpdateError, setFieldUpdateError] = useState<string | null>(null);
   
-  // Debug: Log user data
-  console.log('Profile - user data:', user);
-  
   // Fetch fresh user data when Profile component mounts
   useEffect(() => {
     const fetchFreshUserData = async () => {
       try {
-        console.log('Profile - Fetching fresh user data from API...');
         await refreshUserData();
       } catch (error) {
         console.error('Profile - Failed to fetch fresh user data:', error);
@@ -157,21 +151,6 @@ export function Profile({ navigation }: ProfileProps) {
       useNativeDriver: true,
     }).start();
   }, [showIncompleteBanner]);
-
-  // Debug: Log when user object changes
-  useEffect(() => {
-    console.log('Profile - User object changed:', {
-      userId: user?.id,
-      targetProtein: user?.targetProtein,
-      targetCarbs: user?.targetCarbs,
-      targetFat: user?.targetFat,
-      targetWaterLitres: user?.targetWaterLitres,
-      targetSteps: user?.targetSteps,
-      targetSleepHours: user?.targetSleepHours,
-      targetWeight: user?.targetWeight,
-      dailyCalorieIntakeTarget: user?.dailyCalorieIntakeTarget,
-    });
-  }, [user]);
 
   const { appVersionLabel, buildLabel } = getAppVersionDisplay();
 
@@ -232,11 +211,7 @@ export function Profile({ navigation }: ProfileProps) {
         [fieldName]: parseFloat(editValue)
       };
 
-      // Use apiClient instead of direct fetch for proper token handling
-      console.log('Updating goal via apiClient:', fieldName, updateData);
-      const response = await apiClient.patch(`/users/${user.id}`, updateData);
-      
-      console.log('Goal update successful - Response:', response.data);
+      await apiClient.patch(`/users/${user.id}`, updateData);
 
       // Refresh user data
       await refreshUserData();
@@ -324,11 +299,7 @@ export function Profile({ navigation }: ProfileProps) {
         updateData.height = { value: num, unit };
       }
 
-      // Use apiClient instead of direct fetch for proper token handling
-      console.log('Updating basic info via apiClient:', updateData);
-      const response = await apiClient.patch(`/users/${user.id}`, updateData);
-      
-      console.log('Basic info update successful - Response:', response.data);
+      await apiClient.patch(`/users/${user.id}`, updateData);
 
       // Profile → CycleSync two-way sync: create/update cycle when lastPeriodDate changes
       if (editingBasicInfo.field === 'lastPeriodDate') {
@@ -367,11 +338,7 @@ export function Profile({ navigation }: ProfileProps) {
         [field]: valueToUpdate
       };
 
-      // Use apiClient instead of direct fetch for proper token handling
-      console.log('Updating date field via apiClient:', field, updateData);
-      const response = await apiClient.patch(`/users/${user.id}`, updateData);
-
-      console.log('Date update successful - Response:', response.data);
+      await apiClient.patch(`/users/${user.id}`, updateData);
 
       // Profile → CycleSync two-way sync: create/update cycle when lastPeriodDate changes
       if (field === 'lastPeriodDate') {
@@ -549,7 +516,6 @@ export function Profile({ navigation }: ProfileProps) {
           throw new Error('Invalid number value');
         }
         updateData[backendFieldName] = numValue;
-        console.log(`Updating goal field "${editingField}" -> "${backendFieldName}" with value:`, numValue);
       } else if (editingField === 'weight') {
         const numValue = parseFloat(valueToUpdate);
         updateData[editingField] = isNaN(numValue) ? null : numValue;
@@ -600,21 +566,9 @@ export function Profile({ navigation }: ProfileProps) {
         updateData[editingField] = valueToUpdate;
       }
       
-      console.log('Update payload:', JSON.stringify(updateData, null, 2));
-
-      // Use apiClient instead of direct fetch for proper token handling
-      console.log('Calling apiClient.patch...');
       try {
-        const response = await apiClient.patch(`/users/${user.id}`, updateData);
-        
-        console.log('Update successful - Response status:', response.status);
-        console.log('Update successful - Response data:', response.data);
+        await apiClient.patch(`/users/${user.id}`, updateData);
       } catch (error: any) {
-        console.error('Update failed with error:', error);
-        console.error('Error status:', error.status);
-        console.error('Error message:', error.message);
-        console.error('Error details:', error);
-        
         if (error.status === 403) {
           throw new Error('Access forbidden. You may not have permission to update this user, or your session may have expired. Please log in again.');
         } else if (error.status === 401) {
@@ -628,13 +582,8 @@ export function Profile({ navigation }: ProfileProps) {
         await syncCycleWithLastPeriodDate(user.id, updateData.lastPeriodDate as string);
       }
 
-      // Refresh user data from backend
-      console.log('Refreshing user data...');
       try {
         await refreshUserData();
-        console.log('User data refreshed successfully');
-        console.log('Updated user data:', user);
-        
         // Force component re-render
         setRefreshKey(prev => prev + 1);
         
@@ -681,33 +630,8 @@ export function Profile({ navigation }: ProfileProps) {
     caloriesTracked: user?.dailyCalorieIntakeTarget ? user.dailyCalorieIntakeTarget * 30 : 60000, // Estimated
   };
   
-  // Debug: Log user stats
-  console.log('Profile - userStats:', userStats);
-  console.log('Profile - user target fields:', {
-    dailyCalorieIntakeTarget: user?.dailyCalorieIntakeTarget,
-    targetProtein: user?.targetProtein,
-    targetCarbs: user?.targetCarbs,
-    targetFat: user?.targetFat,
-    targetWaterLitres: user?.targetWaterLitres,
-    targetSteps: user?.targetSteps,
-    targetSleepHours: user?.targetSleepHours,
-    targetWeight: user?.targetWeight,
-  });
-
   // Memoize goals to ensure they update when user changes
   const goals = React.useMemo(() => {
-    console.log('Recalculating goals array - refreshKey:', refreshKey);
-    console.log('Current user target values:', {
-      dailyCalorieIntakeTarget: user?.dailyCalorieIntakeTarget,
-      targetProtein: user?.targetProtein,
-      targetCarbs: user?.targetCarbs,
-      targetFat: user?.targetFat,
-      targetWaterLitres: user?.targetWaterLitres,
-      targetSteps: user?.targetSteps,
-      targetSleepHours: user?.targetSleepHours,
-      targetWeight: user?.targetWeight,
-    });
-    
     return [
       { 
         title: "Daily Calories", 

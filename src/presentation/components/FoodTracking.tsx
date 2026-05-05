@@ -107,11 +107,6 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
   
   // No modal state needed - using navigation instead
 
-  // Load popular foods on mount
-  useEffect(() => {
-    loadPopularFoods();
-  }, []);
-
   // No search functionality needed in this component - handled in AddFoodScreen
 
   // Show error alert if API fails

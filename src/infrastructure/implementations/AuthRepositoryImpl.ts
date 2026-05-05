@@ -38,14 +38,8 @@ export class AuthRepositoryImpl implements IAuthRepository {
         retryAttempts: 0,
       });
       
-      // Log the actual response structure
-      console.log('Login response data:', JSON.stringify(response.data, null, 2));
-      console.log('Response data type:', typeof response.data);
-      console.log('Response data keys:', response.data ? Object.keys(response.data) : 'No data');
-      
       // Validate response structure
       if (!response.data || !response.data.token || !response.data.userId) {
-        console.error('Invalid login response structure. Expected: { token, userId }, Got:', response.data);
         throw new Error('Invalid login response structure');
       }
       
@@ -96,9 +90,6 @@ export class AuthRepositoryImpl implements IAuthRepository {
         idToken,
         platform,
       };
-      console.log('[AuthRepository] Google login request body:', JSON.stringify(requestBody, null, 2));
-      console.log('[AuthRepository] API Base URL:', process.env.EXPO_PUBLIC_API_BASE_URL);
-      console.log('[AuthRepository] Full endpoint URL:', `${process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080/api'}/auth/google`);
       
       const response = await apiClient.post<LoginResponse>('/auth/google', requestBody, {
         skipAuth: true,
@@ -112,15 +103,11 @@ export class AuthRepositoryImpl implements IAuthRepository {
 
       const { token, refreshToken, expiresIn, userId, username, role, gender, firstName, lastName, email, profileComplete } = response.data;
 
-      // Log the role received from backend for debugging
-      console.log('[AuthRepository] Google login response - role:', role, 'userId:', userId, 'profileComplete:', profileComplete);
-
       // Store userId for later use
       await AsyncStorage.setItem('userId', userId.toString());
 
       // Map role with fallback to USER if missing or null
       const mappedRole = this.mapRole(role);
-      console.log('[AuthRepository] Mapped role:', mappedRole, '(from backend role:', role, ')');
 
       // Create user object from backend response
       const user: User = {
@@ -210,33 +197,15 @@ export class AuthRepositoryImpl implements IAuthRepository {
 
   async signup(userData: CreateUserRequest): Promise<User> {
     try {
-      console.log('=== SIGNUP REQUEST START ===');
-      console.log('Signup endpoint: /users');
-      console.log('Signup payload:', JSON.stringify(userData, null, 2));
-      
       const response = await apiClient.post<User>('/users', userData);
       
-      console.log('=== SIGNUP RESPONSE ===');
-      console.log('Response status:', response.status);
-      console.log('Response data:', JSON.stringify(response.data, null, 2));
-      console.log('Response data type:', typeof response.data);
-      console.log('Response data keys:', response.data ? Object.keys(response.data) : 'No data');
-      
       if (!response.data) {
-        console.error('No response data received from signup endpoint');
         throw new Error('No response data received from server');
       }
-      
-      console.log('=== SIGNUP SUCCESS ===');
+
       return response.data;
     } catch (error: any) {
-      console.error('=== SIGNUP ERROR ===');
-      console.error('Error details:', JSON.stringify(error, null, 2));
-      console.error('Error message:', error.message);
-      console.error('Error status:', error.status);
-      console.error('Error response:', error.response);
-      
-      // Re-throw with more context
+      console.error('Signup request failed:', error?.message ?? 'Unknown error');
       throw error;
     }
   }
