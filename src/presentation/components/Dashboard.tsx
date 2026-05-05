@@ -144,7 +144,6 @@ export const Dashboard: React.FC = () => {
       await addWaterIntake(amount);
       setWaterModalVisible(false);
       setWaterAmount('');
-      await refresh();
     } catch (error: any) {
       Alert.alert('Error', error?.message || 'Failed to add water intake');
     } finally {

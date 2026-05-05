@@ -108,25 +108,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
   const login = async (credentials: AuthCredentials): Promise<boolean> => {
     try {
       setIsLoading(true);
-      
-      console.log('=== AUTH PROVIDER LOGIN START ===');
-      console.log('Credentials:', JSON.stringify(credentials, null, 2));
-      
+
       const result = await loginUseCase.execute(credentials);
-      
-      console.log('Login result:', JSON.stringify(result, null, 2));
-      console.log('=== AUTH PROVIDER LOGIN SUCCESS ===');
-      
+
       setUser(result.user);
       await saveUserData(result.user);
       
       return true;
     } catch (error: any) {
-      console.error('=== AUTH PROVIDER LOGIN ERROR ===');
-      console.error('Error details:', JSON.stringify(error, null, 2));
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
       // Handle specific error cases
       let errorMessage = 'Login failed. Please try again.';
       
@@ -140,7 +129,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
         errorMessage = error.message;
       }
       
-      console.error('Login Error:', errorMessage);
+      console.error('Login failed:', errorMessage);
       return false;
     } finally {
       setIsLoading(false);
@@ -149,7 +138,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
 
   const loginWithGoogle = async (): Promise<boolean> => {
     try {
-      console.log('[AuthProvider] loginWithGoogle called');
       setIsLoading(true);
 
       const { getGoogleAuthService } = await import('../../infrastructure/services/googleAuthService');
@@ -211,52 +199,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
   const signup = async (userData: any): Promise<boolean> => {
     try {
       setIsLoading(true);
-      
-      console.log('=== AUTH PROVIDER SIGNUP START ===');
-      console.log('User data received:', JSON.stringify(userData, null, 2));
-      
+
       const newUser = await signupUseCase.execute(userData);
       
-      console.log('=== SIGNUP SUCCESSFUL ===');
-      console.log('New user created:', JSON.stringify(newUser, null, 2));
-      
       // Automatically login the user after successful signup
-      console.log('=== AUTO-LOGIN AFTER SIGNUP ===');
       const loginCredentials = {
         username: userData.username,
         password: userData.password
       };
-      
-      console.log('Login credentials for auto-login:', JSON.stringify(loginCredentials, null, 2));
-      
+
       try {
         const loginResult = await loginUseCase.execute(loginCredentials);
-        
-        console.log('=== AUTO-LOGIN SUCCESS ===');
-        console.log('Login result:', JSON.stringify(loginResult, null, 2));
-        
+
         setUser(loginResult.user);
         await saveUserData(loginResult.user);
-        
-        console.log('User automatically logged in after signup');
         return true;
       } catch (loginError: any) {
-        console.error('=== AUTO-LOGIN FAILED ===');
-        console.error('Auto-login error:', JSON.stringify(loginError, null, 2));
-        
         // Even if auto-login fails, signup was successful
         // User can manually login with their credentials
-        console.log('Signup successful but auto-login failed. User can login manually.');
+        console.warn('Signup succeeded but automatic login failed.');
         return true;
       }
       
     } catch (error: any) {
-      console.error('=== AUTH PROVIDER SIGNUP ERROR ===');
-      console.error('Error details:', JSON.stringify(error, null, 2));
-      console.error('Error message:', error.message);
-      console.error('Error status:', error.status);
-      console.error('Error response:', error.response);
-      
       // Handle specific error cases
       let errorMessage = 'Failed to create account. Please try again.';
       
@@ -272,7 +237,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
         errorMessage = error.message;
       }
       
-      console.error('Signup Error:', errorMessage);
+      console.error('Signup failed:', errorMessage);
       return false;
     } finally {
       setIsLoading(false);
@@ -293,13 +258,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
       // Note: Navigation back to login screen is handled automatically
       // by the AppNavigator component based on isAuthenticated state
       
-      console.log('Client-side logout successful - tokens and user context cleared');
+      if (__DEV__) {
+        console.log('Client-side logout successful - tokens and user context cleared');
+      }
     } catch (error) {
       console.error('Logout failed:', error);
       // Still clear local state even if token clearing fails
       setUser(null);
       await clearUserData();
-      console.log('Logout completed with errors - local state cleared');
+      if (__DEV__) {
+        console.log('Logout completed with errors - local state cleared');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -317,7 +286,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
       setUser(updatedUser);
       await saveUserData(updatedUser);
       
-      console.log('Profile updated successfully:', JSON.stringify(updatedUser, null, 2));
+      if (__DEV__) {
+        console.log('Profile updated successfully');
+      }
     } catch (error: any) {
       console.error('Profile update failed:', error);
       
@@ -331,7 +302,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, authReposi
         errorMessage = error.message;
       }
       
-      console.error('Update Error:', errorMessage);
+      console.error('Profile update failed:', errorMessage);
     } finally {
       setIsLoading(false);
     }

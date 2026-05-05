@@ -35,6 +35,12 @@ export interface Achievement {
   progress?: number; // 0-100
 }
 
+export interface ProgressSnapshot {
+  weeklyData: WeeklyDataPoint[];
+  goalStats: GoalStats;
+  macroDistribution: MacroDistribution;
+}
+
 // Progress API Service
 export class ProgressApiService {
   /**
@@ -66,14 +72,90 @@ export class ProgressApiService {
     };
   }
 
+  private safePercentage(current: number, goal: number): number {
+    if (!goal || goal <= 0) return 0;
+    return Math.min(100, Math.round((current / goal) * 100));
+  }
+
+  private buildGoalStatsFromDashboardData(
+    dashboardData: Awaited<ReturnType<typeof dashboardApiService.getDashboardData>>,
+    userGoals: {
+      calorieIntakeTarget?: number;
+      calorieBurnTarget?: number;
+      targetWeight?: number;
+      targetWater?: number;
+    }
+  ): GoalStats {
+    const currentCalories = dashboardData.stats.calories.consumed;
+    const currentExercise = dashboardData.stats.exercise.burned;
+    const currentWater = dashboardData.stats.water.consumed;
+
+    let currentWeight: number | null = null;
+    if (dashboardData.weightEntries.length > 0) {
+      const latestWeight = dashboardData.weightEntries[0];
+      currentWeight = latestWeight.weight || latestWeight.weightKg || latestWeight.weightValue || null;
+    }
+
+    const calorieGoal = userGoals.calorieIntakeTarget || 2000;
+    const exerciseGoal = userGoals.calorieBurnTarget || 400;
+    const waterGoal = userGoals.targetWater || 2000;
+    const weightPercentage = userGoals.targetWeight && currentWeight
+      ? Math.min(100, Math.round(((userGoals.targetWeight - currentWeight) / userGoals.targetWeight) * 100))
+      : 0;
+
+    return {
+      calories: {
+        current: currentCalories,
+        goal: calorieGoal,
+        percentage: this.safePercentage(currentCalories, calorieGoal),
+      },
+      exercise: {
+        current: currentExercise,
+        goal: exerciseGoal,
+        percentage: this.safePercentage(currentExercise, exerciseGoal),
+      },
+      weight: {
+        current: currentWeight,
+        goal: userGoals.targetWeight || null,
+        percentage: weightPercentage,
+      },
+      water: {
+        current: Math.round(currentWater / 250),
+        goal: Math.round(waterGoal / 250),
+        percentage: this.safePercentage(currentWater, waterGoal),
+      },
+    };
+  }
+
+  private buildMacroDistributionFromDashboardData(
+    dashboardData: Awaited<ReturnType<typeof dashboardApiService.getDashboardData>>
+  ): MacroDistribution {
+    const totalCarbs = dashboardData.foodLogs.reduce((sum, log) => sum + (log.carbs || 0), 0);
+    const totalProtein = dashboardData.foodLogs.reduce((sum, log) => sum + (log.protein || 0), 0);
+    const totalFat = dashboardData.foodLogs.reduce((sum, log) => sum + (log.fat || 0), 0);
+    const totalMacros = totalCarbs + totalProtein + totalFat;
+
+    return {
+      carbs: {
+        value: totalCarbs,
+        percentage: totalMacros > 0 ? Math.round((totalCarbs / totalMacros) * 100) : 0,
+      },
+      protein: {
+        value: totalProtein,
+        percentage: totalMacros > 0 ? Math.round((totalProtein / totalMacros) * 100) : 0,
+      },
+      fat: {
+        value: totalFat,
+        percentage: totalMacros > 0 ? Math.round((totalFat / totalMacros) * 100) : 0,
+      },
+    };
+  }
+
   /**
    * Get weekly aggregated data (last 7 days)
    */
   async getWeeklyData(userId: number): Promise<WeeklyDataPoint[]> {
     try {
-      console.log('=== GET WEEKLY DATA ===');
-      console.log('Fetching weekly data for userId:', userId);
-
       // Get last 7 days (including today)
       const today = new Date();
       const days: WeeklyDataPoint[] = [];
@@ -83,8 +165,6 @@ export class ProgressApiService {
         const date = new Date(today);
         date.setDate(date.getDate() - i);
         const dayRange = this.getDayRange(date);
-
-        console.log(`Fetching data for ${this.formatDate(date)}`);
 
         // Initialize day data
         const dayData: WeeklyDataPoint = {
@@ -105,7 +185,6 @@ export class ProgressApiService {
           );
           const foodLogs = foodLogsResponse.data.foodLogs || [];
           dayData.calories = foodLogs.reduce((sum, log) => sum + (log.calories || 0), 0);
-          console.log(`  Calories: ${dayData.calories} from ${foodLogs.length} food logs`);
         } catch (error) {
           console.warn(`Failed to fetch food logs for ${this.formatDate(date)}:`, error);
         }
@@ -118,7 +197,6 @@ export class ProgressApiService {
           const activityLogs = activityLogsResponse.data.items || [];
           dayData.exercise = activityLogs.reduce((sum, log) => sum + (log.caloriesBurned || 0), 0);
           dayData.exerciseMinutes = activityLogs.reduce((sum, log) => sum + (log.durationMinutes || 0), 0);
-          console.log(`  Exercise: ${dayData.exercise} cal, ${dayData.exerciseMinutes} min from ${activityLogs.length} logs`);
         } catch (error) {
           console.warn(`Failed to fetch activity logs for ${this.formatDate(date)}:`, error);
         }
@@ -131,7 +209,6 @@ export class ProgressApiService {
           const waterIntake = waterResponse.data.items || [];
           dayData.water = waterIntake.reduce((sum, water) => sum + (water.amount || 0), 0);
           dayData.waterGlasses = Math.round(dayData.water / 250); // Convert ml to glasses (250ml per glass)
-          console.log(`  Water: ${dayData.water} ml (${dayData.waterGlasses} glasses) from ${waterIntake.length} entries`);
         } catch (error) {
           console.warn(`Failed to fetch water intake for ${this.formatDate(date)}:`, error);
         }
@@ -145,7 +222,6 @@ export class ProgressApiService {
           if (weightEntries.length > 0) {
             const weightEntry = weightEntries[0];
             dayData.weight = weightEntry.weight || weightEntry.weightKg || weightEntry.weightValue || null;
-            console.log(`  Weight: ${dayData.weight} kg`);
           }
         } catch (error) {
           console.warn(`Failed to fetch weight for ${this.formatDate(date)}:`, error);
@@ -154,7 +230,6 @@ export class ProgressApiService {
         days.push(dayData);
       }
 
-      console.log('Weekly data fetched successfully:', days);
       return days;
     } catch (error) {
       console.error('Failed to fetch weekly data:', error);
@@ -175,68 +250,11 @@ export class ProgressApiService {
     }
   ): Promise<GoalStats> {
     try {
-      console.log('=== GET GOAL STATS ===');
-      console.log('User goals:', userGoals);
-
-      // Get today's data using dashboardApiService
       const dashboardData = await dashboardApiService.getDashboardData(userId, {
         calorieIntakeTarget: userGoals.calorieIntakeTarget,
         calorieBurnTarget: userGoals.calorieBurnTarget,
       });
-
-      // Calculate current values
-      const currentCalories = dashboardData.stats.calories.consumed;
-      const currentExercise = dashboardData.stats.exercise.burned;
-      const currentWater = dashboardData.stats.water.consumed; // in ml
-
-      // Get most recent weight
-      let currentWeight: number | null = null;
-      if (dashboardData.weightEntries.length > 0) {
-        const latestWeight = dashboardData.weightEntries[0];
-        currentWeight = latestWeight.weight || latestWeight.weightKg || latestWeight.weightValue || null;
-      }
-
-      // Calculate percentages
-      const caloriesPercentage = userGoals.calorieIntakeTarget
-        ? Math.min(100, Math.round((currentCalories / userGoals.calorieIntakeTarget) * 100))
-        : 0;
-
-      const exercisePercentage = userGoals.calorieBurnTarget
-        ? Math.min(100, Math.round((currentExercise / userGoals.calorieBurnTarget) * 100))
-        : 0;
-
-      const weightPercentage = userGoals.targetWeight && currentWeight
-        ? Math.min(100, Math.round(((userGoals.targetWeight - currentWeight) / userGoals.targetWeight) * 100))
-        : 0;
-
-      const waterGoal = userGoals.targetWater || 2000; // Default 2L
-      const waterPercentage = Math.min(100, Math.round((currentWater / waterGoal) * 100));
-
-      const goalStats: GoalStats = {
-        calories: {
-          current: currentCalories,
-          goal: userGoals.calorieIntakeTarget || 2000,
-          percentage: caloriesPercentage,
-        },
-        exercise: {
-          current: currentExercise,
-          goal: userGoals.calorieBurnTarget || 400,
-          percentage: exercisePercentage,
-        },
-        weight: {
-          current: currentWeight,
-          goal: userGoals.targetWeight || null,
-          percentage: weightPercentage,
-        },
-        water: {
-          current: Math.round(currentWater / 250), // Convert to glasses
-          goal: Math.round(waterGoal / 250), // Convert to glasses
-          percentage: waterPercentage,
-        },
-      };
-
-      console.log('Goal stats calculated:', goalStats);
-      return goalStats;
+      return this.buildGoalStatsFromDashboardData(dashboardData, userGoals);
     } catch (error) {
       console.error('Failed to fetch goal stats:', error);
       throw error;
@@ -252,8 +270,6 @@ export class ProgressApiService {
     to?: string
   ): Promise<MacroDistribution> {
     try {
-      console.log('=== GET MACRO DISTRIBUTION ===');
-
       // If no date range provided, use today
       if (!from || !to) {
         const today = new Date();
@@ -296,7 +312,6 @@ export class ProgressApiService {
         },
       };
 
-      console.log('Macro distribution calculated:', macroDistribution);
       return macroDistribution;
     } catch (error) {
       console.error('Failed to fetch macro distribution:', error);
@@ -304,13 +319,35 @@ export class ProgressApiService {
     }
   }
 
+  async getProgressSnapshot(
+    userId: number,
+    userGoals: {
+      calorieIntakeTarget?: number;
+      calorieBurnTarget?: number;
+      targetWeight?: number;
+      targetWater?: number;
+    }
+  ): Promise<ProgressSnapshot> {
+    const [weeklyData, dashboardData] = await Promise.all([
+      this.getWeeklyData(userId),
+      dashboardApiService.getDashboardData(userId, {
+        calorieIntakeTarget: userGoals.calorieIntakeTarget,
+        calorieBurnTarget: userGoals.calorieBurnTarget,
+      }),
+    ]);
+
+    return {
+      weeklyData,
+      goalStats: this.buildGoalStatsFromDashboardData(dashboardData, userGoals),
+      macroDistribution: this.buildMacroDistributionFromDashboardData(dashboardData),
+    };
+  }
+
   /**
    * Get user achievements (calculated from historical data)
    */
   async getAchievements(userId: number): Promise<Achievement[]> {
     try {
-      console.log('=== GET ACHIEVEMENTS ===');
-
       const achievements: Achievement[] = [];
 
       // Get last 7 days of data
@@ -367,7 +404,6 @@ export class ProgressApiService {
         progress: Math.min(100, Math.round((hydrationHeroCount / 7) * 100)),
       });
 
-      console.log('Achievements calculated:', achievements);
       return achievements;
     } catch (error) {
       console.error('Failed to fetch achievements:', error);

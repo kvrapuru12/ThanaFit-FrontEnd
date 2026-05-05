@@ -33,29 +33,20 @@ export const useProgressData = (): UseProgressDataReturn => {
       setIsLoading(true);
       setError(null);
 
-      console.log('=== FETCHING PROGRESS DATA ===');
-      console.log('User ID:', user.id);
-
-      // Fetch all progress data in parallel (excluding achievements)
-      const [weeklyData, goalStats, macroDistribution] = await Promise.all([
-        progressApiService.getWeeklyData(user.id),
-        progressApiService.getGoalStats(user.id, {
+      const snapshot = await progressApiService.getProgressSnapshot(user.id, {
           calorieIntakeTarget: user.dailyCalorieIntakeTarget || undefined,
           calorieBurnTarget: user.dailyCalorieBurnTarget || undefined,
           targetWeight: user.targetWeight || undefined,
           targetWater: 2000, // Default 2L in ml
-        }),
-        progressApiService.getMacroDistribution(user.id),
-      ]);
+      });
 
       const progressData: ProgressData = {
-        weeklyData,
-        goalStats,
-        macroDistribution,
+        weeklyData: snapshot.weeklyData,
+        goalStats: snapshot.goalStats,
+        macroDistribution: snapshot.macroDistribution,
         achievements: [], // Achievements removed
       };
 
-      console.log('Progress data fetched successfully:', progressData);
       setData(progressData);
     } catch (err: any) {
       console.error('Failed to fetch progress data:', err);
@@ -80,7 +71,12 @@ export const useProgressData = (): UseProgressDataReturn => {
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [
+    user?.id,
+    user?.dailyCalorieIntakeTarget,
+    user?.dailyCalorieBurnTarget,
+    user?.targetWeight,
+  ]);
 
   const refresh = useCallback(async () => {
     await fetchProgressData();

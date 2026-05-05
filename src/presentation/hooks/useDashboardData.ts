@@ -120,7 +120,6 @@ export const useDashboardData = (): UseDashboardDataReturn => {
         return;
       }
 
-      console.log('=== FETCHING DASHBOARD DATA ===');
       const userGoals = {
         calorieIntakeTarget: user?.dailyCalorieIntakeTarget != null ? user.dailyCalorieIntakeTarget : undefined,
         calorieBurnTarget: user?.dailyCalorieBurnTarget != null ? user.dailyCalorieBurnTarget : undefined,
@@ -144,7 +143,6 @@ export const useDashboardData = (): UseDashboardDataReturn => {
         dailyStepsSummary = null;
       }
 
-      console.log('Dashboard data fetched successfully:', JSON.stringify(dashboardData, null, 2));
       setData({ ...dashboardData, dailyStepsSummary });
     } catch (err: any) {
       console.error('Failed to fetch dashboard data:', err);
@@ -335,7 +333,6 @@ export const useDashboardData = (): UseDashboardDataReturn => {
     activityType: 'Cardio' | 'Strength' | 'Flexibility' | 'Sports' | 'Other';
   }) => {
     try {
-      console.log('Adding activity log:', activityData);
       const newActivity = await dashboardApiService.addActivityLog(activityData);
       
       // Update local state
@@ -354,7 +351,6 @@ export const useDashboardData = (): UseDashboardDataReturn => {
         };
       });
       
-      console.log('Activity log added successfully');
     } catch (err: any) {
       console.error('Failed to add activity log:', err);
       throw err;
@@ -366,11 +362,8 @@ export const useDashboardData = (): UseDashboardDataReturn => {
       if (!user?.id) {
         throw new Error('User not found');
       }
-      console.log('Adding water intake:', { userId: user.id, amount, notes });
       await dashboardApiService.addOrAccumulateTodayWaterIntake(user.id, amount, notes);
       await fetchDashboardData();
-
-      console.log('Water intake added successfully');
     } catch (err: any) {
       console.error('Failed to add water intake:', err);
       throw err;
@@ -395,7 +388,6 @@ export const useDashboardData = (): UseDashboardDataReturn => {
     image?: string;
   }) => {
     try {
-      console.log('Adding food log:', foodData);
       const newFoodLog = await dashboardApiService.addFoodLog({
         userId: foodData.userId,
         foodItemId: foodData.foodItemId,
@@ -476,7 +468,6 @@ export const useDashboardData = (): UseDashboardDataReturn => {
         };
       });
       
-      console.log('Food log added successfully');
     } catch (err: any) {
       console.error('Failed to add food log:', err);
       throw err;
