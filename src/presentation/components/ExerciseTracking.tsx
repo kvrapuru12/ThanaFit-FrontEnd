@@ -942,7 +942,7 @@ const styles = StyleSheet.create({
   },
   workoutDeleteActionText: {
     color: '#ffffff',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
     marginTop: 4,
   },
@@ -987,7 +987,7 @@ const styles = StyleSheet.create({
     color: '#ff6b6b',
   },
   workoutMeta: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: '#374151',
   },
@@ -1022,7 +1022,7 @@ const styles = StyleSheet.create({
   },
   addWorkoutText: {
     color: '#ff6b6b',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
   },
   voiceLogButton: {
@@ -1041,7 +1041,7 @@ const styles = StyleSheet.create({
   },
   voiceLogText: {
     color: '#4ecdc4',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
   },
   quickWorkoutsGrid: {
