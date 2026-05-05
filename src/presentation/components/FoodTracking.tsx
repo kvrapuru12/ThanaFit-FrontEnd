@@ -1069,7 +1069,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   voiceButtonText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
     color: '#ff6b6b',
   },
@@ -1131,7 +1131,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptyAddButtonText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: '#ff6b6b',
   },
@@ -1148,7 +1148,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptyVoiceButtonText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: '#4ecdc4',
   },
@@ -1161,7 +1161,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   mealSectionText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: '#374151',
     textTransform: 'capitalize',
@@ -1208,7 +1208,7 @@ const styles = StyleSheet.create({
   },
   foodDeleteActionText: {
     color: '#ffffff',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
     marginTop: 4,
   },
@@ -1266,7 +1266,7 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   foodCardName: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: '#1f2937',
     flex: 1,
@@ -1275,7 +1275,7 @@ const styles = StyleSheet.create({
     paddingRight: 4,
   },
   foodCardMeta: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#6b7280',
     marginBottom: 10,
   },
