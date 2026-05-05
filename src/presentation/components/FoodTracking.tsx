@@ -12,6 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScrollView, Swipeable } from 'react-native-gesture-handler';
 import { Card, CardContent, CardHeader } from './ui/card';
 import { Input } from './Input';
@@ -28,11 +29,16 @@ import { startOfLocalDay, addLocalCalendarDays, isSameLocalDay } from '../../cor
 
 const { width } = Dimensions.get('window');
 
+/** Bottom tab bar overlay height (see BottomNavigation: padding + min tab height). */
+const TAB_BAR_CLEARANCE = 88;
+
 interface FoodTrackingProps {
   navigation?: any;
 }
 
 export function FoodTracking({ navigation }: FoodTrackingProps) {
+  const insets = useSafeAreaInsets();
+  const scrollBottomPadding = insets.bottom + TAB_BAR_CLEARANCE;
   const { user } = useAuth();
   const [selectedMeal, setSelectedMeal] = useState('breakfast');
   const { foods, loading, error, searchFoods, loadPopularFoods } = useFoods();
@@ -55,7 +61,6 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
   const isViewingToday = isSameLocalDay(selectedDate, todayStart);
   const canGoNextDay = selectedDate.getTime() < todayStart.getTime();
   const addActionsDisabled = !isViewingToday || mealsLoading;
-  const emptyDayLabel = isViewingToday ? 'today' : 'on this date';
 
   const openDatePicker = () => {
     setDraftPickerDate(selectedDate);
@@ -232,6 +237,7 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
     { id: 'dinner', label: 'Dinner', icon: '🍽️', gradient: 'gradient-fuschia' },
     { id: 'snack', label: 'Snacks', icon: '🍎', gradient: 'gradient-palm' }
   ];
+  const hasAnyLoggedFoods = mealTimes.some((meal) => (todaysMeals[meal.id] || []).length > 0);
 
   return (
     <View style={styles.container}>
@@ -296,7 +302,7 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
 
       {/* Scrollable Content */}
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.content}>
+        <View style={[styles.content, { paddingBottom: scrollBottomPadding }]}>
           {/* Meal Selection */}
         <View style={styles.mealsGrid}>
           {mealTimes.map((meal) => {
@@ -380,32 +386,36 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
             );
           })}
         </View>
-
         {/* Today's Meals Summary */}
         <Card style={styles.mealsCard}>
-          <CardHeader style={styles.cardHeader}>
+          <CardHeader style={styles.mealsCardHeader}>
             <View style={styles.cardTitle}>
               <View style={[styles.titleIndicator, styles.paradiseIndicator]} />
               <Text style={styles.cardTitleText}>
                 {isViewingToday ? "Today's meals" : 'Meals for this day'}
               </Text>
-              <TouchableOpacity 
-                style={[styles.voiceButton, addActionsDisabled && styles.actionDisabled]}
-                onPress={() => setShowVoiceRecorder(true)}
-                disabled={addActionsDisabled}
-                accessibilityState={{ disabled: addActionsDisabled }}
-              >
-                <MaterialIcons name="mic" size={20} color="#ff6b6b" />
-              </TouchableOpacity>
+              {hasAnyLoggedFoods && (
+                <TouchableOpacity
+                  style={[styles.voiceButton, addActionsDisabled && styles.actionDisabled]}
+                  onPress={() => setShowVoiceRecorder(true)}
+                  disabled={addActionsDisabled}
+                  accessibilityState={{ disabled: addActionsDisabled }}
+                >
+                  <View style={styles.voiceButtonContent}>
+                    <MaterialIcons name="mic" size={18} color="#ff6b6b" />
+                    <Text style={styles.voiceButtonText}>Voice Log</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
             </View>
           </CardHeader>
-          <CardContent style={styles.cardContent}>
+          <CardContent style={styles.mealsCardContent}>
             {mealsLoading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#ff6b6b" />
                 <Text style={styles.loadingText}>Loading meals...</Text>
               </View>
-            ) : (
+            ) : hasAnyLoggedFoods ? (
               mealTimes.map((meal) => {
                 const mealLogs = todaysMeals[meal.id] || [];
                 const mealCalories = calculateMealCalories(mealLogs);
@@ -452,8 +462,8 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
                                 <ImageWithFallback
                                   src={getFoodImageUrl(log.food || { category: 'default' } as FoodItem)}
                                   alt={log.food?.name || 'Unknown Food'}
-                                  width={64}
-                                  height={64}
+                                  width={56}
+                                  height={56}
                                   style={styles.foodImage}
                                 />
                                 <View style={styles.foodBadge}>
@@ -468,12 +478,27 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
                               </View>
                               <View style={styles.foodInfo}>
                                 <View style={styles.foodNameRow}>
-                                  <Text style={styles.foodCardName}>
+                                  <Text
+                                    style={styles.foodCardName}
+                                    numberOfLines={2}
+                                    ellipsizeMode="tail"
+                                  >
                                     {log.foodItemName}
                                   </Text>
-                                  <Badge variant="secondary" style={styles.foodCalories}>
-                                    {Math.round(log.calories)} cal
-                                  </Badge>
+                                  <View style={styles.foodNameRowActions}>
+                                    <Badge variant="secondary" style={styles.foodCalories}>
+                                      {Math.round(log.calories)} cal
+                                    </Badge>
+                                    <TouchableOpacity
+                                      style={styles.rowDeleteButton}
+                                      onPress={() => confirmDeleteFoodLog(log)}
+                                      accessibilityRole="button"
+                                      accessibilityLabel="Delete food log"
+                                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                    >
+                                      <MaterialIcons name="delete-outline" size={22} color="#9ca3af" />
+                                    </TouchableOpacity>
+                                  </View>
                                 </View>
                                 <Text style={styles.foodCardMeta}>
                                   {Number(log.quantity) % 1 === 0 ? Math.round(log.quantity) : Number(log.quantity).toFixed(1)} {log.unit}
@@ -493,27 +518,48 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
                             </View>
                           </Swipeable>
                         ))
-                      ) : (
-                        <View style={styles.emptyMealContainer}>
-                          <Text style={styles.emptyMealText}>No foods logged {emptyDayLabel}</Text>
-                          <Text style={styles.emptyMealSubtext}>
-                            {isViewingToday
-                              ? 'Tap the + button to add foods to this meal'
-                              : 'Switch to today to add or edit foods for this meal.'}
-                          </Text>
-                        </View>
-                      )}
+                      ) : null}
                     </View>
                   </View>
                 );
               })
+            ) : (
+              <View style={styles.mealsEmptyState}>
+                <MaterialIcons name="restaurant" size={48} color="#d1d5db" />
+                <Text style={styles.emptyMealText}>
+                  {isViewingToday ? 'No meals logged today' : 'No meals logged on this date'}
+                </Text>
+                <Text style={styles.emptyMealSubtext}>
+                  {isViewingToday
+                    ? 'Start tracking your meals to see them here'
+                    : 'Switch to today to add meals or use voice log.'}
+                </Text>
+                <View style={styles.emptyMealActions}>
+                  <TouchableOpacity
+                    style={[styles.emptyAddButton, addActionsDisabled && styles.actionDisabled]}
+                    onPress={() => handleOpenAddFoodScreen(selectedMeal)}
+                    disabled={addActionsDisabled}
+                  >
+                    <MaterialIcons name="add" size={20} color="#ff6b6b" />
+                    <Text style={styles.emptyAddButtonText}>Add Food</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.emptyVoiceButton, addActionsDisabled && styles.actionDisabled]}
+                    onPress={() => setShowVoiceRecorder(true)}
+                    disabled={addActionsDisabled}
+                  >
+                    <MaterialIcons name="mic" size={20} color="#4ecdc4" />
+                    <Text style={styles.emptyVoiceButtonText}>Voice Log</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             )}
           </CardContent>
         </Card>
 
         {/* Recent/Popular Foods */}
         <Card style={styles.popularCard}>
-          <CardHeader style={styles.cardHeader}>
+          <CardHeader style={styles.popularCardHeader}>
             <View style={styles.cardTitle}>
               <View style={[styles.titleIndicator, styles.palmIndicator]} />
               <Text style={styles.cardTitleText}>
@@ -521,7 +567,7 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
               </Text>
             </View>
           </CardHeader>
-          <CardContent style={styles.cardContent}>
+          <CardContent style={styles.popularCardContent}>
             {loading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#ff6b6b" />
@@ -671,17 +717,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 24,
-    paddingTop: 16, // Reduced since header is separate
-    paddingBottom: 100, // Space for bottom navigation
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingTop: 60, // Safe area from top
-    paddingHorizontal: 24,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
     backgroundColor: '#fef7ed',
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
@@ -810,8 +855,8 @@ const styles = StyleSheet.create({
     color: 'white',
   },
   thanafitLogo: {
-    width: 80,
-    height: 80,
+    width: 64,
+    height: 64,
   },
   thanafitLogoImage: {
     width: '100%',
@@ -821,13 +866,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 16,
-    marginBottom: 32,
+    marginBottom: 26,
   },
   mealCard: {
-    width: (width - 80) / 2,
+    width: (width - 16 * 2 - 16) / 2,
     backgroundColor: 'white',
     borderRadius: 20,
-    padding: 20,
+    padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
@@ -854,7 +899,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   mealIcon: {
     fontSize: 28,
@@ -867,7 +912,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
     textTransform: 'capitalize',
-    marginBottom: 8,
+    marginBottom: 0,
     textAlign: 'center',
   },
   selectedMealText: {
@@ -955,38 +1000,60 @@ const styles = StyleSheet.create({
   },
   mealsCard: {
     backgroundColor: 'white',
-    borderRadius: 24,
-    marginBottom: 32,
+    borderRadius: 20,
+    marginBottom: 26,
+    padding: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  mealsCardHeader: {
+    marginBottom: 4,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 8,
+  },
+  mealsCardContent: {
+    gap: 16,
+    paddingHorizontal: 14,
+    paddingBottom: 16,
   },
   popularCard: {
     backgroundColor: 'white',
-    borderRadius: 24,
-    marginBottom: 32,
+    borderRadius: 20,
+    marginBottom: 26,
+    padding: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-  cardHeader: {
+  popularCardHeader: {
+    marginBottom: 4,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 8,
+  },
+  popularCardContent: {
+    gap: 16,
+    paddingHorizontal: 14,
     paddingBottom: 16,
   },
   cardTitle: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
     justifyContent: 'flex-start',
-    height: 40,
+    minHeight: 40,
   },
   voiceButton: {
     backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 10,
+    borderRadius: 18,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
     marginLeft: 'auto',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -996,12 +1063,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ff6b6b',
   },
+  voiceButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  voiceButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#ff6b6b',
+  },
   titleIndicator: {
     width: 4,
-    height: 24,
+    height: 22,
     backgroundColor: '#4ecdc4',
     borderRadius: 2,
-    marginTop: 8, // Manual centering: (40 - 24) / 2 = 8
   },
   paradiseIndicator: {
     backgroundColor: '#ff6b6b',
@@ -1010,29 +1086,71 @@ const styles = StyleSheet.create({
     backgroundColor: '#4ecdc4',
   },
   cardTitleText: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#1f2937',
     textAlign: 'left',
     flex: 1,
-    lineHeight: 24,
+    lineHeight: 22,
     includeFontPadding: false,
     textAlignVertical: 'center',
-    marginTop: 8, // Manual centering for text: (40 - 24) / 2 = 8
-  },
-  cardContent: {
-    gap: 24,
   },
   mealSection: {
     backgroundColor: '#f3f4f6',
-    padding: 24,
-    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 18,
   },
   mealSectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  mealsEmptyState: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  emptyMealActions: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 16,
+  },
+  emptyAddButton: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: '#f3d1d5',
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  emptyAddButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#ff6b6b',
+  },
+  emptyVoiceButton: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#4ecdc4',
+    backgroundColor: '#dff3f2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  emptyVoiceButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#4ecdc4',
   },
   mealSectionTitle: {
     flexDirection: 'row',
@@ -1043,7 +1161,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   mealSectionText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: '#374151',
     textTransform: 'capitalize',
@@ -1054,7 +1172,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   foodsList: {
-    gap: 12,
+    gap: 16,
   },
   foodItem: {
     flexDirection: 'row',
@@ -1097,10 +1215,11 @@ const styles = StyleSheet.create({
   foodCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-    padding: 16,
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     backgroundColor: '#f9fafb',
-    borderRadius: 16,
+    borderRadius: 14,
   },
   foodImageContainer: {
     position: 'relative',
@@ -1133,27 +1252,40 @@ const styles = StyleSheet.create({
   foodNameRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: 8,
     marginBottom: 4,
   },
+  foodNameRowActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 0,
+  },
+  rowDeleteButton: {
+    padding: 2,
+  },
   foodCardName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#1f2937',
     flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    paddingRight: 4,
   },
   foodCardMeta: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6b7280',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   nutritionBadges: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
   },
   nutritionBadge: {
     backgroundColor: '#ff6b6b',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
@@ -1222,23 +1354,15 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginTop: 2,
   },
-  emptyMealContainer: {
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-  },
   emptyMealText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#6b7280',
-    fontWeight: '500',
+    fontWeight: '600',
+    marginTop: 12,
     marginBottom: 4,
   },
   emptyMealSubtext: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#9ca3af',
     textAlign: 'center',
   },
