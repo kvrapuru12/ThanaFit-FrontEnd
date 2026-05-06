@@ -3,7 +3,8 @@ import {
   View, 
   Text, 
   ScrollView,
-  TouchableOpacity, 
+  TouchableOpacity,
+  Pressable,
   StyleSheet, 
   Dimensions,
   useWindowDimensions,
@@ -492,14 +493,15 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
           }}
         >
           {weekDateItems.map((item, index) => (
-            <TouchableOpacity
+            <Pressable
               key={item.date.toISOString()}
-              style={[
+              style={({ pressed }) => [
                 styles.weekDayColumn,
                 {
                   width: weekDayItemWidth,
                   marginRight: index === weekDateItems.length - 1 ? 0 : dateItemGap,
                 },
+                pressed && styles.weekDayColumnPressed,
               ]}
               onPress={() => handleSelectDate(item.date)}
               disabled={mealsLoading || item.isFuture}
@@ -510,7 +512,14 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
                 day: 'numeric',
               })}`}
             >
-              <Text style={styles.weekDayLabel}>{item.dayLabel}</Text>
+              <Text
+                style={[
+                  styles.weekDayLabel,
+                  isSameLocalDay(item.date, selectedDate) && styles.weekDayLabelSelected,
+                ]}
+              >
+                {item.dayLabel}
+              </Text>
               <View
                 style={[
                   styles.weekDayCircle,
@@ -522,7 +531,7 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
                   <MaterialIcons name="check" size={14} color="#ffffff" />
                 ) : null}
               </View>
-            </TouchableOpacity>
+            </Pressable>
           ))}
         </ScrollView>
         <View
@@ -895,10 +904,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
+  weekDayColumnPressed: {
+    transform: [{ scale: 0.96 }],
+    opacity: 0.9,
+  },
   weekDayLabel: {
     fontSize: 12,
     color: '#6b7280',
     fontWeight: '600',
+  },
+  weekDayLabelSelected: {
+    color: '#111827',
+    fontWeight: '700',
   },
   weekDayCircle: {
     width: 26,
@@ -939,10 +956,10 @@ const styles = StyleSheet.create({
   summaryCardOuter: {
     borderRadius: 26,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.08,
-    shadowRadius: 14,
-    elevation: 5,
+    shadowRadius: 8,
+    elevation: 4,
   },
   summaryCardOuterSelected: {
     shadowColor: '#ff6b6b',
@@ -1091,10 +1108,10 @@ const styles = StyleSheet.create({
     marginBottom: 26,
     padding: 0,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
   },
   mealsCardHeader: {
     marginBottom: 4,
@@ -1113,10 +1130,10 @@ const styles = StyleSheet.create({
     marginBottom: 26,
     padding: 0,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
   },
   popularCardHeader: {
     marginBottom: 4,
