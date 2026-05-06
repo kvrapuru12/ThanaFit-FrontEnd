@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Platform } from 'react-native';
 import { dashboardApiService, DashboardStats, Meal, ActivityLog, WaterIntake, FoodLog, SleepEntry, WeightEntry, StepEntry } from '../../infrastructure/services/dashboardApi';
 import { useAuth } from '../providers/AuthProvider';
@@ -99,6 +99,9 @@ export const useDashboardData = (): UseDashboardDataReturn => {
     'idle' | 'syncing' | 'denied' | 'error'
   >('idle');
   const [selectedDate, setSelectedDateState] = useState(() => startOfLocalDay(new Date()));
+  const latestFetchRequestIdRef = useRef(0);
+  const dataCacheRef = useRef<Map<string, DashboardData>>(new Map());
+  const hasLoadedOnceRef = useRef(false);
 
   const setSelectedDate = useCallback((d: Date) => {
     const normalized = startOfLocalDay(d);
@@ -111,8 +114,18 @@ export const useDashboardData = (): UseDashboardDataReturn => {
   }, []);
 
   const fetchDashboardData = useCallback(async () => {
+    const requestId = ++latestFetchRequestIdRef.current;
+    const localDateKey = formatDateLocal(selectedDate);
+    const cachedForDate = dataCacheRef.current.get(localDateKey);
+
     try {
-      setIsLoading(true);
+      if (cachedForDate) {
+        // Instant date switching: render cached data immediately, then revalidate in background.
+        setData(cachedForDate);
+        setIsLoading(false);
+      } else if (!hasLoadedOnceRef.current) {
+        setIsLoading(true);
+      }
       setError(null);
 
       if (!user?.id) {
@@ -129,28 +142,40 @@ export const useDashboardData = (): UseDashboardDataReturn => {
         targetFat: user?.targetFat != null ? user.targetFat : undefined,
         targetWaterLitres: user?.targetWaterLitres != null ? user.targetWaterLitres : undefined
       };
-      const dashboardData = await dashboardApiService.getDashboardData(user.id, userGoals, {
-        summaryDate: selectedDate,
-      });
+      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const localDate = localDateKey;
 
-      let dailyStepsSummary: DashboardDailyResponse | null = null;
-      try {
-        const timeZone =
-          Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-        const localDate = formatDateLocal(selectedDate);
-        dailyStepsSummary = await getDashboardDaily(localDate, timeZone);
-      } catch (dailyErr) {
-        console.warn('GET /dashboard/daily unavailable or failed:', dailyErr);
-        dailyStepsSummary = null;
+      const [dashboardData, dailyStepsSummary] = await Promise.all([
+        dashboardApiService.getDashboardData(user.id, userGoals, {
+          summaryDate: selectedDate,
+        }),
+        getDashboardDaily(localDate, timeZone).catch((dailyErr) => {
+          console.warn('GET /dashboard/daily unavailable or failed:', dailyErr);
+          return null as DashboardDailyResponse | null;
+        }),
+      ]);
+
+      if (requestId !== latestFetchRequestIdRef.current) {
+        return;
       }
 
-      setData({ ...dashboardData, dailyStepsSummary });
+      const resolvedData = { ...dashboardData, dailyStepsSummary };
+      dataCacheRef.current.set(localDateKey, resolvedData);
+      setData(resolvedData);
+      hasLoadedOnceRef.current = true;
     } catch (err: any) {
+      if (requestId !== latestFetchRequestIdRef.current) {
+        return;
+      }
       console.error('Failed to fetch dashboard data:', err);
-      setData(null);
+      if (!cachedForDate) {
+        setData(null);
+      }
       setError(err?.message || 'Failed to load dashboard data.');
     } finally {
-      setIsLoading(false);
+      if (requestId === latestFetchRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [
     user?.id,

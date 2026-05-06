@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { dashboardApiService, ActivityLog } from '../../infrastructure/services/dashboardApi';
 import { useAuth } from '../providers/AuthProvider';
 import { startOfLocalDay } from '../../core/utils/dateUtils';
@@ -27,6 +27,9 @@ export const useTodayWorkouts = (): UseTodayWorkoutsReturn => {
   const [todaysWorkouts, setTodaysWorkouts] = useState<TodayWorkout[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const latestFetchRequestIdRef = useRef(0);
+  const workoutsCacheRef = useRef<Map<string, TodayWorkout[]>>(new Map());
+  const hasLoadedOnceRef = useRef(false);
 
   const setSelectedDate = useCallback((d: Date) => {
     const normalized = startOfLocalDay(d);
@@ -40,8 +43,14 @@ export const useTodayWorkouts = (): UseTodayWorkoutsReturn => {
 
   const fetchTodayWorkouts = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = opts?.silent === true;
+    const requestId = ++latestFetchRequestIdRef.current;
+    const localDateKey = selectedDate.toISOString().slice(0, 10);
+    const cachedWorkouts = workoutsCacheRef.current.get(localDateKey);
     try {
-      if (!silent) {
+      if (cachedWorkouts) {
+        setTodaysWorkouts(cachedWorkouts);
+      }
+      if (!silent && !cachedWorkouts && !hasLoadedOnceRef.current) {
         setIsLoading(true);
       }
       setError(null);
@@ -51,8 +60,11 @@ export const useTodayWorkouts = (): UseTodayWorkoutsReturn => {
       
       if (!user?.id) {
         console.warn('No user ID available, skipping fetch');
+        if (requestId !== latestFetchRequestIdRef.current) {
+          return;
+        }
         setTodaysWorkouts([]);
-        if (!silent) {
+        if (!silent && requestId === latestFetchRequestIdRef.current) {
           setIsLoading(false);
         }
         return;
@@ -61,6 +73,9 @@ export const useTodayWorkouts = (): UseTodayWorkoutsReturn => {
       // Try to fetch real data from backend
       console.log('Attempting to fetch real data from backend...');
       const activityLogs = await dashboardApiService.getTodayActivityLogs(user.id, selectedDate);
+      if (requestId !== latestFetchRequestIdRef.current) {
+        return;
+      }
       
       console.log('=== BACKEND RESPONSE FOR USER 2 ===');
       console.log('Raw activity logs from backend:', JSON.stringify(activityLogs, null, 2));
@@ -68,7 +83,9 @@ export const useTodayWorkouts = (): UseTodayWorkoutsReturn => {
       
       if (activityLogs.length === 0) {
         console.log('No activity logs found for user 2 today');
+        workoutsCacheRef.current.set(localDateKey, []);
         setTodaysWorkouts([]);
+        hasLoadedOnceRef.current = true;
         return;
       }
       
@@ -83,8 +100,16 @@ export const useTodayWorkouts = (): UseTodayWorkoutsReturn => {
       
       console.log('=== TRANSFORMED WORKOUTS ===');
       console.log('Transformed today workouts:', JSON.stringify(transformedWorkouts, null, 2));
+      if (requestId !== latestFetchRequestIdRef.current) {
+        return;
+      }
+      workoutsCacheRef.current.set(localDateKey, transformedWorkouts);
       setTodaysWorkouts(transformedWorkouts);
+      hasLoadedOnceRef.current = true;
     } catch (err: any) {
+      if (requestId !== latestFetchRequestIdRef.current) {
+        return;
+      }
       console.error('Failed to fetch today workouts:', err);
       console.error('Error details:', {
         message: err.message,
@@ -95,7 +120,7 @@ export const useTodayWorkouts = (): UseTodayWorkoutsReturn => {
       setError(`Failed to load today workouts: ${err.message}`);
       setTodaysWorkouts([]);
     } finally {
-      if (!silent) {
+      if (!silent && requestId === latestFetchRequestIdRef.current) {
         setIsLoading(false);
       }
     }

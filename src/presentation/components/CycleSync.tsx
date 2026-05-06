@@ -12,7 +12,6 @@ import {
   Switch,
   Platform,
   KeyboardAvoidingView,
-  Image,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -673,6 +672,7 @@ export function CycleSync({ navigation }: CycleSyncProps) {
         <TabScreenHeader
           title="CycleSync"
           subtitle="Understand your cycle. Feel your best."
+          hideLogo
         />
 
         {!hasLoggedData || !cycleVm ? (
@@ -1034,13 +1034,6 @@ export function CycleSync({ navigation }: CycleSyncProps) {
           </>
         )}
 
-        <View style={styles.logoFooter}>
-          <Image
-            source={require('../../../assets/logo-icon.png')}
-            style={styles.logoSmall}
-            resizeMode="contain"
-          />
-        </View>
       </ScrollView>
 
       <Modal visible={showPeriodLog} animationType="slide" transparent onRequestClose={handleCancelPeriod}>
@@ -1698,8 +1691,6 @@ const styles = StyleSheet.create({
   },
   snapshotValueHifi: { fontSize: 20, fontWeight: 'bold', color: APP.ink, lineHeight: 26 },
   snapshotCaptionHifi: { fontSize: 14, color: APP.muted, fontWeight: '500' },
-  logoFooter: { alignItems: 'center', marginTop: 8 },
-  logoSmall: { width: 48, height: 48, opacity: 0.6 },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
