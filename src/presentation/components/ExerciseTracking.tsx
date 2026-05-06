@@ -3,7 +3,8 @@ import {
   View, 
   Text, 
   ScrollView,
-  TouchableOpacity, 
+  TouchableOpacity,
+  Pressable,
   StyleSheet, 
   TextInput,
   Dimensions,
@@ -266,14 +267,15 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
           }}
         >
           {weekDateItems.map((item, index) => (
-            <TouchableOpacity
+            <Pressable
               key={item.date.toISOString()}
-              style={[
+              style={({ pressed }) => [
                 styles.weekDayColumn,
                 {
                   width: weekDayItemWidth,
                   marginRight: index === weekDateItems.length - 1 ? 0 : dateItemGap,
                 },
+                pressed && styles.weekDayColumnPressed,
               ]}
               onPress={() => handleSelectDate(item.date)}
               disabled={workoutsLoading || item.isFuture}
@@ -284,7 +286,14 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
                 day: 'numeric',
               })}`}
             >
-              <Text style={styles.weekDayLabel}>{item.dayLabel}</Text>
+              <Text
+                style={[
+                  styles.weekDayLabel,
+                  isSameLocalDay(item.date, selectedDate) && styles.weekDayLabelSelected,
+                ]}
+              >
+                {item.dayLabel}
+              </Text>
               <View
                 style={[
                   styles.weekDayCircle,
@@ -296,7 +305,7 @@ export function ExerciseTracking({ navigation }: ExerciseTrackingProps) {
                   <MaterialIcons name="check" size={14} color="#ffffff" />
                 ) : null}
               </View>
-            </TouchableOpacity>
+            </Pressable>
           ))}
         </ScrollView>
 
@@ -596,10 +605,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
+  weekDayColumnPressed: {
+    transform: [{ scale: 0.96 }],
+    opacity: 0.9,
+  },
   weekDayLabel: {
     fontSize: 12,
     color: '#6b7280',
     fontWeight: '600',
+  },
+  weekDayLabelSelected: {
+    color: '#111827',
+    fontWeight: '700',
   },
   weekDayCircle: {
     width: 26,
@@ -625,11 +642,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#ff6b6b',
     borderRadius: 20,
     marginBottom: 26,
-    shadowColor: '#ff6b6b',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
     shadowRadius: 8,
-    elevation: 8,
+    elevation: 4,
   },
   summaryContent: {
     paddingVertical: 18,
@@ -658,10 +675,10 @@ const styles = StyleSheet.create({
     marginBottom: 26,
     padding: 0,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
   },
   workoutsCardHeader: {
     marginBottom: 4,
@@ -680,10 +697,10 @@ const styles = StyleSheet.create({
     marginBottom: 26,
     padding: 0,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
   },
   quickWorkoutsCardHeader: {
     marginBottom: 4,
@@ -704,10 +721,10 @@ const styles = StyleSheet.create({
     marginBottom: 26,
     padding: 0,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
   },
   popularCardHeader: {
     marginBottom: 4,

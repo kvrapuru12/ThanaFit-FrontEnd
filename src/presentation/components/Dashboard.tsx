@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, TextInput, Modal, KeyboardAvoidingView, Platform, Linking, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Pressable, Alert, TextInput, Modal, KeyboardAvoidingView, Platform, Linking, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -379,14 +379,15 @@ export const Dashboard: React.FC = () => {
           }}
         >
           {weekDateItems.map((item, index) => (
-            <TouchableOpacity
+            <Pressable
               key={item.date.toISOString()}
-              style={[
+              style={({ pressed }) => [
                 styles.weekDayColumn,
                 {
                   width: weekDayItemWidth,
                   marginRight: index === weekDateItems.length - 1 ? 0 : dateItemGap,
                 },
+                pressed && styles.weekDayColumnPressed,
               ]}
               onPress={() => setSelectedDate(item.date)}
               disabled={isRefreshing || item.isFuture}
@@ -397,7 +398,14 @@ export const Dashboard: React.FC = () => {
                 day: 'numeric',
               })}`}
             >
-              <Text style={styles.weekDayLabel}>{item.dayLabel}</Text>
+              <Text
+                style={[
+                  styles.weekDayLabel,
+                  isSameLocalDay(item.date, selectedDate) && styles.weekDayLabelSelected,
+                ]}
+              >
+                {item.dayLabel}
+              </Text>
               <View
                 style={[
                   styles.weekDayCircle,
@@ -409,7 +417,7 @@ export const Dashboard: React.FC = () => {
                   <MaterialIcons name="check" size={14} color="#ffffff" />
                 ) : null}
               </View>
-            </TouchableOpacity>
+            </Pressable>
           ))}
         </ScrollView>
 
@@ -1038,10 +1046,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
+  weekDayColumnPressed: {
+    transform: [{ scale: 0.96 }],
+    opacity: 0.9,
+  },
   weekDayLabel: {
     fontSize: 12,
     color: '#6b7280',
     fontWeight: '600',
+  },
+  weekDayLabelSelected: {
+    color: '#111827',
+    fontWeight: '700',
   },
   weekDayCircle: {
     width: 26,
@@ -1074,10 +1090,10 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     marginBottom: 0,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
   },
   exerciseCard: {
     flex: 1,
@@ -1085,10 +1101,10 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     marginBottom: 0,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
   },
   cardContent: {
     padding: 24,
@@ -1320,10 +1336,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
   },
   horizontalCardContent: {
     flex: 1,
