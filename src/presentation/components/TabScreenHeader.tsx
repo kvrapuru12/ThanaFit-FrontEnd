@@ -52,6 +52,7 @@ export interface TabScreenHeaderProps {
   /** Rendered after the logo on the right (e.g. Progress “This Week” badge). */
   logoTrailingAccessory?: React.ReactNode;
   logoSize?: number;
+  hideLogo?: boolean;
 }
 
 export function TabScreenHeader({
@@ -67,6 +68,7 @@ export function TabScreenHeader({
   dateNav,
   logoTrailingAccessory,
   logoSize = 64,
+  hideLogo = false,
 }: TabScreenHeaderProps) {
   const insets = useSafeAreaInsets();
   const colors = ACCENTS[accent];
@@ -102,18 +104,22 @@ export function TabScreenHeader({
             <TabScreenHeaderDateNavRow accent={accent} {...dateNav} hasSubtitle={!!subtitle} />
           ) : null}
         </View>
-        <View style={styles.right}>
-          <View style={[styles.logoBox, { width: logoSize, height: logoSize }]}>
-            <Image
-              source={require('../../../assets/logo-icon.png')}
-              style={styles.logoImg}
-              resizeMode="contain"
-            />
+        {!hideLogo || logoTrailingAccessory ? (
+          <View style={styles.right}>
+            {!hideLogo ? (
+              <View style={[styles.logoBox, { width: logoSize, height: logoSize }]}>
+                <Image
+                  source={require('../../../assets/logo-icon.png')}
+                  style={styles.logoImg}
+                  resizeMode="contain"
+                />
+              </View>
+            ) : null}
+            {logoTrailingAccessory ? (
+              <View style={styles.trailingAccessory}>{logoTrailingAccessory}</View>
+            ) : null}
           </View>
-          {logoTrailingAccessory ? (
-            <View style={styles.trailingAccessory}>{logoTrailingAccessory}</View>
-          ) : null}
-        </View>
+        ) : null}
       </View>
     </View>
   );

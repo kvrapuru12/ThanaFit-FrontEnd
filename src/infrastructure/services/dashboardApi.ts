@@ -451,55 +451,28 @@ export class DashboardApiService {
   }> {
     try {
       const summaryDay = options?.summaryDate ?? new Date();
-      // Fetch real data from backend APIs
-      let activityLogs: ActivityLog[] = [];
-      let foodLogs: FoodLog[] = [];
-      let waterIntake: WaterIntake[] = [];
-      let sleepEntries: SleepEntry[] = [];
-      let weightEntries: WeightEntry[] = [];
-      let stepEntries: StepEntry[] = [];
-      
-      try {
-        activityLogs = await this.getTodayActivityLogs(userId, summaryDay);
-      } catch (activityError) {
-        console.error('Activity logs failed, using empty array:', activityError);
-        activityLogs = [];
-      }
-      
-      try {
-        foodLogs = await this.getTodayFoodLogs(userId, summaryDay);
-      } catch (foodError) {
-        console.error('Food logs failed, using empty array:', foodError);
-        foodLogs = [];
-      }
-      
-      try {
-        waterIntake = await this.getTodayWaterIntake(userId, summaryDay);
-      } catch (waterError) {
-        console.error('Water intake failed, using empty array:', waterError);
-        waterIntake = [];
-      }
-      
-      try {
-        sleepEntries = await this.getTodaySleepEntries(userId, summaryDay);
-      } catch (sleepError) {
-        console.error('Sleep entries failed, using empty array:', sleepError);
-        sleepEntries = [];
-      }
-      
-      try {
-        weightEntries = await this.getTodayWeightEntries(userId, summaryDay);
-      } catch (weightError) {
-        console.error('Weight entries failed, using empty array:', weightError);
-        weightEntries = [];
-      }
-      
-      try {
-        stepEntries = await this.getTodayStepEntries(userId, summaryDay);
-      } catch (stepError) {
-        console.error('Step entries failed, using empty array:', stepError);
-        stepEntries = [];
-      }
+      const settled = await Promise.allSettled([
+        this.getTodayActivityLogs(userId, summaryDay),
+        this.getTodayFoodLogs(userId, summaryDay),
+        this.getTodayWaterIntake(userId, summaryDay),
+        this.getTodaySleepEntries(userId, summaryDay),
+        this.getTodayWeightEntries(userId, summaryDay),
+        this.getTodayStepEntries(userId, summaryDay),
+      ]);
+
+      const readSettledArray = <T,>(index: number, label: string): T[] => {
+        const result = settled[index];
+        if (result.status === 'fulfilled') return result.value as T[];
+        console.error(`${label} failed, using empty array:`, result.reason);
+        return [];
+      };
+
+      const activityLogs = readSettledArray<ActivityLog>(0, 'Activity logs');
+      const foodLogs = readSettledArray<FoodLog>(1, 'Food logs');
+      const waterIntake = readSettledArray<WaterIntake>(2, 'Water intake');
+      const sleepEntries = readSettledArray<SleepEntry>(3, 'Sleep entries');
+      const weightEntries = readSettledArray<WeightEntry>(4, 'Weight entries');
+      const stepEntries = readSettledArray<StepEntry>(5, 'Step entries');
       
       // Calculate totals from real data
       const totalCalories = foodLogs.reduce((sum, food) => sum + food.calories, 0);

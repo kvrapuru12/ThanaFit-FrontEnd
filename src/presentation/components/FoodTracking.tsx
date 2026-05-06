@@ -1,19 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { 
   View, 
   Text, 
+  ScrollView,
   TouchableOpacity, 
   StyleSheet, 
   Dimensions,
+  useWindowDimensions,
   ActivityIndicator,
   Alert,
   Image,
-  Modal,
-  Platform,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ScrollView } from 'react-native-gesture-handler';
 import { Card, CardContent, CardHeader } from './ui/card';
 import { Input } from './Input';
 import { Button } from './ui/button';
@@ -31,7 +30,6 @@ import { showRowActionsMenu } from '../utils/showRowActionsMenu';
 import {
   TabScreenHeader,
   TAB_SCREEN_HORIZONTAL_PADDING,
-  TAB_SCREEN_STICKY_SCROLL_PADDING_TOP,
 } from './TabScreenHeader';
 
 const { width } = Dimensions.get('window');
@@ -197,6 +195,7 @@ interface FoodTrackingProps {
 
 export function FoodTracking({ navigation }: FoodTrackingProps) {
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
   const scrollBottomPadding = insets.bottom + TAB_BAR_CLEARANCE;
   const { user } = useAuth();
   const [selectedMeal, setSelectedMeal] = useState('breakfast');
@@ -213,31 +212,75 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
     setSelectedDate,
   } = useFoodLogs();
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
-  const [datePickerVisible, setDatePickerVisible] = useState(false);
-  const [draftPickerDate, setDraftPickerDate] = useState(() => startOfLocalDay(new Date()));
 
   const todayStart = startOfLocalDay(new Date());
   const isViewingToday = isSameLocalDay(selectedDate, todayStart);
-  const canGoNextDay = selectedDate.getTime() < todayStart.getTime();
   const addActionsDisabled = !isViewingToday || mealsLoading;
+  const weekDays = useMemo(() => ['S', 'M', 'T', 'W', 'T', 'F', 'S'], []);
+  const dateRailScrollRef = useRef<ScrollView>(null);
+  const contentScrollRef = useRef<ScrollView>(null);
+  const shouldSnapDateRailToEndRef = useRef(true);
+  const dateItemGap = 10;
+  const dateRailSidePadding = 8;
+  const visibleDayCount = 7;
+  const [dateRailViewportWidth, setDateRailViewportWidth] = useState(
+    Math.max(0, screenWidth)
+  );
+  const weekDayItemWidth = useMemo(() => {
+    const availableWidth =
+      dateRailViewportWidth - dateRailSidePadding * 2 - dateItemGap * (visibleDayCount - 1);
+    return Math.max(28, Math.floor(availableWidth / visibleDayCount));
+  }, [dateRailViewportWidth]);
+  const weekDateItems = useMemo(() => {
+    const totalPastDays = 120;
+    const windowStart = addLocalCalendarDays(todayStart, -totalPastDays);
+    return Array.from({ length: totalPastDays + 1 }, (_unused, dayOffset) => {
+      const date = addLocalCalendarDays(windowStart, dayOffset);
+      return {
+        date,
+        dayLabel: weekDays[date.getDay()],
+        isFuture: date.getTime() > todayStart.getTime(),
+      };
+    });
+  }, [todayStart, weekDays]);
+  const scrollDateRailToEnd = useCallback(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        dateRailScrollRef.current?.scrollToEnd({ animated: false });
+      });
+    });
+  }, []);
+  const alignToCurrentWeek = useCallback(() => {
+    setSelectedDate(startOfLocalDay(new Date()));
+    shouldSnapDateRailToEndRef.current = true;
+    scrollDateRailToEnd();
+    requestAnimationFrame(() => {
+      contentScrollRef.current?.scrollTo({ y: 0, animated: false });
+    });
+  }, [scrollDateRailToEnd, setSelectedDate]);
 
-  const openDatePicker = () => {
-    setDraftPickerDate(selectedDate);
-    setDatePickerVisible(true);
-  };
+  const handleSelectDate = useCallback(
+    (date: Date) => {
+      setSelectedDate(date);
+      requestAnimationFrame(() => {
+        contentScrollRef.current?.scrollTo({ y: 0, animated: false });
+      });
+    },
+    [setSelectedDate]
+  );
 
-  const handlePickerChange = (_event: unknown, date?: Date) => {
-    if (date) {
-      const normalized = startOfLocalDay(date);
-      const max = startOfLocalDay(new Date());
-      setDraftPickerDate(normalized.getTime() > max.getTime() ? max : normalized);
-    }
-  };
+  useEffect(() => {
+    alignToCurrentWeek();
+  }, [alignToCurrentWeek]);
 
-  const confirmPickerDate = () => {
-    setSelectedDate(draftPickerDate);
-    setDatePickerVisible(false);
-  };
+  useFocusEffect(
+    useCallback(() => {
+      alignToCurrentWeek();
+      requestAnimationFrame(() => {
+        contentScrollRef.current?.scrollTo({ x: 0, y: 0, animated: false });
+      });
+    }, [alignToCurrentWeek])
+  );
 
   const confirmDeleteFoodLog = (log: FoodLog) => {
     const label = log.foodItemName || log.food?.name || 'this item';
@@ -422,23 +465,71 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
         borderBottomColor="#f3f4f6"
         title="Food Diary"
         subtitle="Track your meals and nutrition"
-        dateNav={{
-          selectedDate,
-          onPrevDay: () => setSelectedDate(addLocalCalendarDays(selectedDate, -1)),
-          onNextDay: () => setSelectedDate(addLocalCalendarDays(selectedDate, 1)),
-          onOpenPicker: openDatePicker,
-          canGoNextDay,
-          disabled: mealsLoading,
-        }}
+        hideLogo
       />
-
-      {/* Scrollable Content */}
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={contentScrollRef}
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
+        contentContainerStyle={styles.scrollContentContainer}
+      >
+        <ScrollView
+          ref={dateRailScrollRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.weekStrip}
+        onLayout={(event) => {
+          const nextWidth = Math.floor(event.nativeEvent.layout.width);
+          setDateRailViewportWidth((prev) => (prev === nextWidth ? prev : nextWidth));
+        }}
+          contentContainerStyle={styles.weekStripContent}
+          onContentSizeChange={() => {
+            if (!shouldSnapDateRailToEndRef.current) return;
+            scrollDateRailToEnd();
+            shouldSnapDateRailToEndRef.current = false;
+          }}
+        >
+          {weekDateItems.map((item, index) => (
+            <TouchableOpacity
+              key={item.date.toISOString()}
+              style={[
+                styles.weekDayColumn,
+                {
+                  width: weekDayItemWidth,
+                  marginRight: index === weekDateItems.length - 1 ? 0 : dateItemGap,
+                },
+              ]}
+              onPress={() => handleSelectDate(item.date)}
+              disabled={mealsLoading || item.isFuture}
+              accessibilityRole="button"
+              accessibilityLabel={`Select ${item.date.toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'short',
+                day: 'numeric',
+              })}`}
+            >
+              <Text style={styles.weekDayLabel}>{item.dayLabel}</Text>
+              <View
+                style={[
+                  styles.weekDayCircle,
+                  isSameLocalDay(item.date, selectedDate) && styles.weekDayCircleSelected,
+                  item.isFuture && styles.weekDayCircleDisabled,
+                ]}
+              >
+                {isSameLocalDay(item.date, selectedDate) ? (
+                  <MaterialIcons name="check" size={14} color="#ffffff" />
+                ) : null}
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
         <View
           style={[
             styles.content,
             {
-              paddingTop: TAB_SCREEN_STICKY_SCROLL_PADDING_TOP,
+              paddingTop: 4,
               paddingBottom: scrollBottomPadding,
             },
           ]}
@@ -762,63 +853,6 @@ export function FoodTracking({ navigation }: FoodTrackingProps) {
         </View>
       </ScrollView>
 
-      <Modal
-        visible={datePickerVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setDatePickerVisible(false)}
-      >
-        <View style={styles.datePickerModalOverlay}>
-          <View style={styles.datePickerModalContent}>
-            <View style={styles.datePickerModalHeader}>
-              <Text style={styles.datePickerModalTitle}>Choose date</Text>
-              <TouchableOpacity
-                onPress={() => setDatePickerVisible(false)}
-                style={styles.datePickerCloseButton}
-              >
-                <MaterialIcons name="close" size={24} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.datePickerModalBody}>
-              <DateTimePicker
-                key={draftPickerDate.getTime()}
-                value={draftPickerDate}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={handlePickerChange}
-                maximumDate={todayStart}
-                textColor="#1f2937"
-                style={styles.datePickerComponent}
-              />
-              <View style={styles.datePickerSelectedDate}>
-                <Text style={styles.datePickerSelectedDateText}>
-                  {draftPickerDate.toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.datePickerModalFooter}>
-              <TouchableOpacity
-                style={styles.datePickerCancelButton}
-                onPress={() => setDatePickerVisible(false)}
-              >
-                <Text style={styles.datePickerCancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.datePickerConfirmButton}
-                onPress={confirmPickerDate}
-              >
-                <Text style={styles.datePickerConfirmButtonText}>Done</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
       <FoodVoiceRecorder
           visible={showVoiceRecorder}
           onClose={() => setShowVoiceRecorder(false)}
@@ -841,89 +875,50 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollContentContainer: {
+    paddingTop: 0,
+  },
   content: {
     paddingHorizontal: TAB_SCREEN_HORIZONTAL_PADDING,
   },
+  weekStrip: {
+    marginTop: -2,
+    marginBottom: 14,
+    backgroundColor: '#fef7ed',
+  },
+  weekStripContent: {
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 2,
+  },
+  weekDayColumn: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  weekDayLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '600',
+  },
+  weekDayCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1.25,
+    borderColor: '#b6bcc6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  weekDayCircleSelected: {
+    backgroundColor: '#111827',
+    borderColor: '#111827',
+  },
+  weekDayCircleDisabled: {
+    opacity: 0.35,
+  },
   actionDisabled: {
     opacity: 0.45,
-  },
-  datePickerModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  datePickerModalContent: {
-    backgroundColor: 'white',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-    maxHeight: '80%',
-  },
-  datePickerModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  datePickerModalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  datePickerCloseButton: {
-    padding: 4,
-  },
-  datePickerModalBody: {
-    marginBottom: 24,
-    alignItems: 'center',
-  },
-  datePickerComponent: {
-    width: '100%',
-    height: Platform.OS === 'ios' ? 200 : 50,
-  },
-  datePickerSelectedDate: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
-    alignSelf: 'stretch',
-  },
-  datePickerSelectedDateText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1f2937',
-    textAlign: 'center',
-  },
-  datePickerModalFooter: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  datePickerCancelButton: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    alignItems: 'center',
-    backgroundColor: '#f9fafb',
-  },
-  datePickerCancelButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#6b7280',
-  },
-  datePickerConfirmButton: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#ff6b6b',
-    alignItems: 'center',
-  },
-  datePickerConfirmButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'white',
   },
   summaryGridWrap: {
     marginBottom: 22,

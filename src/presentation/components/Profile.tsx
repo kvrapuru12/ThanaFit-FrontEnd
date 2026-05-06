@@ -832,7 +832,7 @@ export function Profile({ navigation }: ProfileProps) {
           </Animated.View>
         )}
 
-        <TabScreenHeader title="Profile" subtitle="Manage your account" />
+        <TabScreenHeader title="Profile" subtitle="Manage your account" hideLogo />
 
         {/* Profile Card */}
         <Card style={styles.profileCard}>

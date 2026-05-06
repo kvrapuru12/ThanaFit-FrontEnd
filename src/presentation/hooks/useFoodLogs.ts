@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { dashboardApiService, FoodLog, FoodItem } from '../../infrastructure/services/dashboardApi';
 import { useAuth } from '../providers/AuthProvider';
 import { startOfLocalDay, loggedAtIsoForBackdatedLocalDay } from '../../core/utils/dateUtils';
@@ -42,6 +42,9 @@ export function useFoodLogs(): UseFoodLogsReturn {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const latestFetchRequestIdRef = useRef(0);
+  const mealsCacheRef = useRef<Map<string, Record<string, FoodLog[]>>>(new Map());
+  const hasLoadedOnceRef = useRef(false);
 
   const setSelectedDate = useCallback((d: Date) => {
     const normalized = startOfLocalDay(d);
@@ -57,8 +60,14 @@ export function useFoodLogs(): UseFoodLogsReturn {
     if (!user?.id) return;
 
     const silent = opts?.silent === true;
+    const requestId = ++latestFetchRequestIdRef.current;
+    const localDateKey = selectedDate.toISOString().slice(0, 10);
+    const cachedMeals = mealsCacheRef.current.get(localDateKey);
     try {
-      if (!silent) {
+      if (cachedMeals) {
+        setTodaysMeals(cachedMeals);
+      }
+      if (!silent && !cachedMeals && !hasLoadedOnceRef.current) {
         setLoading(true);
       }
       setError(null);
@@ -98,14 +107,22 @@ export function useFoodLogs(): UseFoodLogsReturn {
         });
       }
       
+      if (requestId !== latestFetchRequestIdRef.current) {
+        return;
+      }
+      mealsCacheRef.current.set(localDateKey, enrichedLogs);
       setTodaysMeals(enrichedLogs);
+      hasLoadedOnceRef.current = true;
       
       console.log('Today\'s food logs loaded with enriched data:', enrichedLogs);
     } catch (err) {
+      if (requestId !== latestFetchRequestIdRef.current) {
+        return;
+      }
       console.error('Failed to load today\'s food logs:', err);
       setError(err instanceof Error ? err.message : 'Failed to load meals');
     } finally {
-      if (!silent) {
+      if (!silent && requestId === latestFetchRequestIdRef.current) {
         setLoading(false);
       }
     }

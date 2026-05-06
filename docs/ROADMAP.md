@@ -5,6 +5,8 @@
 - Protect recent backend-call and logging optimizations from regressions.
 - Enable repeatable CI validation for release confidence.
 - Add user-facing management flows for food/activity catalogs (view + edit).
+- Auto-sync steps and sleep data whenever the user opens the app.
+- Provide the ability to log food and exercise for previous dates.
 
 ## E2E Testing Roadmap
 
@@ -40,6 +42,7 @@
   - view + edit food item flow,
   - view + edit activity item flow,
   - date switching behavior in Dashboard/Food/Exercise,
+  - app-open auto-sync for steps and sleep data,
   - core error handling states and retry actions.
 - Add baseline assertions for backend-call-sensitive interactions (no duplicate visible user actions, expected refresh behavior).
 
