@@ -560,6 +560,14 @@ export function CycleSync({ navigation }: CycleSyncProps) {
           isCycleRegular,
         });
       }
+
+      // Close the modal BEFORE refreshing data. `loadCycle()` flips `loading` which temporarily
+      // unmounts the modal; if we keep it open during refresh it can "re-appear" after loading.
+      setShowPeriodLog(false);
+      setShowDatePicker(false);
+      setEditingCycle(null);
+      setOriginalPeriodDate(null);
+
       try {
         await apiClient.patch(`/users/${user.id}`, { lastPeriodDate: dateStr });
         await refreshUserData();
@@ -574,9 +582,8 @@ export function CycleSync({ navigation }: CycleSyncProps) {
       if (shouldResetSuggestions) {
         await invalidateSuggestionsCache(user.id);
       }
+      // Refresh in the background; modal is already closed.
       await loadCycle();
-      setShowPeriodLog(false);
-      setEditingCycle(null);
     } catch (err: unknown) {
       Alert.alert('Error', getUserFacingApiMessage(err));
     } finally {
