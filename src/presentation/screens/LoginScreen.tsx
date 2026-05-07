@@ -12,8 +12,10 @@ import {
   Alert,
   Image
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../presentation/providers/AuthProvider';
+import { ONBOARDING_COMPLETED_STORAGE_KEY } from './OnboardingScreen';
 
 interface LoginData {
   username: string;
@@ -74,6 +76,14 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
       // The app will redirect to Dashboard when authentication is successful
       console.log('Login successful!');
     }
+  };
+
+  const previewOnboardingDev = async () => {
+    await AsyncStorage.removeItem(ONBOARDING_COMPLETED_STORAGE_KEY);
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Onboarding' }],
+    });
   };
 
   const handleForgotPassword = () => {
@@ -145,6 +155,11 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <View style={styles.background}>
+        <View style={styles.blobA} />
+        <View style={styles.blobB} />
+        <View style={styles.blobC} />
+      </View>
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -163,11 +178,58 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
               </View>
             </View>
             <Text style={styles.title}>Welcome to ThanaFit</Text>
-            <Text style={styles.subtitle}>Track your fitness, nutrition, and wellness — all in one app.</Text>
+            <Text style={styles.subtitle}>
+              Voice-track food and workouts in seconds. Smarter insights, less effort.
+            </Text>
           </View>
 
           <View style={styles.formCard}>
-            {/* Login Form */}
+            <View style={styles.socialButtons}>
+              <TouchableOpacity
+                style={[styles.socialButton, styles.socialButtonGoogle]}
+                onPress={() => handleSocialLogin('Google')}
+                disabled={isLoading || isGoogleLoading}
+              >
+                {isGoogleLoading ? (
+                  <ActivityIndicator color="#EA4335" size="small" />
+                ) : (
+                  <>
+                    <Image
+                      source={require('../../../assets/icons/google-g.png')}
+                      style={styles.googleIcon}
+                      resizeMode="contain"
+                    />
+                    <Text style={styles.socialButtonText}>Continue with Google</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {Platform.OS === 'ios' && (
+                <TouchableOpacity
+                  style={[styles.socialButton, styles.socialButtonApple]}
+                  onPress={() => handleSocialLogin('Apple')}
+                  disabled={isLoading || isAppleLoading}
+                >
+                  {isAppleLoading ? (
+                    <ActivityIndicator color="#ffffff" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="logo-apple" size={18} color="#ffffff" />
+                      <Text style={[styles.socialButtonText, styles.socialButtonTextInverted]}>
+                        Continue with Apple
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or sign in with email</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
             <View style={styles.form}>
               <TextInput
                 placeholder="Username or Email"
@@ -212,7 +274,6 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
                 <Text style={styles.errorText}>{errors.password}</Text>
               )}
 
-              {/* Forgot Password */}
               <TouchableOpacity 
                 style={styles.forgotPassword}
                 onPress={handleForgotPassword}
@@ -221,8 +282,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
                 <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
               </TouchableOpacity>
 
-              {/* Login Button */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[
                   styles.loginButton,
                   isLoading && styles.loginButtonDisabled
@@ -236,50 +296,6 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
                   <Text style={styles.loginButtonText}>Sign In</Text>
                 )}
               </TouchableOpacity>
-            </View>
-
-            {/* Divider */}
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            {/* Social Login Buttons */}
-            <View style={styles.socialButtons}>
-              <TouchableOpacity 
-                style={[styles.socialButton, styles.socialButtonGoogle]}
-                onPress={() => handleSocialLogin('Google')}
-                disabled={isLoading || isGoogleLoading}
-              >
-                {isGoogleLoading ? (
-                  <ActivityIndicator color="#EA4335" size="small" />
-                ) : (
-                  <>
-                    <Ionicons name="logo-google" size={18} color="#EA4335" />
-                    <Text style={styles.socialButtonText}>Continue with Google</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-
-              {Platform.OS === 'ios' && (
-                <TouchableOpacity 
-                  style={[styles.socialButton, styles.socialButtonApple]}
-                  onPress={() => handleSocialLogin('Apple')}
-                  disabled={isLoading || isAppleLoading}
-                >
-                  {isAppleLoading ? (
-                    <ActivityIndicator color="#ffffff" size="small" />
-                  ) : (
-                    <>
-                      <Ionicons name="logo-apple" size={18} color="#ffffff" />
-                      <Text style={[styles.socialButtonText, styles.socialButtonTextInverted]}>
-                        Continue with Apple
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
             </View>
 
             <View style={styles.securityNote}>
@@ -299,6 +315,16 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
             </TouchableOpacity>
           </View>
 
+          {__DEV__ && (
+            <TouchableOpacity
+              style={styles.devPreviewOnboarding}
+              onPress={previewOnboardingDev}
+              accessibilityLabel="Preview onboarding (development only)"
+            >
+              <Text style={styles.devPreviewOnboardingText}>Preview onboarding (dev)</Text>
+            </TouchableOpacity>
+          )}
+
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -308,7 +334,38 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: '#f4f7ff',
+  },
+  background: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#f4f7ff',
+  },
+  blobA: {
+    position: 'absolute',
+    width: 420,
+    height: 420,
+    borderRadius: 210,
+    top: -220,
+    left: -150,
+    backgroundColor: 'rgba(91,155,255,0.22)', // ThanaFit primary
+  },
+  blobB: {
+    position: 'absolute',
+    width: 360,
+    height: 360,
+    borderRadius: 180,
+    top: 40,
+    right: -180,
+    backgroundColor: 'rgba(127,174,255,0.20)', // ThanaFit calm primary
+  },
+  blobC: {
+    position: 'absolute',
+    width: 520,
+    height: 520,
+    borderRadius: 260,
+    bottom: -320,
+    left: -220,
+    backgroundColor: 'rgba(74,138,239,0.14)', // ThanaFit pressed/secondary
   },
   scrollView: {
     flex: 1,
@@ -319,10 +376,10 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 24,
-    paddingVertical: 32,
+    paddingVertical: 28,
   },
   header: {
-    marginBottom: 32,
+    marginBottom: 22,
     alignItems: 'center',
   },
   brandMark: {
@@ -333,7 +390,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 20,
-    backgroundColor: '#eef2ff',
+    backgroundColor: '#dbe7ff',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
@@ -355,36 +412,39 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 30,
+    fontWeight: '700',
     textAlign: 'center',
-    color: '#1f2937',
+    color: '#1e293b',
     marginBottom: 8,
   },
   subtitle: {
     textAlign: 'center',
-    color: '#6b7280',
-    fontSize: 16,
+    color: '#64748b',
+    fontSize: 15,
+    lineHeight: 22,
   },
   formCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 20,
+    padding: 18,
     marginBottom: 20,
-    shadowColor: '#111827',
-    shadowOpacity: 0.08,
+    borderWidth: 1,
+    borderColor: '#dce5f3',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.06,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
+    elevation: 2,
   },
   form: {
-    marginBottom: 24,
+    marginBottom: 8,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    padding: 16,
+    borderColor: '#cbd5e1',
+    borderRadius: 12,
+    padding: 14,
     fontSize: 16,
     marginBottom: 16,
     backgroundColor: 'white',
@@ -406,7 +466,7 @@ const styles = StyleSheet.create({
     top: 16,
   },
   showPasswordText: {
-    color: '#2563eb',
+    color: '#5b84d6',
     fontWeight: '500',
   },
   errorText: {
@@ -419,19 +479,19 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   forgotPasswordText: {
-    color: '#2563eb',
+    color: '#5b84d6',
     fontWeight: '500',
   },
   loginButton: {
-    backgroundColor: '#2563eb',
+    backgroundColor: '#5b84d6',
     paddingVertical: 16,
     minHeight: 52,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   loginButtonDisabled: {
-    backgroundColor: '#93c5fd',
+    backgroundColor: '#9db5e6',
   },
   loginButtonText: {
     color: 'white',
@@ -441,7 +501,8 @@ const styles = StyleSheet.create({
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
+    marginTop: 10,
   },
   dividerLine: {
     flex: 1,
@@ -449,12 +510,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#d1d5db',
   },
   dividerText: {
-    marginHorizontal: 16,
-    color: '#6b7280',
+    marginHorizontal: 12,
+    color: '#94a3b8',
+    fontSize: 12,
   },
   socialButtons: {
     gap: 12,
-    marginBottom: 24,
+    marginBottom: 12,
   },
   socialButton: {
     flexDirection: 'row',
@@ -463,8 +525,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     minHeight: 48,
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
+    borderColor: '#d8e0ee',
+    borderRadius: 12,
     backgroundColor: 'white',
   },
   socialButtonGoogle: {
@@ -479,6 +541,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginLeft: 8,
   },
+  googleIcon: {
+    width: 18,
+    height: 18,
+  },
   socialButtonTextInverted: {
     color: '#ffffff',
   },
@@ -491,17 +557,28 @@ const styles = StyleSheet.create({
   securityNoteText: {
     marginLeft: 6,
     fontSize: 12,
-    color: '#6b7280',
+    color: '#64748b',
   },
   signupLink: {
     flexDirection: 'row',
     justifyContent: 'center',
   },
   signupText: {
-    color: '#6b7280',
+    color: '#64748b',
   },
   signupLinkText: {
-    color: '#2563eb',
+    color: '#5b84d6',
     fontWeight: '600',
+  },
+  devPreviewOnboarding: {
+    marginTop: 20,
+    alignSelf: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  devPreviewOnboardingText: {
+    fontSize: 12,
+    color: '#9ca3af',
+    textDecorationLine: 'underline',
   },
 });

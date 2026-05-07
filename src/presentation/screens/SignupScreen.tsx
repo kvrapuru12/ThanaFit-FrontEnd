@@ -524,6 +524,8 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
 
       <View style={styles.pickerContainer}>
         <Picker
+          style={styles.picker}
+          itemStyle={styles.pickerItem}
           selectedValue={userData.gender}
           onValueChange={(value) => updateUserData('gender', value)}
         >
@@ -545,9 +547,11 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
 
       {/* Activity Level Section */}
       <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>🏃‍♀️ Activity Level</Text>
+        <Text style={styles.sectionTitle}>Activity Level</Text>
         <View style={styles.pickerContainer}>
           <Picker
+            style={styles.picker}
+            itemStyle={styles.pickerItem}
             selectedValue={userData.activityLevel}
             onValueChange={(value) => updateUserData('activityLevel', value)}
           >
@@ -683,9 +687,15 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.content}>
+          <View style={styles.screenIntro}>
+            <Text style={styles.screenIntroTitle}>Create your ThanaFit account</Text>
+            <Text style={styles.screenIntroSubtitle}>
+              Just 3 quick steps to personalize your fitness and nutrition journey.
+            </Text>
+          </View>
           {renderStepIndicator()}
           {renderApiErrors()}
-          {renderCurrentStep()}
+          <View style={styles.stepCard}>{renderCurrentStep()}</View>
         </View>
       </ScrollView>
       
@@ -724,7 +734,16 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
           )}
         </View>
 
-        <TouchableOpacity style={styles.loginLink} onPress={() => navigation.goBack()}>
+        <TouchableOpacity
+          style={styles.loginLink}
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('Login');
+            }
+          }}
+        >
           <Text style={styles.loginLinkText}>Already have an account? Login</Text>
         </TouchableOpacity>
       </View>
@@ -735,47 +754,81 @@ export default function SignupScreen({ navigation }: SignupScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: '#f4f7ff',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: 8,
   },
   content: {
     paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 16,
+    paddingTop: 58,
+    paddingBottom: 24,
+  },
+  screenIntro: {
+    backgroundColor: '#4f6fae',
+    borderRadius: 18,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    marginBottom: 18,
+  },
+  screenIntroTitle: {
+    color: '#ffffff',
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  screenIntroSubtitle: {
+    color: 'rgba(241,245,255,0.92)',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  stepCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#d9e2f2',
+    paddingVertical: 18,
+    paddingHorizontal: 14,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
   },
   footerContainer: {
     paddingHorizontal: 24,
-    paddingBottom: 32,
-    backgroundColor: 'white',
+    paddingBottom: 34,
+    backgroundColor: '#ffffff',
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
+    borderTopColor: '#e5e7eb',
   },
   stepIndicator: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   stepContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   stepCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepCircleActive: {
-    backgroundColor: '#2563eb',
+    backgroundColor: '#5b84d6',
   },
   stepCircleInactive: {
-    backgroundColor: '#d1d5db',
+    backgroundColor: '#d7e1f3',
   },
   stepText: {
     fontWeight: '600',
@@ -784,7 +837,7 @@ const styles = StyleSheet.create({
     color: 'white',
   },
   stepTextInactive: {
-    color: '#6b7280',
+    color: '#64748b',
   },
   stepLine: {
     width: 48,
@@ -792,57 +845,58 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   stepLineActive: {
-    backgroundColor: '#2563eb',
+    backgroundColor: '#5b84d6',
   },
   stepLineInactive: {
-    backgroundColor: '#d1d5db',
+    backgroundColor: '#d7e1f3',
   },
   apiErrorContainer: {
-    backgroundColor: '#fef2f2',
-    borderColor: '#ef4444',
+    backgroundColor: '#fff1f2',
+    borderColor: '#fb7185',
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 16,
+    borderRadius: 12,
+    padding: 14,
     marginBottom: 16,
   },
   apiErrorTitle: {
-    color: '#ef4444',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 8,
+    color: '#be123c',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 6,
   },
   apiErrorText: {
-    color: '#ef4444',
-    fontSize: 14,
+    color: '#be123c',
+    fontSize: 13,
     marginBottom: 4,
   },
   stepTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontSize: 21,
+    fontWeight: '700',
+    color: '#0f172a',
+    textAlign: 'left',
     marginBottom: 8,
   },
   stepDescription: {
     fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginBottom: 20,
+    color: '#64748b',
+    textAlign: 'left',
+    marginBottom: 16,
     lineHeight: 20,
   },
   sectionContainer: {
-    marginBottom: 24,
-    paddingVertical: 16,
+    marginBottom: 16,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#f7f9fc',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: '#dde4ee',
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 8,
+    color: '#3e5f99',
+    marginBottom: 10,
   },
   sectionDescription: {
     fontSize: 14,
@@ -859,28 +913,37 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    padding: 12,
+    borderColor: '#cbd5e1',
+    borderRadius: 12,
+    padding: 13,
     marginBottom: 12,
     fontSize: 16,
-    backgroundColor: 'white',
+    backgroundColor: '#ffffff',
+    color: '#0f172a',
   },
   inputError: {
-    borderColor: '#ef4444',
-    backgroundColor: '#fef2f2',
+    borderColor: '#fb7185',
+    backgroundColor: '#fff1f2',
   },
   errorText: {
-    color: '#ef4444',
-    fontSize: 14,
+    color: '#be123c',
+    fontSize: 13,
     marginBottom: 8,
   },
   pickerContainer: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
+    borderColor: '#cbd5e1',
+    borderRadius: 12,
     marginBottom: 8,
     backgroundColor: 'white',
+  },
+  picker: {
+    color: '#0f172a',
+    fontSize: 16,
+  },
+  pickerItem: {
+    color: '#0f172a',
+    fontSize: 16,
   },
   heightContainer: {
     flexDirection: 'row',
@@ -900,11 +963,11 @@ const styles = StyleSheet.create({
   },
   unitButtonContainer: {
     flexDirection: 'row',
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
+    backgroundColor: '#eef2ff',
+    borderRadius: 10,
     padding: 2,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#dbe4ff',
   },
   unitButton: {
     flex: 1,
@@ -916,8 +979,8 @@ const styles = StyleSheet.create({
     minHeight: 36,
   },
   unitButtonActive: {
-    backgroundColor: '#3b82f6',
-    shadowColor: '#3b82f6',
+    backgroundColor: '#2563eb',
+    shadowColor: '#2563eb',
     shadowOffset: {
       width: 0,
       height: 2,
@@ -940,41 +1003,43 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   unitButtonTextInactive: {
-    color: '#6b7280',
+    color: '#475569',
   },
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 24,
+    marginTop: 8,
   },
   button: {
-    padding: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
     flex: 1,
     alignItems: 'center',
   },
   previousButton: {
-    backgroundColor: '#6b7280',
+    backgroundColor: '#64748b',
     marginRight: 8,
   },
   nextButton: {
-    backgroundColor: '#2563eb',
+    backgroundColor: '#5b84d6',
     marginLeft: 8,
   },
   signupButton: {
-    backgroundColor: '#10b981',
+    backgroundColor: '#059669',
     marginLeft: 8,
   },
   buttonText: {
     color: 'white',
-    fontWeight: '600',
+    fontWeight: '700',
+    fontSize: 16,
   },
   loginLink: {
-    marginTop: 16,
+    marginTop: 12,
     alignItems: 'center',
   },
   loginLinkText: {
-    color: '#10b981',
+    color: '#5b84d6',
+    fontWeight: '600',
     textAlign: 'center',
   },
 });

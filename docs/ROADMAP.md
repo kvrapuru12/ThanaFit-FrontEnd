@@ -7,6 +7,7 @@
 - Add user-facing management flows for food/activity catalogs (view + edit).
 - Auto-sync steps and sleep data whenever the user opens the app.
 - Provide the ability to log food and exercise for previous dates.
+- Ship and validate **push notification reminders** (device registration, user preferences, scheduled reminders, deep links). Operational rollout steps live in `docs/PUSH_REMINDERS_OPERATIONS.md`.
 
 ## E2E Testing Roadmap
 
@@ -71,3 +72,4 @@
 - Regressions in tab navigation and key data-entry workflows are caught before release.
 - E2E suite remains maintainable with low flake rate and clear failure diagnostics.
 - Food item and activity item view/edit workflows are validated in automated E2E runs.
+- Push reminder capability is exercised against the release validation checklist (credentials, token registration, preferences, test send, deep links) documented for operators.

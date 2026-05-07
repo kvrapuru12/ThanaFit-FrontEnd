@@ -5,10 +5,14 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthProvider, useAuth } from './src/presentation/providers/AuthProvider';
 import { container } from './src/di/Container';
 import LoginScreen from './src/presentation/screens/LoginScreen';
 import SignupScreen from './src/presentation/screens/SignupScreen';
+import OnboardingScreen, {
+  ONBOARDING_COMPLETED_STORAGE_KEY,
+} from './src/presentation/screens/OnboardingScreen';
 import { BottomNavigation } from './src/presentation/components/BottomNavigation';
 import { MainTabProvider } from './src/presentation/providers/MainTabContext';
 import { Dashboard } from './src/presentation/components/Dashboard';
@@ -45,6 +49,32 @@ const LoadingScreen = () => (
 const AppNavigator = () => {
   const { isAuthenticated, isLoading, user } = useAuth();
   const [notificationTargetTab, setNotificationTargetTab] = useState<string | null>(null);
+  const [authRoutesReady, setAuthRoutesReady] = useState(false);
+  /** Only true after we successfully read storage and found onboarding completed (missing key => show onboarding). */
+  const [onboardingFinished, setOnboardingFinished] = useState(false);
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    if (isAuthenticated) {
+      setAuthRoutesReady(true);
+      return;
+    }
+
+    // Re-read before mounting the auth stack (covers logout so initialRouteName matches storage).
+    setAuthRoutesReady(false);
+    AsyncStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY)
+      .then((value) => {
+        setOnboardingFinished(value === '1');
+      })
+      .catch(() => {
+        // Prefer showing onboarding if storage is unreadable (safe default for first launch).
+        setOnboardingFinished(false);
+      })
+      .finally(() => {
+        setAuthRoutesReady(true);
+      });
+  }, [isLoading, isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return;
@@ -67,14 +97,16 @@ const AppNavigator = () => {
     return unsubscribe;
   }, [isAuthenticated]);
 
-  if (isLoading) {
+  if (isLoading || !authRoutesReady) {
     return <LoadingScreen />;
   }
 
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName={isAuthenticated ? "MainApp" : "Login"}
+        initialRouteName={
+          isAuthenticated ? 'MainApp' : onboardingFinished ? 'Login' : 'Onboarding'
+        }
         screenOptions={{
           headerShown: false,
         }}
@@ -141,6 +173,11 @@ const AppNavigator = () => {
           // Authentication Stack
           <>
             <Stack.Screen
+              name="Onboarding"
+              component={OnboardingScreen}
+              options={{ title: 'Welcome' }}
+            />
+            <Stack.Screen
               name="Login"
               component={LoginScreen}
               options={{ title: 'Login' }}
@@ -185,10 +222,6 @@ const MainApp = ({
     setActiveTab(targetTabFromNotification);
     onNotificationTabHandled?.();
   }, [targetTabFromNotification, onNotificationTabHandled]);
-
-  // Debug logging
-  console.log('MainApp - user:', user);
-  console.log('MainApp - user?.gender:', user?.gender);
 
   const renderActiveTab = (navigation?: any) => {
     switch (activeTab) {
