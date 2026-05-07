@@ -50,6 +50,7 @@ google-service-account.json
 .idea/
 *.swp
 *.swo
+.cursor/*.txt
 
 # OS generated files
 Thumbs.db
