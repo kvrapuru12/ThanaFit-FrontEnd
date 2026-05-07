@@ -100,12 +100,6 @@ export type CycleSyncSuggestionsResponse = Partial<
   Record<CycleSyncPhaseKey, CycleSyncSuggestionPhase>
 >;
 
-export interface VoiceCycleLogResponse {
-  message: string;
-  periodStartDate: string | null;
-  estimatedNextPeriod: string | null;
-}
-
 // Cycle API Service
 export class CycleApiService {
   private baseUrl = '/cycles';
@@ -282,27 +276,6 @@ export class CycleApiService {
       return response.data ?? {};
     } catch (error) {
       console.error('Failed to fetch cycle sync suggestions:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Parse natural language and log / update cycle (period start) from voice text.
-   */
-  async logCycleFromVoice(body: {
-    userId: number;
-    voiceText: string;
-  }): Promise<VoiceCycleLogResponse> {
-    try {
-      console.log('=== VOICE CYCLE LOG API CALL ===');
-      const response = await apiClient.post<VoiceCycleLogResponse>(
-        '/ai/suggestions/cycle-sync/cycle-log/from-voice',
-        body,
-        { timeout: CYCLE_SYNC_SUGGESTIONS_TIMEOUT_MS }
-      );
-      return response.data;
-    } catch (error) {
-      console.error('Failed to log cycle from voice:', error);
       throw error;
     }
   }
